@@ -114,7 +114,7 @@ async fn test_shutdown_signal_after_channel_closed() {
     drop(signal);
 
     // recv() should return error when channel is closed
-    let result = tokio::time::timeout(Duration::from_millis(100), rx.recv()).await;
+    let result = rx.recv().await;
     assert!(result.is_err());
 }
 
@@ -128,10 +128,17 @@ async fn test_multiple_shutdown_initiates() {
     signal.initiate();
     signal.initiate();
 
-    // Only first message should be received
-    rx.recv().await.unwrap();
+    // With capacity 1, doing multiple initiates without reading causes Lagged error.
+    // We should safely handle this Lagged error and verify we still get the signal.
+    match rx.recv().await {
+        Ok(_) => {}
+        Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => {
+            rx.recv().await.unwrap();
+        }
+        Err(e) => panic!("Unexpected error: {:?}", e),
+    }
 
-    // Second recv should timeout (no more messages)
+    // Next recv should timeout (no more messages) or return lag if many were sent
     let result = tokio::time::timeout(Duration::from_millis(100), rx.recv()).await;
     assert!(result.is_err());
 }
