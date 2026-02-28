@@ -10,8 +10,8 @@ use anyhow::Result;
 use chrono::Utc;
 use ent_dns::dns::rules::RuleSet;
 
-#[tokio::main]
-async fn main() -> Result<()> {
+#[tokio::test]
+async fn test_oisd_performance() -> Result<()> {
     println!("======================================");
     println!("OISD Phase 1 Performance Test");
     println!("======================================\n");
