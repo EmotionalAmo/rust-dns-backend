@@ -1,0 +1,91 @@
+# Ent-DNS Configuration File
+# Copy this file to config.toml (or /etc/ent-dns/config.toml) and adjust as needed.
+#
+# Priority order (highest → lowest):
+#   1. Environment variables  ENT_DNS__<SECTION>__<KEY>=value
+#   2. This config file       --config /path/to/config.toml  or  ENT_DNS_CONFIG=/path/to/config.toml
+#   3. Auto-discovered file   ./config.toml  or  /etc/ent-dns/config.toml
+#   4. Built-in defaults      (shown below)
+#
+# Env var examples:
+#   ENT_DNS__DNS__PORT=53
+#   ENT_DNS__AUTH__JWT_SECRET=my-super-secret
+#   ENT_DNS__API__CORS_ALLOWED_ORIGINS=https://dns.example.com
+
+# ── DNS Server ────────────────────────────────────────────────────────────────
+[dns]
+# Address to listen on for DNS queries
+bind = "0.0.0.0"
+
+# UDP/TCP port (53 requires root; use 5353 for non-root dev)
+port = 53
+
+# Default upstream DNS resolvers (plain UDP)
+# Supports: IP:port, https:// (DoH), tls:// (DoT)
+upstreams = ["1.1.1.1:53", "8.8.8.8:53"]
+
+# Prefer IPv4 for DNS queries (default: true)
+# When true, IPv6 upstream addresses are skipped and the resolver
+# uses Ipv4Only strategy. Set to false to enable IPv6 queries.
+# Can also be overridden with ENT_DNS__DNS__PREFER_IPV4 environment variable.
+prefer_ipv4 = true
+
+# Enable DNS-over-HTTPS endpoint at GET/POST /dns-query (RFC 8484)
+doh_enabled = true
+
+# Enable DNS-over-TLS (requires TLS cert configuration)
+dot_enabled = false
+
+# ── HTTP API & WebUI ──────────────────────────────────────────────────────────
+[api]
+bind = "0.0.0.0"
+port = 8080
+
+# Allowed CORS origins for the web UI.
+# In production, replace with your actual domain.
+cors_allowed_origins = [
+    "http://localhost:5173",
+    "http://localhost:5174",
+    "http://localhost:8080",
+]
+
+# Directory for frontend static files (relative or absolute path).
+# Default: "frontend/dist" — set to absolute path in production.
+# Can also be overridden with ENT_DNS__API__STATIC_DIR environment variable.
+static_dir = "frontend/dist"
+
+# ── Database ──────────────────────────────────────────────────────────────────
+[database]
+# SQLite database file path
+path = "/var/lib/ent-dns/ent-dns.db"
+
+# Delete query log entries older than N days (0 = keep forever)
+query_log_retention_days = 30
+
+# ── Authentication ────────────────────────────────────────────────────────────
+[auth]
+# REQUIRED: Change this to a strong random secret (min 32 characters).
+# Generate one with: openssl rand -hex 32
+jwt_secret = "CHANGE_ME_use_openssl_rand_hex_32_output_here"
+
+# JWT token lifetime in hours
+jwt_expiry_hours = 24
+
+# ── Logging ────────────────────────────────────────────────────────────────────
+[logging]
+# Log level: trace | debug | info | warn | error
+# RUST_LOG environment variable takes priority over this setting.
+level = "info"
+
+# Optional path for log file output. When set, logs are written to a rolling file.
+# Example: "/var/log/ent-dns/ent-dns.log"
+# When absent, only console (stdout) output is produced.
+# Can also be overridden with ENT_DNS__LOGGING__FILE environment variable.
+# file = "/var/log/ent-dns/ent-dns.log"
+
+# Rolling strategy for the log file: "daily" | "hourly" | "never"
+# Has no effect when `file` is not set.
+rotation = "daily"
+
+# When true (default) and `file` is set, logs are written to both file and stdout.
+console = true

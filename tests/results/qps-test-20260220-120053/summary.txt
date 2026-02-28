@@ -1,0 +1,36 @@
+=== QPS 100 测试摘要 ===
+开始时间: 2026-02-20T12:01:23+04:00
+  Queries sent:         0
+  Queries per second:   0.000000
+未找到延迟数据
+
+=== QPS 500 测试摘要 ===
+开始时间: 2026-02-20T12:02:53+04:00
+  Queries sent:         0
+  Queries per second:   0.000000
+未找到延迟数据
+
+=== QPS 1000 测试摘要 ===
+开始时间: 2026-02-20T12:04:23+04:00
+  Queries sent:         0
+  Queries per second:   0.000000
+未找到延迟数据
+
+=== QPS 2000 测试摘要 ===
+开始时间: 2026-02-20T12:05:53+04:00
+  Queries sent:         0
+  Queries per second:   0.000000
+未找到延迟数据
+
+=== QPS 5000 测试摘要 ===
+开始时间: 2026-02-20T12:07:23+04:00
+  Queries sent:         0
+  Queries per second:   0.000000
+未找到延迟数据
+
+=== QPS 10000 测试摘要 ===
+开始时间: 2026-02-20T12:08:53+04:00
+  Queries sent:         0
+  Queries per second:   0.000000
+未找到延迟数据
+

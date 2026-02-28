@@ -1,0 +1,320 @@
+DNS Performance Testing Tool
+Version 2.15.0
+
+[Status] Command line: dnsperf -s 127.0.0.1 -p 15353 -d domains.txt -l 300 -q 1000
+[Status] Sending queries (to 127.0.0.1:15353)
+[Status] Started at: Fri Feb 20 12:27:26 2026
+[Status] Stopping after 300.000000 seconds
+[Timeout] Query timed out: msg id 2583
+[Timeout] Query timed out: msg id 2592
+[Timeout] Query timed out: msg id 2723
+[Timeout] Query timed out: msg id 2753
+[Timeout] Query timed out: msg id 2786
+[Timeout] Query timed out: msg id 2810
+[Timeout] Query timed out: msg id 2814
+[Timeout] Query timed out: msg id 2841
+[Timeout] Query timed out: msg id 2845
+[Timeout] Query timed out: msg id 2846
+[Timeout] Query timed out: msg id 2847
+[Timeout] Query timed out: msg id 2850
+[Timeout] Query timed out: msg id 2879
+[Timeout] Query timed out: msg id 2883
+[Timeout] Query timed out: msg id 2885
+[Timeout] Query timed out: msg id 2888
+[Timeout] Query timed out: msg id 2893
+[Timeout] Query timed out: msg id 2895
+[Timeout] Query timed out: msg id 2899
+[Timeout] Query timed out: msg id 2900
+[Timeout] Query timed out: msg id 2902
+[Timeout] Query timed out: msg id 2903
+[Timeout] Query timed out: msg id 2905
+[Timeout] Query timed out: msg id 2906
+[Timeout] Query timed out: msg id 2909
+[Timeout] Query timed out: msg id 2911
+[Timeout] Query timed out: msg id 2912
+[Timeout] Query timed out: msg id 2913
+[Timeout] Query timed out: msg id 2914
+[Timeout] Query timed out: msg id 2916
+[Timeout] Query timed out: msg id 2918
+[Timeout] Query timed out: msg id 2921
+[Timeout] Query timed out: msg id 2923
+[Timeout] Query timed out: msg id 2932
+[Timeout] Query timed out: msg id 2939
+[Timeout] Query timed out: msg id 2940
+[Timeout] Query timed out: msg id 2941
+[Timeout] Query timed out: msg id 2943
+[Timeout] Query timed out: msg id 2948
+[Timeout] Query timed out: msg id 2954
+[Timeout] Query timed out: msg id 2962
+[Timeout] Query timed out: msg id 2963
+[Timeout] Query timed out: msg id 2969
+[Timeout] Query timed out: msg id 2979
+[Timeout] Query timed out: msg id 2980
+[Timeout] Query timed out: msg id 2981
+[Timeout] Query timed out: msg id 2984
+[Timeout] Query timed out: msg id 2989
+[Timeout] Query timed out: msg id 2991
+[Timeout] Query timed out: msg id 2995
+[Timeout] Query timed out: msg id 3207
+[Timeout] Query timed out: msg id 3210
+[Timeout] Query timed out: msg id 3227
+[Timeout] Query timed out: msg id 3232
+[Timeout] Query timed out: msg id 3238
+[Timeout] Query timed out: msg id 3244
+[Timeout] Query timed out: msg id 3328
+[Timeout] Query timed out: msg id 3337
+[Timeout] Query timed out: msg id 3355
+[Timeout] Query timed out: msg id 3359
+[Timeout] Query timed out: msg id 3363
+[Timeout] Query timed out: msg id 3366
+[Timeout] Query timed out: msg id 3381
+[Timeout] Query timed out: msg id 3398
+[Timeout] Query timed out: msg id 3428
+[Timeout] Query timed out: msg id 3430
+[Timeout] Query timed out: msg id 3435
+[Timeout] Query timed out: msg id 3439
+[Timeout] Query timed out: msg id 3441
+[Timeout] Query timed out: msg id 3442
+[Timeout] Query timed out: msg id 3446
+[Timeout] Query timed out: msg id 3465
+[Timeout] Query timed out: msg id 3469
+[Timeout] Query timed out: msg id 3474
+[Timeout] Query timed out: msg id 3484
+[Timeout] Query timed out: msg id 3577
+[Timeout] Query timed out: msg id 3655
+[Timeout] Query timed out: msg id 3671
+[Timeout] Query timed out: msg id 3672
+[Timeout] Query timed out: msg id 3681
+[Timeout] Query timed out: msg id 3689
+[Timeout] Query timed out: msg id 3696
+[Timeout] Query timed out: msg id 3701
+[Timeout] Query timed out: msg id 3711
+[Timeout] Query timed out: msg id 3713
+[Timeout] Query timed out: msg id 3715
+[Timeout] Query timed out: msg id 3716
+[Timeout] Query timed out: msg id 3718
+[Timeout] Query timed out: msg id 3723
+[Timeout] Query timed out: msg id 3728
+[Timeout] Query timed out: msg id 3729
+[Timeout] Query timed out: msg id 3730
+[Timeout] Query timed out: msg id 3731
+[Timeout] Query timed out: msg id 3736
+[Timeout] Query timed out: msg id 3745
+[Timeout] Query timed out: msg id 3750
+[Timeout] Query timed out: msg id 3751
+[Timeout] Query timed out: msg id 3753
+[Timeout] Query timed out: msg id 3754
+[Timeout] Query timed out: msg id 3757
+[Timeout] Query timed out: msg id 3758
+[Timeout] Query timed out: msg id 3765
+[Timeout] Query timed out: msg id 3766
+[Timeout] Query timed out: msg id 3769
+[Timeout] Query timed out: msg id 3770
+[Timeout] Query timed out: msg id 3772
+[Timeout] Query timed out: msg id 3785
+[Timeout] Query timed out: msg id 3786
+[Timeout] Query timed out: msg id 3789
+[Timeout] Query timed out: msg id 3791
+[Timeout] Query timed out: msg id 3793
+[Timeout] Query timed out: msg id 3799
+[Timeout] Query timed out: msg id 3802
+[Timeout] Query timed out: msg id 3808
+[Timeout] Query timed out: msg id 3810
+[Timeout] Query timed out: msg id 3814
+[Timeout] Query timed out: msg id 3815
+[Timeout] Query timed out: msg id 3819
+[Timeout] Query timed out: msg id 3837
+[Timeout] Query timed out: msg id 3841
+[Timeout] Query timed out: msg id 3846
+[Timeout] Query timed out: msg id 3847
+[Timeout] Query timed out: msg id 3850
+[Timeout] Query timed out: msg id 3853
+[Timeout] Query timed out: msg id 3856
+[Timeout] Query timed out: msg id 3859
+[Timeout] Query timed out: msg id 3871
+[Timeout] Query timed out: msg id 3879
+[Timeout] Query timed out: msg id 3888
+[Timeout] Query timed out: msg id 3890
+[Timeout] Query timed out: msg id 3893
+[Timeout] Query timed out: msg id 3895
+[Timeout] Query timed out: msg id 3899
+[Timeout] Query timed out: msg id 3900
+[Timeout] Query timed out: msg id 3902
+[Timeout] Query timed out: msg id 3903
+[Timeout] Query timed out: msg id 3906
+[Timeout] Query timed out: msg id 3909
+[Timeout] Query timed out: msg id 3911
+[Timeout] Query timed out: msg id 3912
+[Timeout] Query timed out: msg id 3914
+[Timeout] Query timed out: msg id 3940
+Warning: received a response with an unexpected (maybe timed out) id: 2995
+Warning: received a response with an unexpected (maybe timed out) id: 3428
+[Timeout] Query timed out: msg id 3960
+Warning: received a response with an unexpected (maybe timed out) id: 3701
+Warning: received a response with an unexpected (maybe timed out) id: 2979
+Warning: received a response with an unexpected (maybe timed out) id: 3355
+Warning: received a response with an unexpected (maybe timed out) id: 3715
+Warning: received a response with an unexpected (maybe timed out) id: 2981
+Warning: received a response with an unexpected (maybe timed out) id: 2786
+Warning: received a response with an unexpected (maybe timed out) id: 3363
+Warning: received a response with an unexpected (maybe timed out) id: 3711
+Warning: received a response with an unexpected (maybe timed out) id: 3366
+Warning: received a response with an unexpected (maybe timed out) id: 3789
+Warning: received a response with an unexpected (maybe timed out) id: 3465
+Warning: received a response with an unexpected (maybe timed out) id: 2847
+Warning: received a response with an unexpected (maybe timed out) id: 3238
+Warning: received a response with an unexpected (maybe timed out) id: 2592
+Warning: received a response with an unexpected (maybe timed out) id: 2883
+Warning: received a response with an unexpected (maybe timed out) id: 3713
+Warning: received a response with an unexpected (maybe timed out) id: 2846
+Warning: received a response with an unexpected (maybe timed out) id: 3469
+Warning: received a response with an unexpected (maybe timed out) id: 3577
+Warning: received a response with an unexpected (maybe timed out) id: 2879
+Warning: received a response with an unexpected (maybe timed out) id: 2903
+Warning: received a response with an unexpected (maybe timed out) id: 3398
+Warning: received a response with an unexpected (maybe timed out) id: 3430
+Warning: received a response with an unexpected (maybe timed out) id: 3232
+Warning: received a response with an unexpected (maybe timed out) id: 2989
+Warning: received a response with an unexpected (maybe timed out) id: 2583
+Warning: received a response with an unexpected (maybe timed out) id: 2845
+Warning: received a response with an unexpected (maybe timed out) id: 3244
+Warning: received a response with an unexpected (maybe timed out) id: 3359
+Warning: received a response with an unexpected (maybe timed out) id: 3441
+Warning: received a response with an unexpected (maybe timed out) id: 2753
+Warning: received a response with an unexpected (maybe timed out) id: 3723
+Warning: received a response with an unexpected (maybe timed out) id: 3770
+Warning: received a response with an unexpected (maybe timed out) id: 2963
+Warning: received a response with an unexpected (maybe timed out) id: 3772
+Warning: received a response with an unexpected (maybe timed out) id: 3850
+Warning: received a response with an unexpected (maybe timed out) id: 2984
+Warning: received a response with an unexpected (maybe timed out) id: 3846
+Warning: received a response with an unexpected (maybe timed out) id: 3729
+Warning: received a response with an unexpected (maybe timed out) id: 3853
+Warning: received a response with an unexpected (maybe timed out) id: 3655
+Warning: received a response with an unexpected (maybe timed out) id: 3847
+Warning: received a response with an unexpected (maybe timed out) id: 3435
+Warning: received a response with an unexpected (maybe timed out) id: 3728
+Warning: received a response with an unexpected (maybe timed out) id: 3766
+Warning: received a response with an unexpected (maybe timed out) id: 3856
+Warning: received a response with an unexpected (maybe timed out) id: 3837
+Warning: received a response with an unexpected (maybe timed out) id: 2893
+Warning: received a response with an unexpected (maybe timed out) id: 2913
+Warning: received a response with an unexpected (maybe timed out) id: 2918
+Warning: received a response with an unexpected (maybe timed out) id: 2991
+Warning: received a response with an unexpected (maybe timed out) id: 2912
+Warning: received a response with an unexpected (maybe timed out) id: 2906
+Warning: received a response with an unexpected (maybe timed out) id: 3446
+Warning: received a response with an unexpected (maybe timed out) id: 3681
+Warning: received a response with an unexpected (maybe timed out) id: 2841
+Warning: received a response with an unexpected (maybe timed out) id: 3337
+Warning: received a response with an unexpected (maybe timed out) id: 3696
+[Timeout] Query timed out: msg id 3994
+Warning: received a response with an unexpected (maybe timed out) id: 2900
+Warning: received a response with an unexpected (maybe timed out) id: 2899
+Warning: received a response with an unexpected (maybe timed out) id: 2939
+Warning: received a response with an unexpected (maybe timed out) id: 3227
+Warning: received a response with an unexpected (maybe timed out) id: 3745
+Warning: received a response with an unexpected (maybe timed out) id: 3750
+Warning: received a response with an unexpected (maybe timed out) id: 3689
+Warning: received a response with an unexpected (maybe timed out) id: 2885
+Warning: received a response with an unexpected (maybe timed out) id: 2921
+Warning: received a response with an unexpected (maybe timed out) id: 2932
+Warning: received a response with an unexpected (maybe timed out) id: 2914
+Warning: received a response with an unexpected (maybe timed out) id: 3871
+Warning: received a response with an unexpected (maybe timed out) id: 2895
+Warning: received a response with an unexpected (maybe timed out) id: 3731
+Warning: received a response with an unexpected (maybe timed out) id: 3439
+Warning: received a response with an unexpected (maybe timed out) id: 2888
+Warning: received a response with an unexpected (maybe timed out) id: 2909
+Warning: received a response with an unexpected (maybe timed out) id: 3730
+Warning: received a response with an unexpected (maybe timed out) id: 3718
+Warning: received a response with an unexpected (maybe timed out) id: 3736
+Warning: received a response with an unexpected (maybe timed out) id: 2902
+Warning: received a response with an unexpected (maybe timed out) id: 3758
+Warning: received a response with an unexpected (maybe timed out) id: 3671
+Warning: received a response with an unexpected (maybe timed out) id: 2723
+[Timeout] Query timed out: msg id 4235
+Warning: received a response with an unexpected (maybe timed out) id: 2941
+Warning: received a response with an unexpected (maybe timed out) id: 2916
+Warning: received a response with an unexpected (maybe timed out) id: 2943
+Warning: received a response with an unexpected (maybe timed out) id: 2948
+Warning: received a response with an unexpected (maybe timed out) id: 2911
+Warning: received a response with an unexpected (maybe timed out) id: 3757
+Warning: received a response with an unexpected (maybe timed out) id: 2962
+Warning: received a response with an unexpected (maybe timed out) id: 2810
+[Timeout] Query timed out: msg id 4484
+Warning: received a response with an unexpected (maybe timed out) id: 3909
+Warning: received a response with an unexpected (maybe timed out) id: 3210
+Warning: received a response with an unexpected (maybe timed out) id: 3802
+Warning: received a response with an unexpected (maybe timed out) id: 3815
+Warning: received a response with an unexpected (maybe timed out) id: 2969
+Warning: received a response with an unexpected (maybe timed out) id: 3814
+Warning: received a response with an unexpected (maybe timed out) id: 3841
+Warning: received a response with an unexpected (maybe timed out) id: 3810
+Warning: received a response with an unexpected (maybe timed out) id: 2954
+Warning: received a response with an unexpected (maybe timed out) id: 3328
+Warning: received a response with an unexpected (maybe timed out) id: 3765
+Warning: received a response with an unexpected (maybe timed out) id: 2980
+Warning: received a response with an unexpected (maybe timed out) id: 3769
+Warning: received a response with an unexpected (maybe timed out) id: 2940
+[Timeout] Query timed out: msg id 5245
+Warning: received a response with an unexpected (maybe timed out) id: 3751
+Warning: received a response with an unexpected (maybe timed out) id: 3819
+Warning: received a response with an unexpected (maybe timed out) id: 3903
+Warning: received a response with an unexpected (maybe timed out) id: 3859
+Warning: received a response with an unexpected (maybe timed out) id: 3484
+Warning: received a response with an unexpected (maybe timed out) id: 3893
+Warning: received a response with an unexpected (maybe timed out) id: 3442
+Warning: received a response with an unexpected (maybe timed out) id: 3381
+Warning: received a response with an unexpected (maybe timed out) id: 3879
+Warning: received a response with an unexpected (maybe timed out) id: 3753
+[Timeout] Query timed out: msg id 5486
+Warning: received a response with an unexpected (maybe timed out) id: 3906
+Warning: received a response with an unexpected (maybe timed out) id: 2923
+Warning: received a response with an unexpected (maybe timed out) id: 3672
+Warning: received a response with an unexpected (maybe timed out) id: 3785
+Warning: received a response with an unexpected (maybe timed out) id: 3960
+Warning: received a response with an unexpected (maybe timed out) id: 3914
+Warning: received a response with an unexpected (maybe timed out) id: 3890
+Warning: received a response with an unexpected (maybe timed out) id: 3895
+Warning: received a response with an unexpected (maybe timed out) id: 3912
+Warning: received a response with an unexpected (maybe timed out) id: 3911
+Warning: received a response with an unexpected (maybe timed out) id: 3888
+Warning: received a response with an unexpected (maybe timed out) id: 3786
+Warning: received a response with an unexpected (maybe timed out) id: 3994
+Warning: received a response with an unexpected (maybe timed out) id: 3940
+Warning: received a response with an unexpected (maybe timed out) id: 3900
+Warning: received a response with an unexpected (maybe timed out) id: 3899
+Warning: received a response with an unexpected (maybe timed out) id: 3902
+Warning: received a response with an unexpected (maybe timed out) id: 3808
+Warning: received a response with an unexpected (maybe timed out) id: 3716
+Warning: received a response with an unexpected (maybe timed out) id: 3754
+Warning: received a response with an unexpected (maybe timed out) id: 3799
+Warning: received a response with an unexpected (maybe timed out) id: 2850
+Warning: received a response with an unexpected (maybe timed out) id: 3793
+Warning: received a response with an unexpected (maybe timed out) id: 3791
+Warning: received a response with an unexpected (maybe timed out) id: 2814
+Warning: received a response with an unexpected (maybe timed out) id: 3207
+Warning: received a response with an unexpected (maybe timed out) id: 3474
+Warning: received a response with an unexpected (maybe timed out) id: 2905
+Warning: received a response with an unexpected (maybe timed out) id: 4235
+Warning: received a response with an unexpected (maybe timed out) id: 5245
+Warning: received a response with an unexpected (maybe timed out) id: 5486
+Warning: received a response with an unexpected (maybe timed out) id: 4484
+[Status] Testing complete (time limit)
+
+Statistics:
+
+  Queries sent:         20666289
+  Queries completed:    20666141 (100.00%)
+  Queries lost:         148 (0.00%)
+  Unexpected IDs:       148 (0.00%)
+
+  Response codes:       NOERROR 20666141 (100.00%)
+  Average packet size:  request 36, response 36
+  Run time (s):         300.012692
+  Queries per second:   68884.222405
+
+  Average Latency (s):  0.014397 (min 0.000025, max 1.871903)
+  Latency StdDev (s):   0.012091
+

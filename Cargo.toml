@@ -1,0 +1,89 @@
+[package]
+name = "ent-dns"
+version = "0.1.0"
+edition = "2021"
+authors = ["Ent-DNS Team"]
+description = "Enterprise-grade DNS filtering server"
+
+[[bin]]
+name = "ent-dns"
+path = "src/main.rs"
+
+[lib]
+name = "ent_dns"
+path = "src/lib.rs"
+
+[dependencies]
+# Async runtime
+tokio = { version = "1", features = ["full"] }
+
+# Web framework
+axum = { version = "0.8", features = ["multipart", "ws"] }
+tower = { version = "0.5", features = ["full"] }
+tower-http = { version = "0.6", features = ["cors", "trace", "compression-gzip", "fs"] }
+
+# DNS protocol
+hickory-proto = "0.24"
+hickory-resolver = { version = "0.24", features = ["tokio-runtime", "dns-over-https-rustls", "dns-over-tls", "dnssec-ring"] }
+
+# Database
+sqlx = { version = "0.8", features = ["sqlite", "runtime-tokio-rustls", "migrate", "chrono", "uuid"] }
+
+# Cache
+moka = { version = "0.12", features = ["future"] }
+
+# TLS
+rustls = "0.23"
+tokio-rustls = "0.26"
+rustls-pemfile = "2"
+
+# Serialization
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# Auth & Security
+jsonwebtoken = "9"
+argon2 = "0.5"
+rand = "0.8"
+
+# Logging & Tracing
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
+tracing-appender = "0.2"
+
+# Error handling
+thiserror = "2"
+anyhow = "1"
+
+# Base64 encoding (used by DoH GET endpoint — RFC 8484)
+base64 = "0.22"
+
+# Utilities
+uuid = { version = "1", features = ["v4", "serde"] }
+chrono = { version = "0.4", features = ["serde"] }
+clap = { version = "4", features = ["derive", "env"] }
+config = "0.14"
+regex = "1"
+ipnet = { version = "2", features = ["serde"] }
+bytes = "1"
+dashmap = "6"
+num_cpus = "1"
+ahash = "0.8"
+
+# HTTP client for remote filter lists
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "http2"] }
+
+# URL parsing (used for SSRF validation of filter list URLs)
+url = "2"
+
+[dev-dependencies]
+tower = { version = "0.5", features = ["util"] }
+http-body-util = "0.1"
+tokio = { version = "1", features = ["full"] }
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "http2", "json"] }
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+panic = "abort"
