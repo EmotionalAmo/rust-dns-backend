@@ -15,7 +15,7 @@ pub async fn get_stats(
     Query(params): Query<TrendParams>,
 ) -> AppResult<Json<Value>> {
     // Use requested time range (default 24 hours, max 168 hours)
-    let hours = params.hours.unwrap_or(24).clamp(1, 168);
+    let hours = params.hours.unwrap_or(24).clamp(1, 720);
     let time_filter = format!("-{} hours", hours);
 
     // Counts over the requested time window
@@ -114,7 +114,7 @@ pub async fn get_top_blocked_domains(
     _auth: AuthUser,
     Query(params): Query<TrendParams>,
 ) -> AppResult<Json<Value>> {
-    let hours = params.hours.unwrap_or(24).clamp(1, 168);
+    let hours = params.hours.unwrap_or(24).clamp(1, 720);
     let rows: Vec<(String, i64)> = sqlx::query_as(
         "SELECT question, COUNT(*) as cnt FROM query_log
          WHERE status = 'blocked' AND time >= datetime('now', printf('-%d hours', ?))
@@ -137,7 +137,7 @@ pub async fn get_top_clients(
     _auth: AuthUser,
     Query(params): Query<TrendParams>,
 ) -> AppResult<Json<Value>> {
-    let hours = params.hours.unwrap_or(24).clamp(1, 168);
+    let hours = params.hours.unwrap_or(24).clamp(1, 720);
     let rows: Vec<(String, i64)> = sqlx::query_as(
         "SELECT client_ip, COUNT(*) as cnt FROM query_log
          WHERE time >= datetime('now', printf('-%d hours', ?))
@@ -160,7 +160,7 @@ pub async fn get_query_trend(
     _auth: AuthUser,
     Query(params): Query<TrendParams>,
 ) -> AppResult<Json<Value>> {
-    let hours = params.hours.unwrap_or(24).clamp(1, 168);
+    let hours = params.hours.unwrap_or(24).clamp(1, 720);
 
     // Aggregate query_log by hour over the requested window
     let rows: Vec<(String, i64, i64, i64)> = sqlx::query_as(

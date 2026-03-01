@@ -93,12 +93,15 @@ pub async fn login(
         );
     }
 
+    // Enforce a hard maximum of 168 hours (7 days) for JWT security
+    let expiry_hours = std::cmp::min(state.jwt_expiry_hours, 168);
+
     let token = crate::auth::jwt::generate(
         &user_id,
         &req.username,
         &role,
         &state.jwt_secret,
-        state.jwt_expiry_hours,
+        expiry_hours,
     )
     .map_err(|e| AppError::Internal(e.to_string()))?;
 

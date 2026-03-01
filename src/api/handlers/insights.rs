@@ -196,7 +196,7 @@ pub async fn top_domains(
     let status = params.status.unwrap_or_default();
 
     let rows = sqlx::query(
-        "SELECT domain, \
+        "SELECT question AS domain, \
          COUNT(*) AS total_queries, \
          COUNT(DISTINCT client_ip) AS unique_clients, \
          SUM(CASE WHEN status = 'blocked' THEN 1 ELSE 0 END) AS blocked_queries, \
@@ -204,7 +204,7 @@ pub async fn top_domains(
          FROM query_log \
          WHERE time >= datetime('now', printf('-%d hours', ?)) \
            AND (? = '' OR status = ?) \
-         GROUP BY domain \
+         GROUP BY question \
          ORDER BY total_queries DESC \
          LIMIT ?",
     )
