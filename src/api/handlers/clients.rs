@@ -64,7 +64,8 @@ type ClientRow = (
 );
 
 pub async fn list(State(state): State<Arc<AppState>>, _auth: AuthUser) -> AppResult<Json<Value>> {
-    let rows: Vec<ClientRow> = sqlx::query_as(
+    // 1. Fetch static clients
+    let static_rows: Vec<ClientRow> = sqlx::query_as(
         "SELECT c.id, c.name, c.identifiers, c.upstreams, c.filter_enabled, c.tags, c.created_at, c.updated_at,
                 COALESCE(
                   (SELECT COUNT(*) FROM query_log ql
@@ -76,34 +77,101 @@ pub async fn list(State(state): State<Arc<AppState>>, _auth: AuthUser) -> AppRes
     .fetch_all(&state.db)
     .await?;
 
-    let data: Vec<Value> = rows
-        .into_iter()
-        .map(
-            |(
-                id,
-                name,
-                identifiers,
-                upstreams,
-                filter_enabled,
-                tags,
-                created_at,
-                updated_at,
-                query_count,
-            )| {
-                json!({
-                    "id": id,
-                    "name": name,
-                    "identifiers": parse_json_value(&Some(identifiers)),
-                    "upstreams": parse_json_value(&upstreams),
-                    "filter_enabled": filter_enabled == 1,
-                    "tags": parse_json_value(&tags),
-                    "created_at": created_at,
-                    "updated_at": updated_at,
-                    "query_count": query_count,
-                })
-            },
+    // 2. Fetch dynamic clients (IPs from query log that are not in any static client's identifiers)
+    let dynamic_ips: Vec<(String, i64, String)> = sqlx::query_as(
+        r#"
+        SELECT
+            ql.client_ip,
+            COUNT(*) as query_count,
+            MAX(ql.time) as last_seen
+        FROM query_log ql
+        WHERE NOT EXISTS (
+            SELECT 1 FROM clients c, json_each(c.identifiers) j
+            WHERE j.value = ql.client_ip
         )
-        .collect();
+        GROUP BY ql.client_ip
+        ORDER BY last_seen DESC
+        "#,
+    )
+    .fetch_all(&state.db)
+    .await?;
+
+    // 3. Get ARP map
+    let arp_map = crate::utils::arp::get_arp_map();
+    let has_mac_regex = regex::Regex::new(r"^([0-9a-fA-F]{2}[:-]){5}[0-9a-fA-F]{2}$").unwrap();
+
+    let mut data: Vec<Value> = Vec::new();
+
+    // Process static clients
+    for (
+        id,
+        name,
+        identifiers,
+        upstreams,
+        filter_enabled,
+        tags,
+        created_at,
+        updated_at,
+        query_count,
+    ) in static_rows
+    {
+        let mut idents: Vec<String> = serde_json::from_str(&identifiers).unwrap_or_default();
+
+        // Auto-inject MAC from ARP if any IP doesn't have a matching MAC
+        // Check if we already have a MAC address manually defined
+        let has_mac = idents.iter().any(|i| has_mac_regex.is_match(i));
+
+        if !has_mac {
+            // Find IP and look up in ARP
+            if let Some(ip) = idents.iter().find(|i| !has_mac_regex.is_match(i)) {
+                if let Some(mac) = arp_map.get(ip) {
+                    idents.push(mac.clone());
+                }
+            }
+        }
+
+        data.push(json!({
+            "id": id,
+            "name": name,
+            "identifiers": idents,
+            "upstreams": parse_json_value(&upstreams),
+            "filter_enabled": filter_enabled == 1,
+            "tags": parse_json_value(&tags),
+            "created_at": created_at,
+            "updated_at": updated_at,
+            "query_count": query_count,
+            "is_static": true,
+        }));
+    }
+
+    // Process dynamic clients
+    for (ip, query_count, last_seen) in dynamic_ips {
+        let mut idents = vec![ip.clone()];
+        if let Some(mac) = arp_map.get(&ip) {
+            idents.push(mac.clone());
+        }
+
+        data.push(json!({
+            "id": format!("dynamic-{}", ip),
+            "name": format!("Unknown {}", ip), // Or attempt to resolve hostname if needed
+            "identifiers": idents,
+            "upstreams": serde_json::Value::Null,
+            "filter_enabled": true, // Default to true so global filters apply
+            "tags": serde_json::Value::Null,
+            "created_at": last_seen.clone(),
+            "updated_at": last_seen,
+            "query_count": query_count,
+            "is_static": false,
+        }));
+    }
+
+    // Sort all by updated_at / last_seen descending
+    data.sort_by(|a, b| {
+        let date_a = a.get("updated_at").and_then(|v| v.as_str()).unwrap_or("");
+        let date_b = b.get("updated_at").and_then(|v| v.as_str()).unwrap_or("");
+        date_b.cmp(date_a)
+    });
+
     let count = data.len();
     Ok(Json(json!({ "data": data, "total": count })))
 }

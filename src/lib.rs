@@ -9,3 +9,4 @@ pub mod dns;
 pub mod error;
 pub mod metrics;
 pub mod shutdown;
+pub mod utils;

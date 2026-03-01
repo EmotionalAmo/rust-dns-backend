@@ -376,11 +376,14 @@ pub async fn get_group_members(
     let query_count_map: std::collections::HashMap<String, i64> =
         query_counts.into_iter().collect();
 
+    // 获取 ARP 表
+    let arp_map = crate::utils::arp::get_arp_map();
+
     let data: Vec<Value> = rows
         .into_iter()
         .map(
             |(client_id, name, identifiers, filter_enabled, created_at, group_names_str)| {
-                let identifiers_arr: Vec<String> =
+                let mut identifiers_arr: Vec<String> =
                     serde_json::from_str(&identifiers).unwrap_or_default();
 
                 // 从 identifiers 中解析 IP 和 MAC 地址
@@ -389,11 +392,20 @@ pub async fn get_group_members(
                     .find(|id| !mac_regex.is_match(id))
                     .cloned()
                     .unwrap_or_else(|| "-".to_string());
-                let mac = identifiers_arr
+
+                let mut mac = identifiers_arr
                     .iter()
                     .find(|id| mac_regex.is_match(id))
                     .cloned()
                     .unwrap_or_else(|| "-".to_string());
+
+                // 如果没有手动录入的 MAC 地址，但是又找到了 IP，尝试从 ARP 缓存中获取
+                if mac == "-" && ip != "-" {
+                    if let Some(resolved_mac) = arp_map.get(&ip) {
+                        mac = resolved_mac.clone();
+                        identifiers_arr.push(resolved_mac.clone());
+                    }
+                }
 
                 // 解析分组名称
                 let group_names: Vec<String> = if group_names_str.is_empty() {
