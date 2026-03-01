@@ -61,6 +61,7 @@ pub struct DnsHandler {
     query_log_tx: broadcast::Sender<serde_json::Value>,
     /// Non-blocking sender to the batch query log writer (Task 1: async batch write)
     query_log_entry_tx: mpsc::UnboundedSender<QueryLogEntry>,
+    app_catalog: Arc<crate::db::app_catalog_cache::AppCatalogCache>,
 }
 
 impl DnsHandler {
@@ -70,6 +71,7 @@ impl DnsHandler {
         filter: Arc<FilterEngine>,
         metrics: Arc<DnsMetrics>,
         query_log_tx: broadcast::Sender<serde_json::Value>,
+        app_catalog: Arc<crate::db::app_catalog_cache::AppCatalogCache>,
     ) -> Result<Self> {
         let resolver = Arc::new(DnsResolver::new(&cfg).await?);
         let cache = Arc::new(DnsCache::new());
@@ -93,6 +95,7 @@ impl DnsHandler {
             metrics,
             query_log_tx,
             query_log_entry_tx,
+            app_catalog,
         })
     }
 
@@ -158,6 +161,7 @@ impl DnsHandler {
                         Some(answer.to_string()),
                         elapsed,
                         None,
+                        self.app_catalog.match_domain(domain_normalized),
                     );
                     return Ok(response);
                 }
@@ -188,6 +192,7 @@ impl DnsHandler {
                     None,
                     elapsed,
                     None,
+                    self.app_catalog.match_domain(domain_normalized),
                 );
                 return self.nxdomain(&request);
             }
@@ -214,6 +219,7 @@ impl DnsHandler {
                 None,
                 elapsed,
                 None,
+                self.app_catalog.match_domain(domain_normalized),
             );
             return Ok(updated_cached);
         }
@@ -266,6 +272,7 @@ impl DnsHandler {
             answer_str,
             elapsed,
             Some(upstream_ns),
+            self.app_catalog.match_domain(domain_normalized),
         );
 
         Ok(response)
@@ -484,6 +491,7 @@ impl DnsHandler {
         answer: Option<String>,
         elapsed_ns: i64,
         upstream_ns: Option<i64>,
+        app_id: Option<i64>,
     ) {
         let now = Utc::now().to_rfc3339();
 
@@ -499,6 +507,7 @@ impl DnsHandler {
             answer: answer.clone(),
             elapsed_ns,
             upstream_ns,
+            app_id,
         };
         if let Err(e) = self.query_log_entry_tx.send(entry) {
             tracing::warn!("QueryLogWriter channel closed, dropping entry: {}", e);

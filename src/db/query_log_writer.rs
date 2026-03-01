@@ -20,6 +20,7 @@ pub struct QueryLogEntry {
     pub answer: Option<String>,
     pub elapsed_ns: i64,
     pub upstream_ns: Option<i64>,
+    pub app_id: Option<i64>,
 }
 
 /// How many entries to accumulate before forcing a flush.
@@ -92,16 +93,13 @@ async fn write_batch(db: &DbPool, batch: &[QueryLogEntry]) -> Result<(), sqlx::E
     let mut tx = db.begin().await?;
 
     for entry in batch {
-        // 写入时通过子查询匹配 app_id，消除 insights 查询中的 LIKE JOIN 全表扫描。
-        // 子查询仅扫描 app_domains（通常 < 1000 行），代价极小。
+        // High-performance insert: app_id is now resolved in-memory by DnsHandler
+        // before the entry is sent to the writer, eliminating the extremely slow
+        // SQLite LIKE wildcard subquery.
         sqlx::query(
             "INSERT INTO query_log \
              (time, client_ip, question, qtype, status, reason, answer, elapsed_ns, upstream_ns, app_id) \
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, \
-               (SELECT ad.app_id FROM app_domains ad \
-                WHERE rtrim(?, '.') = ad.domain \
-                   OR rtrim(?, '.') LIKE '%.' || ad.domain \
-                LIMIT 1))",
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         )
         .bind(&entry.time)
         .bind(&entry.client_ip)
@@ -112,8 +110,7 @@ async fn write_batch(db: &DbPool, batch: &[QueryLogEntry]) -> Result<(), sqlx::E
         .bind(&entry.answer)
         .bind(entry.elapsed_ns)
         .bind(entry.upstream_ns)
-        .bind(&entry.question) // rtrim(?, '.') = ad.domain
-        .bind(&entry.question) // rtrim(?, '.') LIKE '%.' || ad.domain
+        .bind(entry.app_id)
         .execute(&mut *tx)
         .await?;
     }

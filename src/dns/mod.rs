@@ -26,9 +26,10 @@ pub async fn build_handler(
     filter: Arc<FilterEngine>,
     metrics: Arc<DnsMetrics>,
     query_log_tx: broadcast::Sender<serde_json::Value>,
+    app_catalog: Arc<crate::db::app_catalog_cache::AppCatalogCache>,
 ) -> Result<Arc<DnsHandler>> {
     Ok(Arc::new(
-        DnsHandler::new(cfg.clone(), db, filter, metrics, query_log_tx).await?,
+        DnsHandler::new(cfg.clone(), db, filter, metrics, query_log_tx, app_catalog).await?,
     ))
 }
 

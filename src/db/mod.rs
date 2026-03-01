@@ -5,6 +5,7 @@ use sqlx::SqlitePool;
 use std::str::FromStr;
 use uuid::Uuid;
 
+pub mod app_catalog_cache;
 pub mod audit;
 pub mod models;
 pub mod query_log_writer;

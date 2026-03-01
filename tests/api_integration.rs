@@ -145,6 +145,7 @@ async fn build_test_app() -> (axum::Router, Arc<AppState>) {
         filter.clone(),
         metrics.clone(),
         query_log_tx.clone(),
+        std::sync::Arc::new(ent_dns::db::app_catalog_cache::AppCatalogCache::new()),
     )
     .await
     .expect("Failed to build DnsHandler");

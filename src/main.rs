@@ -119,6 +119,10 @@ async fn main() -> Result<()> {
     // Shared DNS metrics between DNS server and API
     let metrics = Arc::new(metrics::DnsMetrics::default());
 
+    // In-memory App Catalog cache (Optimization for DNS query log insertion)
+    let app_catalog = Arc::new(db::app_catalog_cache::AppCatalogCache::new());
+    app_catalog.load_from_db(&db_pool).await;
+
     // FilterEngine shared between DNS engine and Management API
     let filter = Arc::new(dns::filter::FilterEngine::new(db_pool.clone()).await?);
 
@@ -245,13 +249,14 @@ async fn main() -> Result<()> {
     }
 
     // Build a single DnsHandler shared between the DNS server (UDP/TCP) and the
-    // API server (DoH endpoint).  Both use the same filter, cache, and log writer.
+    // API server (DoH endpoint). Both use the same filter, cache, and log writer.
     let dns_handler = dns::build_handler(
         &cfg,
         db_pool.clone(),
         filter.clone(),
         metrics.clone(),
         query_log_tx.clone(),
+        app_catalog.clone(),
     )
     .await?;
 
