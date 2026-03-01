@@ -6,7 +6,7 @@ authors = ["Ent-DNS Team"]
 description = "Enterprise-grade DNS filtering server"
 
 [[bin]]
-name = "ent-dns"
+name = "rust-dns"
 path = "src/main.rs"
 
 [lib]
