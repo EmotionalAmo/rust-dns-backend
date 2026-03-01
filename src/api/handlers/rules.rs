@@ -1,4 +1,5 @@
 use crate::api::middleware::auth::AuthUser;
+use crate::api::middleware::client_ip::ClientIp;
 use crate::api::AppState;
 use crate::error::{AppError, AppResult};
 use axum::{
@@ -41,6 +42,7 @@ pub struct ListParams {
 
 pub async fn list(
     State(state): State<Arc<AppState>>,
+    #[allow(unused_variables)] ClientIp(ip): ClientIp,
     Query(params): Query<ListParams>,
     _auth: AuthUser,
 ) -> AppResult<Json<Value>> {
@@ -115,6 +117,7 @@ pub async fn list(
 
 pub async fn create(
     State(state): State<Arc<AppState>>,
+    #[allow(unused_variables)] ClientIp(ip): ClientIp,
     auth: AuthUser,
     Json(body): Json<CreateRuleRequest>,
 ) -> AppResult<Json<Value>> {
@@ -152,7 +155,7 @@ pub async fn create(
         "rule",
         Some(id.clone()),
         Some(rule.clone()),
-        "unknown".to_string(),
+        ip.clone(),
     );
 
     Ok(Json(json!({
@@ -167,6 +170,7 @@ pub async fn create(
 
 pub async fn delete(
     State(state): State<Arc<AppState>>,
+    #[allow(unused_variables)] ClientIp(ip): ClientIp,
     auth: AuthUser,
     Path(id): Path<String>,
 ) -> AppResult<Json<Value>> {
@@ -193,7 +197,7 @@ pub async fn delete(
         "rule",
         Some(id.clone()),
         None,
-        "unknown".to_string(),
+        ip.clone(),
     );
 
     Ok(Json(json!({"success": true})))
@@ -207,6 +211,7 @@ pub struct BulkActionRequest {
 
 pub async fn bulk_action(
     State(state): State<Arc<AppState>>,
+    #[allow(unused_variables)] ClientIp(ip): ClientIp,
     auth: AuthUser,
     Json(req): Json<BulkActionRequest>,
 ) -> AppResult<Json<Value>> {
@@ -271,7 +276,7 @@ pub async fn bulk_action(
         "rule",
         None,
         Some(format!("action={}, count={}", req.action, affected)),
-        "unknown".to_string(),
+        ip.clone(),
     );
 
     Ok(Json(json!({"affected": affected})))
@@ -279,6 +284,7 @@ pub async fn bulk_action(
 
 pub async fn update(
     State(state): State<Arc<AppState>>,
+    #[allow(unused_variables)] ClientIp(ip): ClientIp,
     auth: AuthUser,
     Path(id): Path<String>,
     Json(body): Json<UpdateRuleRequest>,
@@ -378,7 +384,7 @@ pub async fn update(
         "rule",
         Some(id.clone()),
         None,
-        "unknown".to_string(),
+        ip.clone(),
     );
 
     Ok(Json(json!({
@@ -393,6 +399,7 @@ pub async fn update(
 
 pub async fn toggle(
     State(state): State<Arc<AppState>>,
+    #[allow(unused_variables)] ClientIp(ip): ClientIp,
     auth: AuthUser,
     Path(id): Path<String>,
     Json(body): Json<ToggleRuleRequest>,
@@ -426,7 +433,7 @@ pub async fn toggle(
         "rule",
         Some(id.clone()),
         Some(format!("is_enabled={}", body.is_enabled)),
-        "unknown".to_string(),
+        ip.clone(),
     );
 
     Ok(Json(json!({

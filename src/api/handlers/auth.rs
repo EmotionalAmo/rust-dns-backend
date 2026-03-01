@@ -1,13 +1,10 @@
 use crate::api::middleware::auth::AuthUser;
+use crate::api::middleware::client_ip::ClientIp;
 use crate::api::AppState;
 use crate::error::{AppError, AppResult};
-use axum::{
-    extract::{ConnectInfo, State},
-    Json,
-};
+use axum::{extract::State, Json};
 use serde::Deserialize;
 use serde_json::{json, Value};
-use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
@@ -30,12 +27,9 @@ pub struct ChangePasswordRequest {
 
 pub async fn login(
     State(state): State<Arc<AppState>>,
-    ConnectInfo(peer): ConnectInfo<SocketAddr>,
+    ClientIp(ip): ClientIp,
     Json(req): Json<LoginRequest>,
 ) -> AppResult<Json<Value>> {
-    // Use the real TCP peer IP; not spoofable via headers (H-3 fix)
-    let ip = peer.ip().to_string();
-
     // Rate-limit: reject if this IP has too many recent failures (H-5 fix)
     {
         let mut should_reject = false;
@@ -148,12 +142,10 @@ pub async fn logout() -> AppResult<Json<Value>> {
 
 pub async fn change_password(
     State(state): State<Arc<AppState>>,
-    ConnectInfo(peer): ConnectInfo<SocketAddr>,
+    ClientIp(ip): ClientIp,
     auth: AuthUser,
     Json(req): Json<ChangePasswordRequest>,
 ) -> AppResult<Json<Value>> {
-    // Use real TCP peer IP for audit log (P1-2 fix: was hardcoded "unknown")
-    let ip = peer.ip().to_string();
     // Access the Claims from AuthUser tuple struct
     let claims = auth.0;
 

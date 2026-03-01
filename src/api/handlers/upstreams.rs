@@ -9,6 +9,7 @@ use std::sync::Arc;
 use uuid::Uuid;
 
 use crate::api::middleware::auth::AuthUser;
+use crate::api::middleware::client_ip::ClientIp;
 use crate::api::middleware::rbac::AdminUser;
 use crate::api::AppState;
 use crate::error::{AppError, AppResult};
@@ -150,6 +151,7 @@ type UpstreamDetailRow = (
 
 pub async fn get(
     State(state): State<Arc<AppState>>,
+    #[allow(unused_variables)] ClientIp(ip): ClientIp,
     _auth: AuthUser,
     Path(id): Path<String>,
 ) -> AppResult<Json<Value>> {
@@ -208,6 +210,7 @@ pub async fn get(
 
 pub async fn create(
     State(state): State<Arc<AppState>>,
+    #[allow(unused_variables)] ClientIp(ip): ClientIp,
     _admin: AdminUser,
     Json(body): Json<CreateUpstreamRequest>,
 ) -> AppResult<Json<Value>> {
@@ -268,6 +271,7 @@ pub async fn create(
 
 pub async fn update(
     State(state): State<Arc<AppState>>,
+    #[allow(unused_variables)] ClientIp(ip): ClientIp,
     _admin: AdminUser,
     Path(id): Path<String>,
     Json(body): Json<UpdateUpstreamRequest>,
@@ -382,6 +386,7 @@ pub async fn update(
 
 pub async fn delete(
     State(state): State<Arc<AppState>>,
+    #[allow(unused_variables)] ClientIp(ip): ClientIp,
     _admin: AdminUser,
     Path(id): Path<String>,
 ) -> AppResult<Json<Value>> {
@@ -399,6 +404,7 @@ pub async fn delete(
 
 pub async fn test(
     State(state): State<Arc<AppState>>,
+    #[allow(unused_variables)] ClientIp(ip): ClientIp,
     _admin: AdminUser,
     Path(id): Path<String>,
 ) -> AppResult<Json<Value>> {
@@ -462,6 +468,7 @@ pub async fn test(
 
 pub async fn trigger_failover(
     State(state): State<Arc<AppState>>,
+    #[allow(unused_variables)] ClientIp(ip): ClientIp,
     _admin: AdminUser,
 ) -> AppResult<Json<Value>> {
     let rows: Vec<(String, String, String, i32, String)> = sqlx::query_as(
@@ -515,6 +522,7 @@ pub async fn trigger_failover(
 
 pub async fn failover_log(
     State(state): State<Arc<AppState>>,
+    #[allow(unused_variables)] ClientIp(ip): ClientIp,
     _auth: AuthUser,
 ) -> AppResult<Json<Value>> {
     let rows: Vec<(String, String, String, Option<String>, String)> = sqlx::query_as(
@@ -578,6 +586,7 @@ async fn test_dns_connectivity(addr: &str, timeout: std::time::Duration) -> anyh
 
 pub async fn get_health(
     State(state): State<Arc<AppState>>,
+    #[allow(unused_variables)] ClientIp(ip): ClientIp,
     _auth: AuthUser,
 ) -> AppResult<Json<Value>> {
     // Return cached upstream health states

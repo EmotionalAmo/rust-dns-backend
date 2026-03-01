@@ -8,6 +8,7 @@ use serde_json::{json, Value};
 use std::sync::Arc;
 use uuid::Uuid;
 
+use crate::api::middleware::client_ip::ClientIp;
 use crate::api::middleware::rbac::AdminUser;
 use crate::api::AppState;
 use crate::auth::password;
@@ -62,6 +63,7 @@ pub async fn list(State(state): State<Arc<AppState>>, _admin: AdminUser) -> AppR
 
 pub async fn create(
     State(state): State<Arc<AppState>>,
+    #[allow(unused_variables)] ClientIp(ip): ClientIp,
     _admin: AdminUser,
     Json(body): Json<CreateUserRequest>,
 ) -> AppResult<Json<Value>> {
@@ -123,6 +125,7 @@ pub async fn create(
 
 pub async fn update_role(
     State(state): State<Arc<AppState>>,
+    #[allow(unused_variables)] ClientIp(ip): ClientIp,
     _admin: AdminUser,
     Path(id): Path<String>,
     Json(body): Json<UpdateRoleRequest>,

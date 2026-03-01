@@ -9,6 +9,7 @@ use std::sync::Arc;
 use uuid::Uuid;
 
 use crate::api::middleware::auth::AuthUser;
+use crate::api::middleware::client_ip::ClientIp;
 use crate::api::AppState;
 use crate::error::{AppError, AppResult};
 
@@ -109,6 +110,7 @@ pub async fn list(State(state): State<Arc<AppState>>, _auth: AuthUser) -> AppRes
 
 pub async fn create(
     State(state): State<Arc<AppState>>,
+    ClientIp(ip): ClientIp,
     auth: AuthUser,
     Json(body): Json<CreateClientRequest>,
 ) -> AppResult<Json<Value>> {
@@ -167,7 +169,7 @@ pub async fn create(
         "client",
         Some(id.clone()),
         Some(name.clone()),
-        "unknown".to_string(),
+        ip,
     );
 
     Ok(Json(json!({
@@ -184,6 +186,7 @@ pub async fn create(
 
 pub async fn update(
     State(state): State<Arc<AppState>>,
+    ClientIp(ip): ClientIp,
     auth: AuthUser,
     Path(id): Path<String>,
     Json(body): Json<UpdateClientRequest>,
@@ -280,7 +283,7 @@ pub async fn update(
         "client",
         Some(id.clone()),
         Some(name.clone()),
-        "unknown".to_string(),
+        ip,
     );
 
     Ok(Json(json!({
@@ -297,6 +300,7 @@ pub async fn update(
 
 pub async fn delete(
     State(state): State<Arc<AppState>>,
+    ClientIp(ip): ClientIp,
     auth: AuthUser,
     Path(id): Path<String>,
 ) -> AppResult<Json<Value>> {
@@ -317,7 +321,7 @@ pub async fn delete(
         "client",
         Some(id.clone()),
         None,
-        "unknown".to_string(),
+        ip,
     );
 
     Ok(Json(json!({"success": true})))

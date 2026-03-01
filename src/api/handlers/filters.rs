@@ -9,6 +9,7 @@ use std::sync::Arc;
 use uuid::Uuid;
 
 use crate::api::middleware::auth::AuthUser;
+use crate::api::middleware::client_ip::ClientIp;
 use crate::api::AppState;
 use crate::error::{AppError, AppResult};
 
@@ -85,6 +86,7 @@ pub async fn list(State(state): State<Arc<AppState>>, _auth: AuthUser) -> AppRes
 
 pub async fn create(
     State(state): State<Arc<AppState>>,
+    ClientIp(ip): ClientIp,
     auth: AuthUser,
     Json(body): Json<CreateFilterRequest>,
 ) -> AppResult<Json<Value>> {
@@ -141,7 +143,7 @@ pub async fn create(
         "filter",
         Some(id.clone()),
         Some(name.clone()),
-        "unknown".to_string(),
+        ip.clone(),
     );
 
     Ok(Json(json!({
@@ -159,6 +161,7 @@ pub async fn create(
 
 pub async fn update(
     State(state): State<Arc<AppState>>,
+    ClientIp(ip): ClientIp,
     auth: AuthUser,
     Path(id): Path<String>,
     Json(body): Json<UpdateFilterRequest>,
@@ -215,7 +218,7 @@ pub async fn update(
         "filter",
         Some(id.clone()),
         Some(name.clone()),
-        "unknown".to_string(),
+        ip.clone(),
     );
 
     Ok(Json(json!({
@@ -232,6 +235,7 @@ pub async fn update(
 
 pub async fn delete(
     State(state): State<Arc<AppState>>,
+    ClientIp(ip): ClientIp,
     auth: AuthUser,
     Path(id): Path<String>,
 ) -> AppResult<Json<Value>> {
@@ -265,7 +269,7 @@ pub async fn delete(
         "filter",
         Some(id.clone()),
         None,
-        "unknown".to_string(),
+        ip.clone(),
     );
 
     Ok(Json(json!({"success": true})))
@@ -274,6 +278,7 @@ pub async fn delete(
 /// Manually refresh a remote filter list
 pub async fn refresh(
     State(state): State<Arc<AppState>>,
+    ClientIp(ip): ClientIp,
     auth: AuthUser,
     Path(id): Path<String>,
 ) -> AppResult<Json<Value>> {
@@ -314,7 +319,7 @@ pub async fn refresh(
         "filter",
         Some(id.clone()),
         Some(name.clone()),
-        "unknown".to_string(),
+        ip.clone(),
     );
 
     Ok(Json(json!({
