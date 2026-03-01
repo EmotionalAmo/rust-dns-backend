@@ -203,12 +203,20 @@ pub async fn top_domains(
          MAX(time) AS last_seen \
          FROM query_log \
          WHERE time >= datetime('now', printf('-%d hours', ?)) \
-           AND (? = '' OR status = ?) \
          GROUP BY question \
-         ORDER BY total_queries DESC \
+         HAVING (? = '') \
+             OR (? = 'blocked' AND blocked_queries > 0) \
+             OR (? = 'allowed' AND total_queries > blocked_queries) \
+         ORDER BY \
+             CASE WHEN ? = 'allowed' THEN (total_queries - blocked_queries) \
+             WHEN ? = 'blocked' THEN blocked_queries \
+             ELSE total_queries END DESC \
          LIMIT ?",
     )
     .bind(hours)
+    .bind(&status)
+    .bind(&status)
+    .bind(&status)
     .bind(&status)
     .bind(&status)
     .bind(limit)
