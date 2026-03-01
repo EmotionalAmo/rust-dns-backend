@@ -8,7 +8,7 @@
 
 use anyhow::Result;
 use chrono::Utc;
-use ent_dns::dns::rules::RuleSet;
+use rust_dns::dns::rules::RuleSet;
 
 #[tokio::test]
 async fn test_oisd_performance() -> Result<()> {

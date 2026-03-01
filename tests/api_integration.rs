@@ -30,10 +30,10 @@ use tower::ServiceExt; // for .oneshot() // for .collect()
 
 // ── 内部 crate 引用 ────────────────────────────────────────────────────────────
 // 集成测试与被测试 crate 在同一 workspace，直接引用
-use ent_dns::api::validators::rule::RuleValidationResponse;
-use ent_dns::api::{build_app, AppState};
-use ent_dns::dns::filter::FilterEngine;
-use ent_dns::metrics::DnsMetrics;
+use rust_dns::api::validators::rule::RuleValidationResponse;
+use rust_dns::api::{build_app, AppState};
+use rust_dns::dns::filter::FilterEngine;
+use rust_dns::metrics::DnsMetrics;
 
 /// 构建测试专用 in-memory 数据库，运行所有 migration，并插入 admin 用户。
 async fn setup_db() -> SqlitePool {
@@ -48,7 +48,7 @@ async fn setup_db() -> SqlitePool {
         .expect("Migration failed");
 
     // 插入测试用 admin 用户（密码: admin）
-    let password_hash = ent_dns::auth::password::hash("admin").expect("Failed to hash password");
+    let password_hash = rust_dns::auth::password::hash("admin").expect("Failed to hash password");
     let id = uuid::Uuid::new_v4().to_string();
     let now = chrono::Utc::now().to_rfc3339();
 
@@ -74,7 +74,7 @@ async fn start_test_server() -> (String, Arc<AppState>) {
     let (_, state) = build_test_app().await;
 
     let cors = tower_http::cors::CorsLayer::new();
-    let app = ent_dns::api::build_app(state.clone(), cors);
+    let app = rust_dns::api::build_app(state.clone(), cors);
 
     // 绑定到随机端口
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
@@ -111,8 +111,8 @@ async fn build_test_app() -> (axum::Router, Arc<AppState>) {
     // 集成测试中不启动真实 DNS handler，
     // 但 AppState 需要 dns_handler: Arc<DnsHandler>。
     // 用一个占位 Arc 绕过：构建最小化 DnsHandler。
-    let test_cfg = ent_dns::config::Config {
-        dns: ent_dns::config::DnsConfig {
+    let test_cfg = rust_dns::config::Config {
+        dns: rust_dns::config::DnsConfig {
             port: 15399, // 随机高端口，不实际监听
             bind: "127.0.0.1".to_string(),
             upstreams: vec!["https://1.1.1.1/dns-query".to_string()],
@@ -121,17 +121,17 @@ async fn build_test_app() -> (axum::Router, Arc<AppState>) {
             dot_enabled: false,
             rewrite_ttl: 300,
         },
-        api: ent_dns::config::ApiConfig {
+        api: rust_dns::config::ApiConfig {
             port: 18099,
             bind: "127.0.0.1".to_string(),
             cors_allowed_origins: vec!["http://localhost:5173".to_string()],
             static_dir: "frontend/dist".to_string(),
         },
-        database: ent_dns::config::DatabaseConfig {
+        database: rust_dns::config::DatabaseConfig {
             path: ":memory:".to_string(),
             query_log_retention_days: 7,
         },
-        auth: ent_dns::config::AuthConfig {
+        auth: rust_dns::config::AuthConfig {
             jwt_secret: "test-jwt-secret-for-integration-tests-only-32chars".to_string(),
             jwt_expiry_hours: 1,
             allow_default_password: false,
@@ -139,13 +139,13 @@ async fn build_test_app() -> (axum::Router, Arc<AppState>) {
         logging: Default::default(),
     };
 
-    let dns_handler = ent_dns::dns::build_handler(
+    let dns_handler = rust_dns::dns::build_handler(
         &test_cfg,
         db.clone(),
         filter.clone(),
         metrics.clone(),
         query_log_tx.clone(),
-        std::sync::Arc::new(ent_dns::db::app_catalog_cache::AppCatalogCache::new()),
+        std::sync::Arc::new(rust_dns::db::app_catalog_cache::AppCatalogCache::new()),
     )
     .await
     .expect("Failed to build DnsHandler");
@@ -364,7 +364,7 @@ async fn test_list_rules_with_valid_token() {
 
     // 直接生成 token，不走 login HTTP 路径（绕过 ConnectInfo 限制）
     let token =
-        ent_dns::auth::jwt::generate("test-user-id", "admin", "super_admin", &state.jwt_secret, 1)
+        rust_dns::auth::jwt::generate("test-user-id", "admin", "super_admin", &state.jwt_secret, 1)
             .expect("Should generate token");
 
     let req = Request::builder()
@@ -386,7 +386,7 @@ async fn test_create_rule_and_list() {
     let (app, state) = build_test_app().await;
 
     let token =
-        ent_dns::auth::jwt::generate("test-user-id", "admin", "super_admin", &state.jwt_secret, 1)
+        rust_dns::auth::jwt::generate("test-user-id", "admin", "super_admin", &state.jwt_secret, 1)
             .expect("Should generate token");
 
     // 创建规则
@@ -460,7 +460,7 @@ async fn test_create_rule_empty_body_returns_400() {
     let (app, state) = build_test_app().await;
 
     let token =
-        ent_dns::auth::jwt::generate("test-user-id", "admin", "super_admin", &state.jwt_secret, 1)
+        rust_dns::auth::jwt::generate("test-user-id", "admin", "super_admin", &state.jwt_secret, 1)
             .expect("Should generate token");
 
     let req = Request::builder()
@@ -484,7 +484,7 @@ async fn test_delete_nonexistent_rule_returns_404() {
     let (app, state) = build_test_app().await;
 
     let token =
-        ent_dns::auth::jwt::generate("test-user-id", "admin", "super_admin", &state.jwt_secret, 1)
+        rust_dns::auth::jwt::generate("test-user-id", "admin", "super_admin", &state.jwt_secret, 1)
             .expect("Should generate token");
 
     let req = Request::builder()
@@ -521,7 +521,7 @@ async fn test_query_log_empty_result() {
     let (app, state) = build_test_app().await;
 
     let token =
-        ent_dns::auth::jwt::generate("test-user-id", "admin", "super_admin", &state.jwt_secret, 1)
+        rust_dns::auth::jwt::generate("test-user-id", "admin", "super_admin", &state.jwt_secret, 1)
             .expect("Should generate token");
 
     let req = Request::builder()
@@ -566,7 +566,7 @@ async fn test_query_log_with_status_filter() {
     .expect("Failed to insert test log");
 
     let token =
-        ent_dns::auth::jwt::generate("test-user-id", "admin", "super_admin", &state.jwt_secret, 1)
+        rust_dns::auth::jwt::generate("test-user-id", "admin", "super_admin", &state.jwt_secret, 1)
             .expect("Should generate token");
 
     // 过滤 status=blocked
@@ -607,7 +607,7 @@ async fn test_query_log_pagination_limit() {
     }
 
     let token =
-        ent_dns::auth::jwt::generate("test-user-id", "admin", "super_admin", &state.jwt_secret, 1)
+        rust_dns::auth::jwt::generate("test-user-id", "admin", "super_admin", &state.jwt_secret, 1)
             .expect("Should generate token");
 
     // 请求 limit=2
@@ -644,7 +644,7 @@ async fn test_query_log_invalid_status_returns_400() {
     let (app, state) = build_test_app().await;
 
     let token =
-        ent_dns::auth::jwt::generate("test-user-id", "admin", "super_admin", &state.jwt_secret, 1)
+        rust_dns::auth::jwt::generate("test-user-id", "admin", "super_admin", &state.jwt_secret, 1)
             .expect("Should generate token");
 
     let req = Request::builder()
@@ -664,7 +664,7 @@ async fn test_query_log_invalid_status_returns_400() {
 
 /// 辅助：获取管理员 JWT token（使用 auth::jwt 直接生成，不需要真实 HTTP login）
 fn admin_token(state: &AppState) -> String {
-    ent_dns::auth::jwt::generate("admin-id", "admin", "super_admin", &state.jwt_secret, 1)
+    rust_dns::auth::jwt::generate("admin-id", "admin", "super_admin", &state.jwt_secret, 1)
         .expect("Should generate token")
 }
 

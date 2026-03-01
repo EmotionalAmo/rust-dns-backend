@@ -15,7 +15,7 @@ pub struct Config {
 /// can be omitted entirely from config.toml.
 #[derive(Debug, Clone, Deserialize)]
 pub struct LoggingConfig {
-    /// Log level filter applied to ent_dns and its dependencies.
+    /// Log level filter applied to rust_dns and its dependencies.
     /// Accepts the standard tracing level strings:
     ///   trace | debug | info | warn | error
     /// The RUST_LOG environment variable, when set, takes priority over this field.

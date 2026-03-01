@@ -33,12 +33,12 @@ impl DnsMetrics {
         let cached = self.queries_cached.load(Ordering::Relaxed);
 
         format!(
-            "# HELP ent_dns_queries_total Total DNS queries processed\n\
-             # TYPE ent_dns_queries_total counter\n\
-             ent_dns_queries_total{{status=\"blocked\"}} {blocked}\n\
-             ent_dns_queries_total{{status=\"allowed\"}} {allowed}\n\
-             ent_dns_queries_total{{status=\"cached\"}} {cached}\n\
-             ent_dns_queries_total{{status=\"total\"}} {total}\n"
+            "# HELP rust_dns_queries_total Total DNS queries processed\n\
+             # TYPE rust_dns_queries_total counter\n\
+             rust_dns_queries_total{{status=\"blocked\"}} {blocked}\n\
+             rust_dns_queries_total{{status=\"allowed\"}} {allowed}\n\
+             rust_dns_queries_total{{status=\"cached\"}} {cached}\n\
+             rust_dns_queries_total{{status=\"total\"}} {total}\n"
         )
     }
 }

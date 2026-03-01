@@ -1,5 +1,5 @@
 /// Integration tests for graceful shutdown functionality.
-use ent_dns::shutdown;
+use rust_dns::shutdown;
 use std::time::Duration;
 use tokio::time::sleep;
 

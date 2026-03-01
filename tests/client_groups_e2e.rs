@@ -17,10 +17,10 @@ use std::str::FromStr;
 use std::sync::Arc;
 use tokio::sync::broadcast;
 
-use ent_dns::api::validators::rule::RuleValidationResponse;
-use ent_dns::api::AppState;
-use ent_dns::dns::filter::FilterEngine;
-use ent_dns::metrics::DnsMetrics;
+use rust_dns::api::validators::rule::RuleValidationResponse;
+use rust_dns::api::AppState;
+use rust_dns::dns::filter::FilterEngine;
+use rust_dns::metrics::DnsMetrics;
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -36,7 +36,7 @@ async fn setup_db() -> SqlitePool {
         .expect("Migration failed");
 
     // Seed admin user (password: admin)
-    let password_hash = ent_dns::auth::password::hash("admin").expect("Failed to hash password");
+    let password_hash = rust_dns::auth::password::hash("admin").expect("Failed to hash password");
     let id = uuid::Uuid::new_v4().to_string();
     let now = chrono::Utc::now().to_rfc3339();
     sqlx::query(
@@ -65,8 +65,8 @@ async fn build_test_state() -> Arc<AppState> {
     let metrics = Arc::new(DnsMetrics::default());
     let (query_log_tx, _) = broadcast::channel::<serde_json::Value>(16);
 
-    let test_cfg = ent_dns::config::Config {
-        dns: ent_dns::config::DnsConfig {
+    let test_cfg = rust_dns::config::Config {
+        dns: rust_dns::config::DnsConfig {
             port: 15401, // not actually bound in tests
             bind: "127.0.0.1".to_string(),
             upstreams: vec!["https://1.1.1.1/dns-query".to_string()],
@@ -75,17 +75,17 @@ async fn build_test_state() -> Arc<AppState> {
             dot_enabled: false,
             rewrite_ttl: 300,
         },
-        api: ent_dns::config::ApiConfig {
+        api: rust_dns::config::ApiConfig {
             port: 18101,
             bind: "127.0.0.1".to_string(),
             cors_allowed_origins: vec![],
             static_dir: "frontend/dist".to_string(),
         },
-        database: ent_dns::config::DatabaseConfig {
+        database: rust_dns::config::DatabaseConfig {
             path: ":memory:".to_string(),
             query_log_retention_days: 7,
         },
-        auth: ent_dns::config::AuthConfig {
+        auth: rust_dns::config::AuthConfig {
             jwt_secret: "test-jwt-secret-for-client-group-e2e-tests-only-32chars".to_string(),
             jwt_expiry_hours: 1,
             allow_default_password: false,
@@ -93,13 +93,13 @@ async fn build_test_state() -> Arc<AppState> {
         logging: Default::default(),
     };
 
-    let dns_handler = ent_dns::dns::build_handler(
+    let dns_handler = rust_dns::dns::build_handler(
         &test_cfg,
         db.clone(),
         filter.clone(),
         metrics.clone(),
         query_log_tx.clone(),
-        std::sync::Arc::new(ent_dns::db::app_catalog_cache::AppCatalogCache::new()),
+        std::sync::Arc::new(rust_dns::db::app_catalog_cache::AppCatalogCache::new()),
     )
     .await
     .expect("build_handler");

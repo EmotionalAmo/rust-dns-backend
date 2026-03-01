@@ -1,5 +1,5 @@
 [package]
-name = "ent-dns"
+name = "rust-dns"
 version = "0.1.0"
 edition = "2021"
 authors = ["Ent-DNS Team"]
@@ -10,7 +10,7 @@ name = "rust-dns"
 path = "src/main.rs"
 
 [lib]
-name = "ent_dns"
+name = "rust_dns"
 path = "src/lib.rs"
 
 [dependencies]

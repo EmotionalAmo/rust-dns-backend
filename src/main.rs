@@ -7,12 +7,12 @@ use tracing::{error, info, warn};
 use tracing_appender::non_blocking::WorkerGuard;
 
 // Re-use modules from the library crate
-use ent_dns::api;
-use ent_dns::config;
-use ent_dns::db;
-use ent_dns::dns;
-use ent_dns::metrics;
-use ent_dns::shutdown;
+use rust_dns::api;
+use rust_dns::config;
+use rust_dns::db;
+use rust_dns::dns;
+use rust_dns::metrics;
+use rust_dns::shutdown;
 
 #[derive(Parser, Debug)]
 #[command(
