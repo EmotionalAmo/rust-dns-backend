@@ -153,29 +153,45 @@ async fn write_batch(db: &DbPool, batch: &[QueryLogEntry]) -> Result<(), sqlx::E
         return Ok(());
     }
 
+    // SQLite SQLITE_MAX_VARIABLE_NUMBER defaults to 32766.
+    // 10 fields/row → safe limit is 3276 rows/statement.
+    // BATCH_SIZE=500 is well within limits; chunk defensively for future-proofing.
+    const FIELDS_PER_ROW: usize = 10;
+    const MAX_ROWS_PER_STMT: usize = 32766 / FIELDS_PER_ROW; // 3276
+
     let mut tx = db.begin().await?;
 
-    for entry in batch {
-        // High-performance insert: app_id is now resolved in-memory by DnsHandler
-        // before the entry is sent to the writer, eliminating the extremely slow
-        // SQLite LIKE wildcard subquery.
-        sqlx::query(
+    for chunk in batch.chunks(MAX_ROWS_PER_STMT) {
+        // Build multi-row VALUES placeholders: (?,?,?,?,?,?,?,?,?,?),(?,...),...
+        // Values are bound via parameters — no SQL injection risk.
+        let placeholders: String = chunk
+            .iter()
+            .map(|_| "(?,?,?,?,?,?,?,?,?,?)")
+            .collect::<Vec<_>>()
+            .join(",");
+
+        let sql = format!(
             "INSERT INTO query_log \
-             (time, client_ip, question, qtype, status, reason, answer, elapsed_ns, upstream_ns, app_id) \
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-        )
-        .bind(&entry.time)
-        .bind(&entry.client_ip)
-        .bind(&entry.question)
-        .bind(&entry.qtype)
-        .bind(&entry.status)
-        .bind(&entry.reason)
-        .bind(&entry.answer)
-        .bind(entry.elapsed_ns)
-        .bind(entry.upstream_ns)
-        .bind(entry.app_id)
-        .execute(&mut *tx)
-        .await?;
+             (time, client_ip, question, qtype, status, reason, answer, \
+              elapsed_ns, upstream_ns, app_id) VALUES {}",
+            placeholders
+        );
+
+        let mut query = sqlx::query(&sql);
+        for entry in chunk {
+            query = query
+                .bind(&entry.time)
+                .bind(&entry.client_ip)
+                .bind(&entry.question)
+                .bind(&entry.qtype)
+                .bind(&entry.status)
+                .bind(&entry.reason)
+                .bind(&entry.answer)
+                .bind(entry.elapsed_ns)
+                .bind(entry.upstream_ns)
+                .bind(entry.app_id);
+        }
+        query.execute(&mut *tx).await?;
     }
 
     tx.commit().await?;

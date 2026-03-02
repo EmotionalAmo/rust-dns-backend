@@ -248,8 +248,16 @@ impl DnsHandler {
             // DNS message ID is the first 2 bytes (big-endian). Avoid parsing+serializing.
             let mut updated_cached = cached.to_vec();
             let req_id_bytes = request.id().to_be_bytes();
-            updated_cached[0] = req_id_bytes[0];
-            updated_cached[1] = req_id_bytes[1];
+            // DNS header is always ≥ 12 bytes; guard defensively against any edge case.
+            debug_assert!(
+                updated_cached.len() >= 12,
+                "cached DNS response too short: {} bytes",
+                updated_cached.len()
+            );
+            if updated_cached.len() >= 2 {
+                updated_cached[0] = req_id_bytes[0];
+                updated_cached[1] = req_id_bytes[1];
+            }
 
             self.metrics.inc_cached();
             self.log_query(
