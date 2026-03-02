@@ -18,7 +18,8 @@ services:
       - ENT_DNS__DNS__PORT=53
       - ENT_DNS__API__PORT=8080
       - ENT_DNS__API__STATIC_DIR=/opt/ent-dns/static
-      - RUST_LOG=ent_dns=info
+      - ENT_DNS__AUTH__JWT_SECRET=${ENT_DNS__AUTH__JWT_SECRET:-CHANGE_ME_REPLACE_WITH_RANDOM_SECRET}
+      - RUST_LOG=rust_dns=info
     cap_add:
       - NET_BIND_SERVICE
     networks:

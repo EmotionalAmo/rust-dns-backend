@@ -30,7 +30,7 @@ RUN apt-get update && \
 RUN echo "<html><body><h1>Ent-DNS API Server</h1></body></html>" > /opt/ent-dns/static/index.html && \
     chown ent-dns:ent-dns /opt/ent-dns/static/index.html
 
-COPY --from=builder /app/target/release/rust-dns /usr/local/bin/rust-dns
+COPY --from=builder /app/target/release/ent-dns /usr/local/bin/ent-dns
 
 # DNS: 53/udp+tcp, API: 8080
 EXPOSE 53/udp 53/tcp 8080
@@ -44,4 +44,4 @@ ENV ENT_DNS__DATABASE__PATH=/data/ent-dns/ent-dns.db \
     ENT_DNS__API__PORT=8080 \
     ENT_DNS__API__STATIC_DIR=/opt/ent-dns/static
 
-CMD ["rust-dns"]
+CMD ["ent-dns"]
