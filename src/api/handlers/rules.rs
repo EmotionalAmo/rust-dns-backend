@@ -459,29 +459,28 @@ pub async fn export_rules(
     Query(params): Query<ExportParams>,
     _auth: AuthUser,
 ) -> impl IntoResponse {
-    let rows: Vec<(String, String, Option<String>, i64, String, String)> =
-        match sqlx::query_as(
-            "SELECT id, rule, comment, is_enabled, created_by, created_at \
-             FROM custom_rules \
-             WHERE created_by NOT LIKE 'filter:%' \
-             ORDER BY created_at DESC",
-        )
-        .fetch_all(&state.db)
-        .await
-        {
-            Ok(r) => r,
-            Err(e) => {
-                tracing::error!("Rules export DB query failed: {}", e);
-                return (
-                    axum::http::StatusCode::INTERNAL_SERVER_ERROR,
-                    Json(json!({
-                        "error": "Database error during export",
-                        "detail": e.to_string()
-                    })),
-                )
-                    .into_response();
-            }
-        };
+    let rows: Vec<(String, String, Option<String>, i64, String, String)> = match sqlx::query_as(
+        "SELECT id, rule, comment, is_enabled, created_by, created_at \
+         FROM custom_rules \
+         WHERE created_by NOT LIKE 'filter:%' \
+         ORDER BY created_at DESC",
+    )
+    .fetch_all(&state.db)
+    .await
+    {
+        Ok(r) => r,
+        Err(e) => {
+            tracing::error!("Rules export DB query failed: {}", e);
+            return (
+                axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({
+                    "error": "Database error during export",
+                    "detail": e.to_string()
+                })),
+            )
+                .into_response();
+        }
+    };
 
     match params.format.as_str() {
         "csv" => {
