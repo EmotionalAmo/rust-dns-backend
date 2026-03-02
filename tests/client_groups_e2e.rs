@@ -457,3 +457,104 @@ async fn test_group_rules_layer_over_global_filter() {
     // If it *was* blocked by our filter, `handle` returns `Ok(NXDomain vector)` instantaneously. 
     // To be perfectly safe, we verify it is strictly allowed by not checking the exact rcode (could be SERVFAIL from upstream).
 }
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Test 4: Group client rules layer over DNS rewrites
+//
+// When a client is in a group with bound rewrite rules, queries for those
+// domains resolve to the rewritten IP instead of hitting upstream.
+// ═══════════════════════════════════════════════════════════════════════════════
+
+#[tokio::test]
+async fn test_group_rules_dns_rewrites() {
+    let state = build_test_state().await;
+    let db = &state.db;
+    let now = chrono::Utc::now().to_rfc3339();
+
+    // ── 1. Create a client group ──────────────────────────────────────────────
+    let group_insert = sqlx::query(
+        "INSERT INTO client_groups (name, priority, created_at, updated_at)
+         VALUES ('Rewrite Test Group', 5, ?, ?)",
+    )
+    .bind(&now)
+    .bind(&now)
+    .execute(db)
+    .await
+    .expect("Insert group");
+    let group_id = group_insert.last_insert_rowid();
+
+    // ── 2. Create a client and assign to group ────────────────────────────────
+    let client_id = uuid::Uuid::new_v4().to_string();
+    sqlx::query(
+        "INSERT INTO clients (id, name, identifiers, filter_enabled, created_at, updated_at)
+         VALUES (?, 'Rewrite Group Client', '[\"192.168.10.1\"]', 1, ?, ?)",
+    )
+    .bind(&client_id)
+    .bind(&now)
+    .bind(&now)
+    .execute(db)
+    .await
+    .expect("Insert client");
+
+    sqlx::query(
+        "INSERT INTO client_group_memberships (client_id, group_id, created_at)
+         VALUES (?, ?, ?)",
+    )
+    .bind(&client_id)
+    .bind(group_id)
+    .bind(&now)
+    .execute(db)
+    .await
+    .expect("Insert membership");
+
+    // ── 3. Create a DNS rewrite rule ──────────────────────────────────────────
+    let rewrite_id = uuid::Uuid::new_v4().to_string();
+    sqlx::query(
+        "INSERT INTO dns_rewrites (id, domain, answer, created_by, created_at)
+         VALUES (?, 'router.local', '192.168.10.254', 'test', ?)",
+    )
+    .bind(&rewrite_id)
+    .bind(&now)
+    .execute(db)
+    .await
+    .expect("Insert rewrite rule");
+
+    // ── 4. Bind the rewrite rule to the group ─────────────────────────────────
+    sqlx::query(
+        "INSERT INTO client_group_rules (group_id, rule_id, rule_type, priority, created_at)
+         VALUES (?, ?, 'rewrite', 0, ?)",
+    )
+    .bind(group_id)
+    .bind(&rewrite_id)
+    .bind(&now)
+    .execute(db)
+    .await
+    .expect("Insert group rewrite binding");
+
+    // ── 5. Query the rewritten domain from the group client IP ────────────────
+    let query_bytes = build_dns_query("router.local");
+    let resp_bytes = state
+        .dns_handler
+        .handle(query_bytes, "192.168.10.1".to_string())
+        .await
+        .expect("DNS handle should not return Err");
+
+    // ── 6. Verify: A Record matches rewrite (192.168.10.254) ──────────────────
+    let rcode = decode_rcode(&resp_bytes);
+    assert_eq!(
+        rcode,
+        ResponseCode::NoError,
+        "Group member should receive NOERROR for rewritten domain"
+    );
+
+    let msg = Message::from_vec(&resp_bytes).unwrap();
+    assert_eq!(msg.answers().len(), 1, "Should have 1 answer");
+    let answer = &msg.answers()[0];
+    
+    // Check if the A record IP matches
+    if let Some(hickory_proto::rr::RData::A(ip)) = answer.data() {
+        assert_eq!(ip.to_string(), "192.168.10.254");
+    } else {
+        panic!("Answer was not an A record");
+    }
+}
