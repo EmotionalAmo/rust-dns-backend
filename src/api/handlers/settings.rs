@@ -16,6 +16,7 @@ pub struct UpdateDnsSettingsRequest {
     pub safe_search_enabled: Option<bool>,
     pub parental_control_enabled: Option<bool>,
     pub parental_control_level: Option<String>,
+    pub upstream_strategy: Option<String>,
 }
 
 /// Get current DNS settings
@@ -60,6 +61,12 @@ pub async fn get_dns(
             .await
             .unwrap_or(("none".to_string(),));
 
+    let upstream_strat: (String,) =
+        sqlx::query_as("SELECT value FROM settings WHERE key = 'upstream_strategy'")
+            .fetch_one(&state.db)
+            .await
+            .unwrap_or(("priority".to_string(),));
+
     // Parse values
     let cache_ttl = cache_ttl.0.parse::<u64>().unwrap_or(300);
     let query_log_retention = query_log_retention.0.parse::<u64>().unwrap_or(30);
@@ -67,13 +74,11 @@ pub async fn get_dns(
     let safe_search_enabled = safe_search.0 == "true";
     let parental_control_enabled = parental_control.0 == "true";
     let parental_control_level = parental_level.0;
+    let upstream_strategy = upstream_strat.0;
 
-    // Get upstreams from config (or database if implemented)
-    // For now, return empty array as default
-    let upstreams: Vec<String> = vec![
-        "https://1.1.1.1/dns-query".to_string(), // Cloudflare
-        "https://8.8.8.8/dns-query".to_string(), // Google
-    ];
+    // Get upstreams from database (not config) to match dashboard view.
+    // For now, return empty array as the actual upstreams are managed via `/api/v1/settings/upstreams`
+    let upstreams: Vec<String> = vec![];
 
     Ok(Json(json!({
         "upstreams": upstreams,
@@ -83,6 +88,7 @@ pub async fn get_dns(
         "safe_search_enabled": safe_search_enabled,
         "parental_control_enabled": parental_control_enabled,
         "parental_control_level": parental_control_level,
+        "upstream_strategy": upstream_strategy,
     })))
 }
 
@@ -192,10 +198,29 @@ pub async fn update_dns(
         }
     }
 
-    // Note: Upstreams would require either a settings table update or config file reload
-    // For this implementation, we acknowledge update but don't persist upstreams
+    // Note: Upstreams are managed by the /upstreams sub-router API. 
+    // We acknowledge update request but just warn.
     if body.upstreams.is_some() {
-        tracing::warn!("upstreams update requested but not implemented (requires config reload)");
+        tracing::warn!("upstreams update requested but ignored (managed by /api/v1/settings/upstreams)");
+    }
+
+    if let Some(strategy) = body.upstream_strategy {
+        if !matches!(strategy.as_str(), "priority" | "fastest" | "load_balance") {
+            return Err(AppError::Validation(
+                "upstream_strategy must be one of: priority, fastest, load_balance".to_string(),
+            ));
+        }
+        sqlx::query(
+            "INSERT OR REPLACE INTO settings (key, value) VALUES ('upstream_strategy', ?)",
+        )
+        .bind(&strategy)
+        .execute(&state.db)
+        .await?;
+
+        // Reload upstream pool mapping to apply the new strategy
+        if let Err(e) = state.dns_handler.reload_upstreams().await {
+            tracing::error!("Failed to reload upstream pool after strategy change: {}", e);
+        }
     }
 
     Ok(Json(json!({"success": true})))

@@ -12,6 +12,16 @@
 
 use ahash::AHashSet;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MatchResult {
+    /// Domain is explicitly allowed by an allowlist rule
+    Allowed,
+    /// Domain is explicitly blocked by a blocklist rule
+    Blocked,
+    /// Domain did not match any rules
+    None,
+}
+
 #[derive(Debug, Clone)]
 pub struct RuleSet {
     /// Domains in block list. A match blocks `domain` and all its subdomains.
@@ -101,18 +111,26 @@ impl RuleSet {
         content.lines().filter(|line| self.add_rule(line)).count()
     }
 
-    /// Check if a domain is blocked (considering allowlist).
-    /// Matching is done against the domain and all its parent domains.
-    pub fn is_blocked(&self, domain: &str) -> bool {
+    /// Check a domain against the rules, returning the detailed MatchResult.
+    pub fn match_domain(&self, domain: &str) -> MatchResult {
         let domain = domain.trim_end_matches('.').to_lowercase();
 
         // Check allowlist first — any parent match exempts the domain
         if self.matches_set(&domain, &self.allowed) {
-            return false;
+            return MatchResult::Allowed;
         }
 
         // Check blocklist
-        self.matches_set(&domain, &self.blocked)
+        if self.matches_set(&domain, &self.blocked) {
+            return MatchResult::Blocked;
+        }
+
+        MatchResult::None
+    }
+
+    /// Helper wrapper for backward compatibility.
+    pub fn is_blocked(&self, domain: &str) -> bool {
+        self.match_domain(domain) == MatchResult::Blocked
     }
 
     /// Returns true if `domain` or any of its parent domains is in `set`.

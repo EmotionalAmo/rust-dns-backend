@@ -30,15 +30,25 @@ const FLUSH_INTERVAL: Duration = Duration::from_secs(2); // Increased from 1s to
 
 /// Spawn the background writer task.  Returns the sender end of the channel
 /// which DnsHandler uses to enqueue entries (non-blocking).
-pub fn spawn(db: DbPool) -> mpsc::UnboundedSender<QueryLogEntry> {
+pub fn spawn(
+    db: DbPool,
+    alert_tx: tokio::sync::broadcast::Sender<serde_json::Value>,
+) -> mpsc::UnboundedSender<QueryLogEntry> {
     let (tx, rx) = mpsc::unbounded_channel::<QueryLogEntry>();
-    tokio::spawn(run(db, rx));
+    tokio::spawn(run(db, rx, alert_tx));
     tx
 }
 
-async fn run(db: DbPool, mut rx: mpsc::UnboundedReceiver<QueryLogEntry>) {
+async fn run(
+    db: DbPool,
+    mut rx: mpsc::UnboundedReceiver<QueryLogEntry>,
+    alert_tx: tokio::sync::broadcast::Sender<serde_json::Value>,
+) {
     let mut ticker = interval(FLUSH_INTERVAL);
     let mut batch: Vec<QueryLogEntry> = Vec::with_capacity(BATCH_SIZE);
+    
+    // Anomaly detection state: client_ip -> (block_count, first_block_time)
+    let mut block_counts: std::collections::HashMap<String, (usize, tokio::time::Instant)> = std::collections::HashMap::new();
 
     loop {
         tokio::select! {
@@ -46,6 +56,53 @@ async fn run(db: DbPool, mut rx: mpsc::UnboundedReceiver<QueryLogEntry>) {
             maybe_entry = rx.recv() => {
                 match maybe_entry {
                     Some(entry) => {
+                        // Anomaly detection
+                        if entry.status == "blocked" {
+                            let now = tokio::time::Instant::now();
+                            let entry_tracker = block_counts.entry(entry.client_ip.clone()).or_insert((0, now));
+                            
+                            // Reset tracker if older than 60s
+                            if now.duration_since(entry_tracker.1).as_secs() > 60 {
+                                *entry_tracker = (1, now);
+                            } else {
+                                entry_tracker.0 += 1;
+                                
+                                // Trigger alert if threshold exceeded (e.g., 50 blocks in 60s)
+                                if entry_tracker.0 == 50 {
+                                    let alert_id = uuid::Uuid::new_v4().to_string();
+                                    let message = format!("Client {} triggered 50 blocked queries within a minute. Potential malware activity.", entry.client_ip);
+                                    let created_at = chrono::Utc::now().to_rfc3339();
+                                    
+                                    // Insert alert asynchronously so it doesn't block the writer
+                                    let db_ref = db.clone();
+                                    let cid = entry.client_ip.clone();
+                                    let msg = message.clone();
+                                    
+                                    tokio::spawn(async move {
+                                        let _ = sqlx::query(
+                                            "INSERT INTO alerts (id, alert_type, client_id, message, is_read, created_at) VALUES (?, ?, ?, ?, 0, ?)"
+                                        )
+                                        .bind(&alert_id)
+                                        .bind("high_frequency_block")
+                                        .bind(&cid)
+                                        .bind(&msg)
+                                        .bind(&created_at)
+                                        .execute(&db_ref)
+                                        .await;
+                                    });
+
+                                    // Broadcast alert to WebSocket
+                                    let _ = alert_tx.send(serde_json::json!({
+                                        "type": "alert",
+                                        "alert_type": "high_frequency_block",
+                                        "client_id": entry.client_ip,
+                                        "message": message,
+                                        "created_at": chrono::Utc::now().to_rfc3339()
+                                    }));
+                                }
+                            }
+                        }
+
                         batch.push(entry);
                         if batch.len() >= BATCH_SIZE {
                             flush(&db, &mut batch).await;

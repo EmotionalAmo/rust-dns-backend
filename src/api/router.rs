@@ -193,6 +193,19 @@ pub fn routes(state: Arc<AppState>) -> Router {
             "/api/v1/settings/upstreams/failover-log",
             get(handlers::upstreams::failover_log),
         )
+        // Alerts (protected/admin)
+        .route(
+            "/api/v1/alerts",
+            get(handlers::alerts::list_alerts).delete(handlers::alerts::clear_alerts),
+        )
+        .route(
+            "/api/v1/alerts/read-all",
+            put(handlers::alerts::mark_all_alerts_read),
+        )
+        .route(
+            "/api/v1/alerts/{id}/read",
+            put(handlers::alerts::mark_alert_read),
+        )
         // Prometheus metrics (admin only - security fix)
         .route("/metrics", get(handlers::metrics::prometheus_metrics))
         // Backup (admin only)
@@ -236,6 +249,11 @@ pub fn routes(state: Arc<AppState>) -> Router {
         .route(
             "/api/v1/insights/domains/top",
             get(handlers::insights::top_domains),
+        )
+        // Tools (protected)
+        .route(
+            "/api/v1/tools/sandbox",
+            post(handlers::sandbox::test_rule),
         )
         .with_state(state)
         // 前端静态文件 + SPA fallback（必须在 with_state 之后）

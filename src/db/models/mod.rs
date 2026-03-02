@@ -6,3 +6,4 @@ pub mod rewrite;
 pub mod rule;
 pub mod upstream;
 pub mod user;
+pub mod alert;

@@ -1,0 +1,17 @@
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.79s
+     Running `target/debug/rust-dns`
+No config file found; using defaults + environment variables
+[2m2026-03-02T14:16:35.763414Z[0m [32m INFO[0m [2mrust_dns[0m[2m:[0m Starting Ent-DNS Enterprise v0.1.0
+[2m2026-03-02T14:16:35.763572Z[0m [32m INFO[0m [2mrust_dns[0m[2m:[0m Configuration loaded
+[2m2026-03-02T14:16:35.773957Z[0m [32m INFO[0m [2mrust_dns::db[0m[2m:[0m Database connected: ./ent-dns.db
+[2m2026-03-02T14:16:35.774014Z[0m [32m INFO[0m [2mrust_dns[0m[2m:[0m Database initialized
+[2m2026-03-02T14:16:35.775493Z[0m [32m INFO[0m [2mrust_dns::db::app_catalog_cache[0m[2m:[0m AppCatalogCache loaded 139 domain mappings
+[2m2026-03-02T14:16:35.776837Z[0m [32m INFO[0m [2mrust_dns::dns::filter[0m[2m:[0m Filter engine reloaded: 0 custom rules, 0 filter lists, 0 rewrites
+[2m2026-03-02T14:16:35.777063Z[0m [32m INFO[0m [2mrust_dns[0m[2m:[0m Query log rotation enabled: retaining 7 days, running daily
+[2m2026-03-02T14:16:35.777887Z[0m [32m INFO[0m [2mrust_dns::dns::resolver[0m[2m:[0m Created resolver with 2 upstream(s), ip_strategy: Ipv4Only
+[2m2026-03-02T14:16:35.778597Z[0m [32m INFO[0m [2mrust_dns::dns::resolver[0m[2m:[0m Created resolver with 2 upstream(s), ip_strategy: Ipv4Only
+[2m2026-03-02T14:16:35.779129Z[0m [32m INFO[0m [2mrust_dns::dns[0m[2m:[0m DNS server starting on 0.0.0.0:5353
+[2m2026-03-02T14:16:35.779468Z[0m [31mERROR[0m [2mrust_dns[0m[2m:[0m DNS server error: Address already in use (os error 48)
+[2m2026-03-02T14:16:35.784340Z[0m [32m INFO[0m [2mrust_dns::api[0m[2m:[0m Management API listening on http://0.0.0.0:8080
+[2m2026-03-02T14:26:46.382682Z[0m [33m WARN[0m [2mrust_dns::api::handlers::auth[0m[2m:[0m Login rate limit exceeded for IP: 127.0.0.1
+[2m2026-03-02T15:16:35.783392Z[0m [32m INFO[0m [2mrust_dns[0m[2m:[0m Auto-refresh: checking filter lists...

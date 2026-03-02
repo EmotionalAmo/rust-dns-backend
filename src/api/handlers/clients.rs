@@ -229,6 +229,8 @@ pub async fn create(
     .execute(&state.db)
     .await?;
 
+    state.dns_handler.invalidate_all_client_cache().await;
+
     crate::db::audit::log_action(
         state.db.clone(),
         auth.0.sub.clone(),
@@ -338,6 +340,8 @@ pub async fn update(
     .execute(&state.db)
     .await?;
 
+    state.dns_handler.invalidate_all_client_cache().await;
+
     // Parse for response
     let identifiers_json = parse_json_value(&Some(identifiers));
     let tags_json = parse_json_value(&tags);
@@ -380,6 +384,8 @@ pub async fn delete(
     if result.rows_affected() == 0 {
         return Err(AppError::NotFound(format!("Client {} not found", id)));
     }
+
+    state.dns_handler.invalidate_all_client_cache().await;
 
     crate::db::audit::log_action(
         state.db.clone(),

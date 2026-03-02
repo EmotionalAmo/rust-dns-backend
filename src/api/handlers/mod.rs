@@ -1,5 +1,6 @@
 pub mod audit_log;
 pub mod auth;
+pub mod alerts;
 pub mod backup;
 pub mod cache;
 pub mod client_groups;
@@ -18,6 +19,7 @@ pub mod query_log_templates;
 pub mod rewrites;
 pub mod rule_validation;
 pub mod rules;
+pub mod sandbox;
 pub mod settings;
 pub mod upstreams;
 pub mod users;

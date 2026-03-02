@@ -250,6 +250,11 @@ pub async fn create(
     .execute(&state.db)
     .await?;
 
+    // Hot-reload the upstream pool
+    if let Err(e) = state.dns_handler.reload_upstreams().await {
+        tracing::error!("Failed to reload upstream pool after creating upstream: {}", e);
+    }
+
     Ok(Json(json!({
         "id": id,
         "name": name,
@@ -365,6 +370,11 @@ pub async fn update(
     .execute(&state.db)
     .await?;
 
+    // Hot-reload the upstream pool
+    if let Err(e) = state.dns_handler.reload_upstreams().await {
+        tracing::error!("Failed to reload upstream pool after updating upstream: {}", e);
+    }
+
     Ok(Json(json!({
         "id": id,
         "name": name,
@@ -397,6 +407,11 @@ pub async fn delete(
 
     if result.rows_affected() == 0 {
         return Err(AppError::NotFound(format!("Upstream {} not found", id)));
+    }
+
+    // Hot-reload the upstream pool
+    if let Err(e) = state.dns_handler.reload_upstreams().await {
+        tracing::error!("Failed to reload upstream pool after deleting upstream: {}", e);
     }
 
     Ok(Json(json!({"success": true})))

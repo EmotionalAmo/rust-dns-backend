@@ -1,4 +1,7 @@
-use super::{cache::DnsCache, filter::FilterEngine, resolver::DnsResolver, rules::RuleSet};
+use super::{
+    cache::DnsCache, filter::FilterEngine, resolver::DnsResolver, rules::RuleSet,
+    upstream_pool::UpstreamPool,
+};
 use crate::config::Config;
 use crate::db::query_log_writer::QueryLogEntry;
 use crate::db::DbPool;
@@ -33,6 +36,9 @@ struct ClientConfig {
     /// When Some, replaces the global FilterEngine check for this client.
     /// When None, falls back to the global FilterEngine.
     group_ruleset: Option<Arc<RuleSet>>,
+    /// Group-specific DNS rewrites built from client_group_rules → dns_rewrites.
+    /// Checked before global filter rewrites.
+    group_rewrites: Option<Arc<HashMap<String, String>>>,
 }
 
 impl Default for ClientConfig {
@@ -41,13 +47,14 @@ impl Default for ClientConfig {
             filter_enabled: true,
             upstream_urls: None,
             group_ruleset: None,
+            group_rewrites: None,
         }
     }
 }
 
 pub struct DnsHandler {
     filter: Arc<FilterEngine>,
-    resolver: Arc<DnsResolver>,
+    upstream_pool: Arc<RwLock<UpstreamPool>>,
     prefer_ipv4: bool,
     /// TTL（秒）用于 DNS 重写响应（可通过 dns.rewrite_ttl 配置）
     rewrite_ttl: u32,
@@ -73,19 +80,28 @@ impl DnsHandler {
         query_log_tx: broadcast::Sender<serde_json::Value>,
         app_catalog: Arc<crate::db::app_catalog_cache::AppCatalogCache>,
     ) -> Result<Self> {
-        let resolver = Arc::new(DnsResolver::new(&cfg).await?);
+        // Intialize UpstreamPool from database
+        let upstreams = crate::db::models::upstream::UpstreamRepository::list(&db).await?;
+        
+        let strategy = sqlx::query_scalar::<_, String>("SELECT value FROM settings WHERE key = 'upstream_strategy'")
+            .fetch_optional(&db)
+            .await?
+            .unwrap_or_else(|| "priority".to_string());
+            
+        let upstream_pool = Arc::new(RwLock::new(UpstreamPool::new(upstreams, &strategy, cfg.dns.prefer_ipv4)?));
+
         let cache = Arc::new(DnsCache::new());
         let client_config_cache = MokaCache::builder()
             .max_capacity(4096)
             .time_to_live(CLIENT_CACHE_TTL)
             .build();
         // Spawn batch writer; the sender is stored so log_query() is fully non-blocking
-        let query_log_entry_tx = crate::db::query_log_writer::spawn(db.clone());
+        let query_log_entry_tx = crate::db::query_log_writer::spawn(db.clone(), query_log_tx.clone());
         let prefer_ipv4 = cfg.dns.prefer_ipv4;
         let rewrite_ttl = cfg.dns.rewrite_ttl;
         Ok(Self {
             filter,
-            resolver,
+            upstream_pool,
             prefer_ipv4,
             rewrite_ttl,
             client_resolvers: RwLock::new(HashMap::new()),
@@ -141,11 +157,21 @@ impl DnsHandler {
         // Normalize domain (remove trailing dot)
         let domain_normalized = domain.trim_end_matches('.');
 
-        // Look up client-specific config (filter override + custom upstreams + group rules)
+        // Look up client-specific config (filter override + custom upstreams + group rules/rewrites)
         let config = self.get_client_config(client_ip).await;
 
-        // Check DNS rewrite first (always, regardless of client config)
-        if let Some(answer) = self.filter.check_rewrite(domain_normalized).await {
+        // Check DNS rewrite (group-specific rewrites take precedence over global)
+        let rewrite_answer = if let Some(ref rewrites) = config.group_rewrites {
+            if let Some(ans) = rewrites.get(domain_normalized).cloned() {
+                Some(ans)
+            } else {
+                self.filter.check_rewrite(domain_normalized).await
+            }
+        } else {
+            self.filter.check_rewrite(domain_normalized).await
+        };
+
+        if let Some(answer) = rewrite_answer {
             tracing::debug!("Rewrite: {} -> {}", domain, answer);
             let elapsed = start.elapsed().as_nanos() as i64;
 
@@ -168,12 +194,18 @@ impl DnsHandler {
             }
         }
 
-        // Check filter using client's filter_enabled setting (default true)
         if config.filter_enabled {
             let blocked = if let Some(ref ruleset) = config.group_ruleset {
-                // Client belongs to a group with specific rules — use group rules only
-                tracing::debug!("Using group-specific ruleset for {}", client_ip);
-                ruleset.is_blocked(domain_normalized)
+                // Client belongs to a group; check specific rules first
+                tracing::debug!("Checking group-specific ruleset for {}", client_ip);
+                match ruleset.match_domain(domain_normalized) {
+                    crate::dns::rules::MatchResult::Blocked => true,
+                    crate::dns::rules::MatchResult::Allowed => false,
+                    crate::dns::rules::MatchResult::None => {
+                        // Fallback to global FilterEngine if group rules didn't explicitly allow/block
+                        self.filter.is_blocked(&domain).await
+                    }
+                }
             } else {
                 // No group rules — use global FilterEngine
                 self.filter.is_blocked(&domain).await
@@ -224,13 +256,14 @@ impl DnsHandler {
             return Ok(updated_cached);
         }
 
-        // Resolve: use client-specific upstream if configured, else global resolver
+        // Resolve: use client-specific upstream if configured, else global upstream_pool
         let upstream_start = Instant::now();
         let (response, min_ttl) = if let Some(ref upstreams) = config.upstream_urls {
             let resolver = self.get_or_create_client_resolver(upstreams).await?;
             resolver.resolve(&domain, qtype, &request).await?
         } else {
-            self.resolver.resolve(&domain, qtype, &request).await?
+            let pool = self.upstream_pool.read().await;
+            pool.resolve(&domain, qtype, &request).await?
         };
         let upstream_ns = upstream_start.elapsed().as_nanos() as i64;
 
@@ -340,18 +373,61 @@ impl DnsHandler {
             }
         }
 
-        // If client was matched, check for group-specific rules
-        let group_ruleset = if let Some(ref cid) = matched_client_id {
-            self.load_group_rules_for_client(cid).await
+        // If client was matched, check for group-specific rules and rewrites
+        let (group_ruleset, group_rewrites) = if let Some(ref cid) = matched_client_id {
+            let ruleset = self.load_group_rules_for_client(cid).await;
+            let rewrites = self.load_group_rewrites_for_client(cid).await;
+            (ruleset, rewrites)
         } else {
-            None
+            (None, None)
         };
 
         ClientConfig {
             filter_enabled,
             upstream_urls,
             group_ruleset,
+            group_rewrites,
         }
+    }
+
+    /// Load rewrite rules bound to groups this client belongs to.
+    async fn load_group_rewrites_for_client(
+        &self,
+        client_id: &str,
+    ) -> Option<Arc<HashMap<String, String>>> {
+        let rows: Vec<(String, String)> = match sqlx::query_as(
+            r#"
+            SELECT dr.domain, dr.answer
+            FROM client_group_memberships m
+            JOIN client_groups cg ON cg.id = m.group_id
+            JOIN client_group_rules cgr ON cgr.group_id = m.group_id
+            JOIN dns_rewrites dr ON dr.id = cgr.rule_id
+            WHERE m.client_id = ?
+              AND cgr.rule_type = 'rewrite'
+            ORDER BY cg.priority ASC
+            "#,
+        )
+        .bind(client_id)
+        .fetch_all(&self.db)
+        .await
+        {
+            Ok(r) => r,
+            Err(e) => {
+                tracing::warn!("Failed to load group rewrites for client {}: {}", client_id, e);
+                return None;
+            }
+        };
+
+        if rows.is_empty() {
+            return None;
+        }
+
+        let mut rewrites = HashMap::new();
+        for (domain, answer) in rows {
+            rewrites.insert(domain.to_lowercase(), answer);
+        }
+        tracing::debug!("Loaded {} group rewrites for client {}", rewrites.len(), client_id);
+        Some(Arc::new(rewrites))
     }
 
     /// Load custom rule strings bound to groups this client belongs to.
@@ -586,5 +662,28 @@ impl DnsHandler {
     /// cache miss 仅触发一次 DB 查询，TTL=60s 内会重新缓存。
     pub async fn invalidate_all_client_cache(&self) {
         self.client_config_cache.invalidate_all();
+    }
+
+    /// Reload global upstreams from database (called when settings change).
+    pub async fn reload_upstreams(&self) -> Result<()> {
+        tracing::info!("Reloading upstream pool from database...");
+        let upstreams = crate::db::models::upstream::UpstreamRepository::list(&self.db).await?;
+        let strategy = sqlx::query_scalar::<_, String>("SELECT value FROM settings WHERE key = 'upstream_strategy'")
+            .fetch_optional(&self.db)
+            .await?
+            .unwrap_or_else(|| "priority".to_string());
+            
+        let new_pool = UpstreamPool::new(upstreams, &strategy, self.prefer_ipv4)?;
+        
+        let mut pool = self.upstream_pool.write().await;
+        *pool = new_pool;
+        tracing::info!("Upstream pool reloaded successfully");
+        Ok(())
+    }
+
+    /// Update the latency of a specific upstream dynamically via background health checks.
+    pub async fn update_upstream_latency(&self, upstream_id: &str, latency_ms: i64) {
+        let mut pool = self.upstream_pool.write().await;
+        pool.update_latency(upstream_id, latency_ms);
     }
 }

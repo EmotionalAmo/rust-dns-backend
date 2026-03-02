@@ -96,7 +96,7 @@ pub async fn serve(
         query_log_tx,
         ws_tickets: DashMap::new(),
         login_attempts: DashMap::new(),
-        dns_handler,
+        dns_handler: dns_handler.clone(),
         rule_validation_cache,
         client_config_cache: Some(client_config_cache),
         static_dir: cfg.api.static_dir.clone(),
@@ -118,6 +118,7 @@ pub async fn serve(
         let db = db_for_task;
         let mut shutdown_rx_task = shutdown_signal.subscribe();
         let health_map = state.upstream_health.clone();
+        let dns_handler = dns_handler.clone();
         tokio::spawn(async move {
             // Initial delay to let the server finish starting up
             tokio::time::sleep(tokio::time::Duration::from_secs(10)).await;
@@ -175,6 +176,9 @@ pub async fn serve(
                                 latency_ms,
                                 last_check_at: now.clone(),
                             });
+
+                            // Inject latency into the running DNS handler for the Fastest strategy
+                            dns_handler.update_upstream_latency(&id, latency_ms).await;
 
                             let _ = sqlx::query(
                                 "INSERT INTO upstream_latency_log (upstream_id, latency_ms, success, checked_at) VALUES (?, ?, ?, ?)"

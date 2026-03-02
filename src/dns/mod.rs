@@ -15,6 +15,7 @@ pub mod resolver;
 pub mod rules;
 pub mod server;
 pub mod subscription;
+pub mod upstream_pool;
 
 pub use handler::DnsHandler;
 
