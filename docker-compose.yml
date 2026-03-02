@@ -1,0 +1,32 @@
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: ent-dns-backend
+    restart: unless-stopped
+    ports:
+      - "53:53/udp"
+      - "53:53/tcp"
+      - "8080:8080"
+    volumes:
+      - dns_data:/data/ent-dns
+    environment:
+      - ENT_DNS__DATABASE__PATH=/data/ent-dns/ent-dns.db
+      - ENT_DNS__DNS__PORT=53
+      - ENT_DNS__API__PORT=8080
+      - ENT_DNS__API__STATIC_DIR=/opt/ent-dns/static
+      - RUST_LOG=ent_dns=info
+    cap_add:
+      - NET_BIND_SERVICE
+    networks:
+      - dns_net
+
+volumes:
+  dns_data:
+
+networks:
+  dns_net:
+    driver: bridge
