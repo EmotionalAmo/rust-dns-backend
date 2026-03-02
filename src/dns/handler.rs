@@ -66,8 +66,8 @@ pub struct DnsHandler {
     db: DbPool,
     metrics: Arc<DnsMetrics>,
     query_log_tx: broadcast::Sender<serde_json::Value>,
-    /// Non-blocking sender to the batch query log writer (Task 1: async batch write)
-    query_log_entry_tx: mpsc::UnboundedSender<QueryLogEntry>,
+    /// Non-blocking sender to the batch query log writer (bounded channel, OOM 防护)
+    query_log_entry_tx: mpsc::Sender<QueryLogEntry>,
     app_catalog: Arc<crate::db::app_catalog_cache::AppCatalogCache>,
 }
 
@@ -168,14 +168,15 @@ impl DnsHandler {
         let config = self.get_client_config(client_ip).await;
 
         // Check DNS rewrite (group-specific rewrites take precedence over global)
+        // check_rewrite() 是同步方法（arc-swap 无锁读），无需 .await
         let rewrite_answer = if let Some(ref rewrites) = config.group_rewrites {
             if let Some(ans) = rewrites.get(domain_normalized).cloned() {
                 Some(ans)
             } else {
-                self.filter.check_rewrite(domain_normalized).await
+                self.filter.check_rewrite(domain_normalized)
             }
         } else {
-            self.filter.check_rewrite(domain_normalized).await
+            self.filter.check_rewrite(domain_normalized)
         };
 
         if let Some(answer) = rewrite_answer {
@@ -210,12 +211,14 @@ impl DnsHandler {
                     crate::dns::rules::MatchResult::Allowed => false,
                     crate::dns::rules::MatchResult::None => {
                         // Fallback to global FilterEngine if group rules didn't explicitly allow/block
-                        self.filter.is_blocked(&domain).await
+                        // is_blocked() 是同步方法（arc-swap 无锁读），无需 .await
+                        self.filter.is_blocked(&domain)
                     }
                 }
             } else {
                 // No group rules — use global FilterEngine
-                self.filter.is_blocked(&domain).await
+                // is_blocked() 是同步方法（arc-swap 无锁读），无需 .await
+                self.filter.is_blocked(&domain)
             };
 
             if blocked {
@@ -586,7 +589,7 @@ impl DnsHandler {
     ) {
         let now = Utc::now().to_rfc3339();
 
-        // Enqueue for batch write — non-blocking (unbounded channel)
+        // Enqueue for batch write — non-blocking (bounded channel，满了静默丢弃)
         // Convert Cow to String only for DB storage (required by QueryLogEntry)
         let entry = QueryLogEntry {
             time: now.clone(),
@@ -600,8 +603,11 @@ impl DnsHandler {
             upstream_ns,
             app_id,
         };
-        if let Err(e) = self.query_log_entry_tx.send(entry) {
-            tracing::warn!("QueryLogWriter channel closed, dropping entry: {}", e);
+        if let Err(e) = self.query_log_entry_tx.try_send(entry) {
+            tracing::warn!(
+                "QueryLogWriter channel full or closed, dropping entry: {}",
+                e
+            );
         }
 
         // WebSocket real-time broadcast (non-blocking; receivers may not exist)

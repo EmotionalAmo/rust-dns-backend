@@ -37,8 +37,9 @@ pub async fn check_domains(
         if domain.is_empty() {
             continue;
         }
-        let blocked = state.filter.is_blocked(&domain).await;
-        let rewrite_target = state.filter.check_rewrite(&domain).await;
+        // is_blocked / check_rewrite 已改为同步方法（arc-swap 无锁读）
+        let blocked = state.filter.is_blocked(&domain);
+        let rewrite_target = state.filter.check_rewrite(&domain);
 
         let action = if let Some(ref target) = rewrite_target {
             format!("rewritten:{}", target)

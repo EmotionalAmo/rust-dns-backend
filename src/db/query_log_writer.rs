@@ -1,7 +1,8 @@
 /// Async batch writer for query log entries.
 ///
-/// DnsHandler sends log entries via an UnboundedSender (non-blocking, zero latency
-/// on the DNS hot path). This background task drains the channel every second or
+/// DnsHandler sends log entries via a bounded Sender (容量 32_768，背压保护 OOM).
+/// 当 channel 满时，hot path 用 try_send() 静默丢弃（warn 日志记录）。
+/// This background task drains the channel every second or
 /// when a batch of 100 entries accumulates, then writes them in a single SQLite
 /// transaction — dramatically reducing write amplification.
 use crate::db::DbPool;
@@ -28,20 +29,24 @@ const BATCH_SIZE: usize = 500; // Increased from 100 to 500 for better throughpu
 /// Maximum time between flushes even when batch is not full.
 const FLUSH_INTERVAL: Duration = Duration::from_secs(2); // Increased from 1s to 2s
 
+/// Bounded channel 容量：约 32K 条目 = 每秒 10K QPS 下约 3s 缓冲。
+/// 超出后 hot path 静默丢弃（背压，防止 OOM）。
+const CHANNEL_CAPACITY: usize = 32_768;
+
 /// Spawn the background writer task.  Returns the sender end of the channel
-/// which DnsHandler uses to enqueue entries (non-blocking).
+/// which DnsHandler uses to enqueue entries (non-blocking, bounded).
 pub fn spawn(
     db: DbPool,
     alert_tx: tokio::sync::broadcast::Sender<serde_json::Value>,
-) -> mpsc::UnboundedSender<QueryLogEntry> {
-    let (tx, rx) = mpsc::unbounded_channel::<QueryLogEntry>();
+) -> mpsc::Sender<QueryLogEntry> {
+    let (tx, rx) = mpsc::channel::<QueryLogEntry>(CHANNEL_CAPACITY);
     tokio::spawn(run(db, rx, alert_tx));
     tx
 }
 
 async fn run(
     db: DbPool,
-    mut rx: mpsc::UnboundedReceiver<QueryLogEntry>,
+    mut rx: mpsc::Receiver<QueryLogEntry>,
     alert_tx: tokio::sync::broadcast::Sender<serde_json::Value>,
 ) {
     let mut ticker = interval(FLUSH_INTERVAL);

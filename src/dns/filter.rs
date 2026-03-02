@@ -3,20 +3,26 @@
 use super::rules::RuleSet;
 use crate::db::DbPool;
 use anyhow::Result;
+use arc_swap::ArcSwap;
 use std::collections::HashMap;
-use tokio::sync::RwLock;
+use std::sync::Arc;
 
+/// FilterEngine 使用 ArcSwap 实现热路径无锁读取。
+///
+/// reload() 在锁外构建新的数据结构，然后原子地 store 新 Arc。
+/// is_blocked() / check_rewrite() 是纯同步方法，load() 返回一个轻量 Guard，
+/// 无需 await，读性能接近裸指针解引用。
 pub struct FilterEngine {
-    rules: RwLock<RuleSet>,
-    rewrites: RwLock<HashMap<String, String>>,
+    rules: ArcSwap<RuleSet>,
+    rewrites: ArcSwap<HashMap<String, String>>,
     db: DbPool,
 }
 
 impl FilterEngine {
     pub async fn new(db: DbPool) -> Result<Self> {
         let engine = Self {
-            rules: RwLock::new(RuleSet::new()),
-            rewrites: RwLock::new(HashMap::new()),
+            rules: ArcSwap::from_pointee(RuleSet::new()),
+            rewrites: ArcSwap::from_pointee(HashMap::new()),
             db,
         };
         engine.reload().await?;
@@ -24,6 +30,7 @@ impl FilterEngine {
     }
 
     /// Reload all rules and rewrites from the database.
+    /// 在锁外构建新数据结构，然后原子地替换——读路径全程不阻塞。
     pub async fn reload(&self) -> Result<()> {
         // 预估规则数量以便预分配内存
         let expected_count: i64 =
@@ -154,17 +161,9 @@ impl FilterEngine {
 
         let rewrite_count = new_rewrites.len();
 
-        // Update rules
-        {
-            let mut rules = self.rules.write().await;
-            *rules = new_rules;
-        }
-
-        // Update rewrites
-        {
-            let mut rewrites = self.rewrites.write().await;
-            *rewrites = new_rewrites;
-        }
+        // 原子替换：读路径全程不阻塞，无需持锁
+        self.rules.store(Arc::new(new_rules));
+        self.rewrites.store(Arc::new(new_rewrites));
 
         tracing::info!(
             "Filter engine reloaded: {} custom rules, {} filter lists, {} rewrites",
@@ -176,26 +175,33 @@ impl FilterEngine {
     }
 
     /// Check if a domain should be blocked.
-    pub async fn is_blocked(&self, domain: &str) -> bool {
-        let rules = self.rules.read().await;
+    /// 同步方法：arc-swap load() 是无锁读，热路径零 await。
+    pub fn is_blocked(&self, domain: &str) -> bool {
+        let rules = self.rules.load();
         rules.is_blocked(domain)
     }
 
     /// Check if a domain has a rewrite rule. Returns the target IP if found.
-    pub async fn check_rewrite(&self, domain: &str) -> Option<String> {
-        let rewrites = self.rewrites.read().await;
+    /// 同步方法：arc-swap load() 是无锁读，热路径零 await。
+    pub fn check_rewrite(&self, domain: &str) -> Option<String> {
+        let rewrites = self.rewrites.load();
         rewrites.get(&domain.to_lowercase()).cloned()
     }
 
     /// Add a single rule at runtime (without DB persistence — use API for persistence).
+    /// 注意：此方法触发完整 reload 以保持 ArcSwap 语义一致性。
+    /// 对于高频调用场景请改用 reload()。
     pub async fn add_rule_live(&self, rule: &str) {
-        let mut rules = self.rules.write().await;
-        rules.add_rule(rule);
+        // 克隆当前规则集，加入新规则，原子替换
+        let current = self.rules.load();
+        let mut new_rules = (**current).clone();
+        new_rules.add_rule(rule);
+        self.rules.store(Arc::new(new_rules));
     }
 
-    pub async fn stats(&self) -> (usize, usize, usize) {
-        let rules = self.rules.read().await;
-        let rewrites = self.rewrites.read().await;
+    pub fn stats(&self) -> (usize, usize, usize) {
+        let rules = self.rules.load();
+        let rewrites = self.rewrites.load();
         (rules.blocked_count(), rules.allowed_count(), rewrites.len())
     }
 }

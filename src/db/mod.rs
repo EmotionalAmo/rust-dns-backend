@@ -48,6 +48,16 @@ pub async fn init(cfg: &Config) -> Result<DbPool> {
         .execute(&pool)
         .await?;
 
+    // busy_timeout: 让并发写入等待最多 5s 而非立即返回 SQLITE_BUSY
+    sqlx::query("PRAGMA busy_timeout = 5000")
+        .execute(&pool)
+        .await?;
+
+    // temp_store: 临时表/索引存放在内存中，减少磁盘 I/O
+    sqlx::query("PRAGMA temp_store = MEMORY")
+        .execute(&pool)
+        .await?;
+
     tracing::info!("Database connected: {}", cfg.database.path);
     Ok(pool)
 }

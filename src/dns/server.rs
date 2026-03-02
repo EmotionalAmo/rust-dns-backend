@@ -6,9 +6,13 @@ use std::sync::Arc;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, UdpSocket};
 use tokio::sync::Semaphore;
+use tokio::time::{timeout, Duration};
 
 /// Maximum number of concurrent TCP DNS connections (P1-5 fix: DoS防护)
 const MAX_TCP_CONNECTIONS: usize = 256;
+
+/// TCP 读取超时：防止慢速客户端长期占用连接（DoS 防护）
+const TCP_READ_TIMEOUT: Duration = Duration::from_secs(5);
 
 /// Start DNS server (UDP + TCP) using the provided shared handler.
 /// This function blocks until the shutdown signal is received.
@@ -79,7 +83,11 @@ pub async fn run(
                                 let _permit = permit;
                                 // DNS/TCP: 2-byte big-endian length prefix before each message
                                 let mut len_buf = [0u8; 2];
-                                if stream.read_exact(&mut len_buf).await.is_err() {
+                                // 读长度前缀，超时则视为慢速/恶意客户端，断开连接
+                                if timeout(TCP_READ_TIMEOUT, stream.read_exact(&mut len_buf))
+                                    .await
+                                    .is_err()
+                                {
                                     connections.fetch_sub(1, std::sync::atomic::Ordering::Relaxed);
                                     return;
                                 }
@@ -89,7 +97,11 @@ pub async fn run(
                                     return;
                                 }
                                 let mut data = vec![0u8; msg_len];
-                                if stream.read_exact(&mut data).await.is_err() {
+                                // 读消息体，超时则断开连接
+                                if timeout(TCP_READ_TIMEOUT, stream.read_exact(&mut data))
+                                    .await
+                                    .is_err()
+                                {
                                     connections.fetch_sub(1, std::sync::atomic::Ordering::Relaxed);
                                     return;
                                 }
@@ -138,7 +150,8 @@ pub async fn run(
     let udp_socket_for_shutdown = udp_socket.clone();
     let mut udp_shutdown_rx = shutdown_tx.subscribe();
     tokio::spawn(async move {
-        let mut buf = vec![0u8; 4096];
+        // 65535 = DNS over UDP 最大合法消息大小（RFC 1035 + EDNS0）
+        let mut buf = vec![0u8; 65535];
         loop {
             tokio::select! {
                 // Normal receive path

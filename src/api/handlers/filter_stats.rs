@@ -9,7 +9,8 @@ pub async fn get_filter_stats(
     State(state): State<Arc<AppState>>,
     _auth: AuthUser,
 ) -> AppResult<Json<Value>> {
-    let (blocked_count, allowed_count, rewrite_count) = state.filter.stats().await;
+    // stats() 已改为同步方法（arc-swap 无锁读）
+    let (blocked_count, allowed_count, rewrite_count) = state.filter.stats();
     Ok(Json(json!({
         "blocked_rule_count": blocked_count,
         "allowed_rule_count": allowed_count,
