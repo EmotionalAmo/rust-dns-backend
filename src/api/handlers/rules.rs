@@ -4,6 +4,8 @@ use crate::api::AppState;
 use crate::error::{AppError, AppResult};
 use axum::{
     extract::{Path, Query, State},
+    http::header,
+    response::IntoResponse,
     Json,
 };
 use chrono::Utc;
@@ -440,4 +442,113 @@ pub async fn toggle(
         "id": id,
         "is_enabled": body.is_enabled,
     })))
+}
+
+#[derive(Deserialize)]
+pub struct ExportParams {
+    #[serde(default = "default_export_format")]
+    format: String,
+}
+
+fn default_export_format() -> String {
+    "json".to_string()
+}
+
+pub async fn export_rules(
+    State(state): State<Arc<AppState>>,
+    Query(params): Query<ExportParams>,
+    _auth: AuthUser,
+) -> impl IntoResponse {
+    let rows: Vec<(String, String, Option<String>, i64, String, String)> =
+        match sqlx::query_as(
+            "SELECT id, rule, comment, is_enabled, created_by, created_at \
+             FROM custom_rules \
+             WHERE created_by NOT LIKE 'filter:%' \
+             ORDER BY created_at DESC",
+        )
+        .fetch_all(&state.db)
+        .await
+        {
+            Ok(r) => r,
+            Err(e) => {
+                tracing::error!("Rules export DB query failed: {}", e);
+                return (
+                    axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(json!({
+                        "error": "Database error during export",
+                        "detail": e.to_string()
+                    })),
+                )
+                    .into_response();
+            }
+        };
+
+    match params.format.as_str() {
+        "csv" => {
+            let mut csv = String::new();
+            csv.push_str("id,rule,comment,is_enabled,created_by,created_at\n");
+
+            for (id, rule, comment, is_enabled, created_by, created_at) in &rows {
+                let comment_str = comment.as_deref().unwrap_or("");
+                csv.push_str(&format!(
+                    "{},{},{},{},{},{}\n",
+                    escape_csv_field(id),
+                    escape_csv_field(rule),
+                    escape_csv_field(comment_str),
+                    if *is_enabled == 1 { "true" } else { "false" },
+                    escape_csv_field(created_by),
+                    escape_csv_field(created_at),
+                ));
+            }
+
+            (
+                [
+                    (header::CONTENT_TYPE, "text/csv; charset=utf-8"),
+                    (
+                        header::CONTENT_DISPOSITION,
+                        "attachment; filename=\"rules_export.csv\"",
+                    ),
+                ],
+                csv,
+            )
+                .into_response()
+        }
+        _ => {
+            // json format (default)
+            let data: Vec<Value> = rows
+                .into_iter()
+                .map(|(id, rule, comment, is_enabled, created_by, created_at)| {
+                    json!({
+                        "id": id,
+                        "rule": rule,
+                        "comment": comment,
+                        "is_enabled": is_enabled == 1,
+                        "created_by": created_by,
+                        "created_at": created_at,
+                    })
+                })
+                .collect();
+
+            let body = serde_json::to_string_pretty(&data).unwrap_or_default();
+            (
+                [
+                    (header::CONTENT_TYPE, "application/json"),
+                    (
+                        header::CONTENT_DISPOSITION,
+                        "attachment; filename=\"rules_export.json\"",
+                    ),
+                ],
+                body,
+            )
+                .into_response()
+        }
+    }
+}
+
+fn escape_csv_field(s: &str) -> String {
+    if s.contains(',') || s.contains('"') || s.contains('\n') {
+        format!("\"{}\"", s.replace('"', "\"\""))
+    } else {
+        s.to_string()
+    }
 }

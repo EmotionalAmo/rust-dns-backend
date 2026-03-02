@@ -96,16 +96,17 @@ pub fn routes(state: Arc<AppState>) -> Router {
             "/api/v1/rules",
             get(handlers::rules::list).post(handlers::rules::create),
         )
+        .route("/api/v1/rules/export", get(handlers::rules::export_rules))
         .route("/api/v1/rules/bulk", post(handlers::rules::bulk_action))
+        .route(
+            "/api/v1/rules/validate",
+            post(handlers::rule_validation::validate_rule),
+        )
         .route(
             "/api/v1/rules/{id}",
             put(handlers::rules::update)
                 .post(handlers::rules::toggle)
                 .delete(handlers::rules::delete),
-        )
-        .route(
-            "/api/v1/rules/validate",
-            post(handlers::rule_validation::validate_rule),
         )
         // DNS Rewrites (protected)
         .route(
@@ -162,11 +163,9 @@ pub fn routes(state: Arc<AppState>) -> Router {
         )
         .route(
             "/api/v1/settings/upstreams/{id}",
-            get(handlers::upstreams::get),
-        )
-        .route(
-            "/api/v1/settings/upstreams/{id}",
-            put(handlers::upstreams::update).delete(handlers::upstreams::delete),
+            get(handlers::upstreams::get)
+                .put(handlers::upstreams::update)
+                .delete(handlers::upstreams::delete),
         )
         .route(
             "/api/v1/settings/upstreams/{id}/test",
