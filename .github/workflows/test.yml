@@ -13,9 +13,6 @@ jobs:
   test_and_lint:
     name: Test, Lint and Security Audit
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: projects/rust-dns-backend
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
