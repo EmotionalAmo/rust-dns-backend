@@ -1,5 +1,5 @@
-// OISD Performance Test - Phase 1
-// Tests loading 10,000 OISD rules and measuring memory and query performance
+// OISD Performance Test - Phase 2
+// Tests loading 50,000 OISD rules and measuring memory and query performance
 //
 // Goals:
 // - Verify memory footprint with 10,000 rules
@@ -13,7 +13,7 @@ use rust_dns::dns::rules::RuleSet;
 #[tokio::test]
 async fn test_oisd_performance() -> Result<()> {
     println!("======================================");
-    println!("OISD Phase 1 Performance Test");
+    println!("OISD Phase 2 Performance Test");
     println!("======================================\n");
 
     // Step 1: Download and parse OISD data
@@ -63,9 +63,9 @@ async fn download_and_parse_oisd() -> Result<Vec<String>> {
 
     println!("Total domains in OISD Small: {}", domains.len());
 
-    // For Phase 1 test, use first 10,000 domains
-    if domains.len() > 10_000 {
-        domains.truncate(10_000);
+    // For Phase 2 test, use first 50,000 domains
+    if domains.len() > 50_000 {
+        domains.truncate(50_000);
     }
 
     Ok(domains)
