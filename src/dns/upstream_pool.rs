@@ -15,7 +15,7 @@ pub enum UpstreamStrategy {
 }
 
 impl UpstreamStrategy {
-    pub fn from_str(s: &str) -> Self {
+    pub fn from_string(s: &str) -> Self {
         match s.to_lowercase().as_str() {
             "load_balance" | "loadbalance" => Self::LoadBalance,
             "fastest" => Self::Fastest,
@@ -38,12 +38,15 @@ pub struct UpstreamPool {
 impl UpstreamPool {
     /// Create a new UpstreamPool based on a list of DB models and a chosen strategy.
     pub fn new(upstreams: Vec<Upstream>, strategy_str: &str, prefer_ipv4: bool) -> Result<Self> {
-        let strategy = UpstreamStrategy::from_str(strategy_str);
+        let strategy = UpstreamStrategy::from_string(strategy_str);
         let mut nodes = Vec::new();
 
         for model in upstreams {
             // Only add active and healthy (or unknown) upstreams
-            if !model.is_active || model.health_status == "degraded" || model.health_status == "dead" {
+            if !model.is_active
+                || model.health_status == "degraded"
+                || model.health_status == "dead"
+            {
                 continue;
             }
 
@@ -62,7 +65,11 @@ impl UpstreamPool {
                         last_latency_ms: AtomicI64::new(0), // Initial state
                     }));
                 }
-                Err(e) => tracing::warn!("Failed to create resolver for upstream {}: {}", model.name, e),
+                Err(e) => tracing::warn!(
+                    "Failed to create resolver for upstream {}: {}",
+                    model.name,
+                    e
+                ),
             }
         }
 
@@ -71,8 +78,13 @@ impl UpstreamPool {
 
         // Fallback if no active/healthy upstreams are found
         if nodes.is_empty() {
-            tracing::warn!("No active/healthy custom upstreams found, pool will fall back to Cloudflare");
-            let fallback_resolver = DnsResolver::with_upstreams(&["1.1.1.1:53".to_string(), "8.8.8.8:53".to_string()], prefer_ipv4)?;
+            tracing::warn!(
+                "No active/healthy custom upstreams found, pool will fall back to Cloudflare"
+            );
+            let fallback_resolver = DnsResolver::with_upstreams(
+                &["1.1.1.1:53".to_string(), "8.8.8.8:53".to_string()],
+                prefer_ipv4,
+            )?;
             let fallback_model = Upstream {
                 id: "fallback".to_string(),
                 name: "Cloudflare/Google Fallback".to_string(),
@@ -109,49 +121,53 @@ impl UpstreamPool {
         }
     }
 
-    /// Select an upstream based on the current strategy and resolve the query
+    /// Select an upstream based on the current strategy and resolve the query.
+    /// On failure, falls back to remaining nodes in priority order.
     pub async fn resolve(
         &self,
         domain: &str,
         qtype: RecordType,
         request: &Message,
     ) -> Result<(Vec<u8>, Option<u32>)> {
-        let selected_node = self.select_upstream();
-        
-        tracing::debug!(
-            "UpstreamPool strategy {:?} selected {} for domain {}",
-            self.strategy,
-            selected_node.model.name,
-            domain
-        );
-
-        match selected_node.resolver.resolve(domain, qtype, request).await {
-            Ok(res) => Ok(res),
-            Err(e) => {
-                tracing::warn!("Upstream {} failed to resolve {}: {}", selected_node.model.name, domain, e);
-                // On failure, if using Priority strategy, we could try the next one.
-                // For simplicity in this first iteration, we just return the error 
-                // and let the client retry, while the background health task marks it degraded.
-                Err(e)
-            }
-        }
-    }
-
-    fn select_upstream(&self) -> Arc<UpstreamNode> {
-        match self.strategy {
+        // Build an ordered list of nodes to try
+        let nodes_to_try: Vec<Arc<UpstreamNode>> = match self.strategy {
             UpstreamStrategy::Priority => {
-                // Nodes are already pre-sorted by primary priority in `new()`
-                self.nodes.first().cloned().unwrap()
+                // Try all nodes in priority order (sorted at construction)
+                self.nodes.clone()
             }
             UpstreamStrategy::LoadBalance => {
-                // Random round-robin amongst healthy nodes
+                // Start from a random node, then try others
                 let mut rng = rand::thread_rng();
-                self.nodes.choose(&mut rng).cloned().unwrap()
+                let mut nodes = self.nodes.clone();
+                nodes.shuffle(&mut rng);
+                nodes
             }
             UpstreamStrategy::Fastest => {
-                // Pick the node with the lowest recorded latency
-                self.nodes.iter().min_by_key(|n| n.last_latency_ms.load(Ordering::Relaxed)).cloned().unwrap()
+                // Sort by latency ascending
+                let mut nodes = self.nodes.clone();
+                nodes.sort_by_key(|n| n.last_latency_ms.load(Ordering::Relaxed));
+                nodes
+            }
+        };
+
+        let mut last_err = anyhow::anyhow!("No upstream nodes available");
+        for node in &nodes_to_try {
+            tracing::debug!("UpstreamPool: trying {} for {}", node.model.name, domain);
+            match node.resolver.resolve(domain, qtype, request).await {
+                Ok(res) => return Ok(res),
+                Err(e) => {
+                    tracing::warn!(
+                        "Upstream {} failed for {}: {}; trying next",
+                        node.model.name,
+                        domain,
+                        e
+                    );
+                    last_err = e;
+                }
             }
         }
+        Err(last_err)
     }
+
+    // Removed unused select_upstream method
 }

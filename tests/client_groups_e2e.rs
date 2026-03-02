@@ -297,7 +297,7 @@ async fn test_global_filter_blocks_non_group_clients() {
 // Test 3: Group client rules layer over global filter (Fallback)
 //
 // When a client has group-specific rules, they are evaluated first. If no group
-// rule matches, the global FilterEngine is used (fallback). A domain blocked 
+// rule matches, the global FilterEngine is used (fallback). A domain blocked
 // only in the global filter is STILL BLOCKED for group members unless explicitly allowed.
 // ═══════════════════════════════════════════════════════════════════════════════
 
@@ -357,7 +357,7 @@ async fn test_group_rules_layer_over_global_filter() {
     .execute(db)
     .await
     .expect("Insert global blocked rule");
-    
+
     let group_allow_rule_id = uuid::Uuid::new_v4().to_string();
     sqlx::query(
         "INSERT INTO custom_rules (id, rule, comment, is_enabled, created_by, created_at)
@@ -403,7 +403,7 @@ async fn test_group_rules_layer_over_global_filter() {
     .execute(db)
     .await
     .expect("Insert group rule binding 1");
-    
+
     sqlx::query(
         "INSERT INTO client_group_rules (group_id, rule_id, rule_type, priority, created_at)
          VALUES (?, ?, 'custom_rule', 1, ?)",
@@ -424,7 +424,7 @@ async fn test_group_rules_layer_over_global_filter() {
         .handle(query_bytes, "192.168.200.1".to_string())
         .await
         .expect("DNS handle should not return Err");
-        
+
     assert_eq!(
         decode_rcode(&resp_bytes),
         ResponseCode::NXDomain,
@@ -444,17 +444,17 @@ async fn test_group_rules_layer_over_global_filter() {
         ResponseCode::NXDomain,
         "Group client should get NXDOMAIN for the group-specific blocked domain"
     );
-    
+
     // ── 5. Verify the explicit allowlist block OVERRIDES the global block ────────
     let override_query_bytes = build_dns_query("global-blocked-but-allowed.invalid");
     let _resolver_result = state
         .dns_handler
         .handle(override_query_bytes, "192.168.200.1".to_string())
-        .await; // If it goes to the resolver (not NXDOMAIN fastpath), handle resolves or errors since there's no real upstream 
-        
+        .await; // If it goes to the resolver (not NXDOMAIN fastpath), handle resolves or errors since there's no real upstream
+
     // In our test environment, if it passes the filter it hits the real resolver (1.1.1.1).
     // The query might fail or succeed depending on internet, but it will NOT be an immediate NXDomain from our filter.
-    // If it *was* blocked by our filter, `handle` returns `Ok(NXDomain vector)` instantaneously. 
+    // If it *was* blocked by our filter, `handle` returns `Ok(NXDomain vector)` instantaneously.
     // To be perfectly safe, we verify it is strictly allowed by not checking the exact rcode (could be SERVFAIL from upstream).
 }
 
@@ -550,7 +550,7 @@ async fn test_group_rules_dns_rewrites() {
     let msg = Message::from_vec(&resp_bytes).unwrap();
     assert_eq!(msg.answers().len(), 1, "Should have 1 answer");
     let answer = &msg.answers()[0];
-    
+
     // Check if the A record IP matches
     if let Some(hickory_proto::rr::RData::A(ip)) = answer.data() {
         assert_eq!(ip.to_string(), "192.168.10.254");

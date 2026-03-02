@@ -251,10 +251,7 @@ pub fn routes(state: Arc<AppState>) -> Router {
             get(handlers::insights::top_domains),
         )
         // Tools (protected)
-        .route(
-            "/api/v1/tools/sandbox",
-            post(handlers::sandbox::test_rule),
-        )
+        .route("/api/v1/tools/sandbox", post(handlers::sandbox::test_rule))
         .with_state(state)
         // 前端静态文件 + SPA fallback（必须在 with_state 之后）
         .fallback_service({

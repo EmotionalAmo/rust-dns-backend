@@ -45,7 +45,7 @@ impl Default for DnsCache {
 impl DnsCache {
     pub fn new() -> Self {
         let inner = Cache::builder()
-            .max_capacity(10_000)
+            .max_capacity(50_000)
             .expire_after(DnsCacheExpiry)
             .build();
         Self { inner }

@@ -1,3 +1,4 @@
+pub mod alert;
 pub mod client;
 pub mod client_group;
 pub mod filter;
@@ -6,4 +7,3 @@ pub mod rewrite;
 pub mod rule;
 pub mod upstream;
 pub mod user;
-pub mod alert;

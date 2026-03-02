@@ -82,13 +82,19 @@ impl DnsHandler {
     ) -> Result<Self> {
         // Intialize UpstreamPool from database
         let upstreams = crate::db::models::upstream::UpstreamRepository::list(&db).await?;
-        
-        let strategy = sqlx::query_scalar::<_, String>("SELECT value FROM settings WHERE key = 'upstream_strategy'")
-            .fetch_optional(&db)
-            .await?
-            .unwrap_or_else(|| "priority".to_string());
-            
-        let upstream_pool = Arc::new(RwLock::new(UpstreamPool::new(upstreams, &strategy, cfg.dns.prefer_ipv4)?));
+
+        let strategy = sqlx::query_scalar::<_, String>(
+            "SELECT value FROM settings WHERE key = 'upstream_strategy'",
+        )
+        .fetch_optional(&db)
+        .await?
+        .unwrap_or_else(|| "priority".to_string());
+
+        let upstream_pool = Arc::new(RwLock::new(UpstreamPool::new(
+            upstreams,
+            &strategy,
+            cfg.dns.prefer_ipv4,
+        )?));
 
         let cache = Arc::new(DnsCache::new());
         let client_config_cache = MokaCache::builder()
@@ -96,7 +102,8 @@ impl DnsHandler {
             .time_to_live(CLIENT_CACHE_TTL)
             .build();
         // Spawn batch writer; the sender is stored so log_query() is fully non-blocking
-        let query_log_entry_tx = crate::db::query_log_writer::spawn(db.clone(), query_log_tx.clone());
+        let query_log_entry_tx =
+            crate::db::query_log_writer::spawn(db.clone(), query_log_tx.clone());
         let prefer_ipv4 = cfg.dns.prefer_ipv4;
         let rewrite_ttl = cfg.dns.rewrite_ttl;
         Ok(Self {
@@ -413,7 +420,11 @@ impl DnsHandler {
         {
             Ok(r) => r,
             Err(e) => {
-                tracing::warn!("Failed to load group rewrites for client {}: {}", client_id, e);
+                tracing::warn!(
+                    "Failed to load group rewrites for client {}: {}",
+                    client_id,
+                    e
+                );
                 return None;
             }
         };
@@ -426,7 +437,11 @@ impl DnsHandler {
         for (domain, answer) in rows {
             rewrites.insert(domain.to_lowercase(), answer);
         }
-        tracing::debug!("Loaded {} group rewrites for client {}", rewrites.len(), client_id);
+        tracing::debug!(
+            "Loaded {} group rewrites for client {}",
+            rewrites.len(),
+            client_id
+        );
         Some(Arc::new(rewrites))
     }
 
@@ -668,13 +683,15 @@ impl DnsHandler {
     pub async fn reload_upstreams(&self) -> Result<()> {
         tracing::info!("Reloading upstream pool from database...");
         let upstreams = crate::db::models::upstream::UpstreamRepository::list(&self.db).await?;
-        let strategy = sqlx::query_scalar::<_, String>("SELECT value FROM settings WHERE key = 'upstream_strategy'")
-            .fetch_optional(&self.db)
-            .await?
-            .unwrap_or_else(|| "priority".to_string());
-            
+        let strategy = sqlx::query_scalar::<_, String>(
+            "SELECT value FROM settings WHERE key = 'upstream_strategy'",
+        )
+        .fetch_optional(&self.db)
+        .await?
+        .unwrap_or_else(|| "priority".to_string());
+
         let new_pool = UpstreamPool::new(upstreams, &strategy, self.prefer_ipv4)?;
-        
+
         let mut pool = self.upstream_pool.write().await;
         *pool = new_pool;
         tracing::info!("Upstream pool reloaded successfully");

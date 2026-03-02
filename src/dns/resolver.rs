@@ -31,6 +31,10 @@ impl DnsResolver {
         opts.validate = false;
         // Prefer IPv4 if configured (avoids IPv6 connection issues)
         opts.ip_strategy = ip_strategy;
+        // Increase concurrent upstream connections for better burst handling
+        opts.num_concurrent_reqs = 8;
+        // Longer timeout tolerance (upstream may be slow under load)
+        opts.timeout = std::time::Duration::from_secs(5);
 
         let resolver = TokioAsyncResolver::tokio(ResolverConfig::cloudflare(), opts);
 
@@ -55,6 +59,8 @@ impl DnsResolver {
         opts.cache_size = 0;
         opts.use_hosts_file = false;
         opts.ip_strategy = ip_strategy;
+        opts.num_concurrent_reqs = 8;
+        opts.timeout = std::time::Duration::from_secs(5);
 
         let mut config = ResolverConfig::new();
         let mut added = 0;

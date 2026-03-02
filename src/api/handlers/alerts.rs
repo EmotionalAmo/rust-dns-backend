@@ -1,7 +1,7 @@
-use crate::error::{AppError, AppResult};
-use crate::api::AppState;
 use crate::api::middleware::{auth::AuthUser, rbac::AdminUser};
+use crate::api::AppState;
 use crate::db::models::alert::Alert;
+use crate::error::{AppError, AppResult};
 use axum::{
     extract::{Path, Query, State},
     Json,
@@ -27,9 +27,10 @@ pub async fn list_alerts(
     let page_size = params.page_size.unwrap_or(50).min(100);
     let offset = (page - 1) * page_size;
 
-    let mut query = "SELECT id, alert_type, client_id, message, is_read, created_at FROM alerts".to_string();
+    let mut query =
+        "SELECT id, alert_type, client_id, message, is_read, created_at FROM alerts".to_string();
     let mut count_query = "SELECT COUNT(*) FROM alerts".to_string();
-    
+
     let mut where_clauses = Vec::new();
     if let Some(is_read) = params.is_read {
         let val = if is_read { 1 } else { 0 };
@@ -57,14 +58,16 @@ pub async fn list_alerts(
 
     let data: Vec<Alert> = rows
         .into_iter()
-        .map(|(id, alert_type, client_id, message, is_read, created_at)| Alert {
-            id,
-            alert_type,
-            client_id,
-            message,
-            is_read: is_read,
-            created_at,
-        })
+        .map(
+            |(id, alert_type, client_id, message, is_read, created_at)| Alert {
+                id,
+                alert_type,
+                client_id,
+                message,
+                is_read,
+                created_at,
+            },
+        )
         .collect();
 
     Ok(Json(json!({
@@ -113,9 +116,7 @@ pub async fn clear_alerts(
     State(state): State<Arc<AppState>>,
     _auth: AdminUser,
 ) -> AppResult<Json<Value>> {
-    let result = sqlx::query("DELETE FROM alerts")
-        .execute(&state.db)
-        .await?;
+    let result = sqlx::query("DELETE FROM alerts").execute(&state.db).await?;
 
     Ok(Json(json!({
         "message": "Alerts cleared",

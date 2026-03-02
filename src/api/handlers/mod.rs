@@ -1,6 +1,6 @@
+pub mod alerts;
 pub mod audit_log;
 pub mod auth;
-pub mod alerts;
 pub mod backup;
 pub mod cache;
 pub mod client_groups;

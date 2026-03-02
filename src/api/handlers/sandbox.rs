@@ -1,6 +1,6 @@
-use crate::error::{AppError, AppResult};
 use crate::api::middleware::auth::AuthUser;
 use crate::dns::rules::{MatchResult, RuleSet};
+use crate::error::{AppError, AppResult};
 use axum::Json;
 use serde::{Deserialize, Serialize};
 
@@ -35,7 +35,9 @@ pub async fn test_rule(
     }
 
     if body.test_domains.is_empty() {
-        return Err(AppError::Validation("At least one test domain is required".into()));
+        return Err(AppError::Validation(
+            "At least one test domain is required".into(),
+        ));
     }
 
     let mut ruleset = RuleSet::new();

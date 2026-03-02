@@ -252,7 +252,10 @@ pub async fn create(
 
     // Hot-reload the upstream pool
     if let Err(e) = state.dns_handler.reload_upstreams().await {
-        tracing::error!("Failed to reload upstream pool after creating upstream: {}", e);
+        tracing::error!(
+            "Failed to reload upstream pool after creating upstream: {}",
+            e
+        );
     }
 
     Ok(Json(json!({
@@ -372,7 +375,10 @@ pub async fn update(
 
     // Hot-reload the upstream pool
     if let Err(e) = state.dns_handler.reload_upstreams().await {
-        tracing::error!("Failed to reload upstream pool after updating upstream: {}", e);
+        tracing::error!(
+            "Failed to reload upstream pool after updating upstream: {}",
+            e
+        );
     }
 
     Ok(Json(json!({
@@ -411,7 +417,10 @@ pub async fn delete(
 
     // Hot-reload the upstream pool
     if let Err(e) = state.dns_handler.reload_upstreams().await {
-        tracing::error!("Failed to reload upstream pool after deleting upstream: {}", e);
+        tracing::error!(
+            "Failed to reload upstream pool after deleting upstream: {}",
+            e
+        );
     }
 
     Ok(Json(json!({"success": true})))

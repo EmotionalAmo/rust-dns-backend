@@ -1,18 +1,21 @@
 use axum::http::StatusCode;
-use serde_json::{json, Value};
-use tokio::sync::broadcast;
 use dashmap::DashMap;
-use std::sync::Arc;
+use serde_json::{json, Value};
 use sqlx::SqlitePool;
+use std::sync::Arc;
+use tokio::sync::broadcast;
 
-use rust_dns::api::AppState;
 use rust_dns::api::router::routes;
+use rust_dns::api::AppState;
 use rust_dns::dns::filter::FilterEngine;
 use rust_dns::metrics::DnsMetrics;
 
 async fn setup_db() -> SqlitePool {
     let pool = SqlitePool::connect(":memory:").await.unwrap();
-    sqlx::migrate!("./src/db/migrations").run(&pool).await.unwrap();
+    sqlx::migrate!("./src/db/migrations")
+        .run(&pool)
+        .await
+        .unwrap();
     pool
 }
 
@@ -57,7 +60,9 @@ async fn build_test_state() -> Arc<AppState> {
         metrics.clone(),
         query_log_tx.clone(),
         std::sync::Arc::new(rust_dns::db::app_catalog_cache::AppCatalogCache::new()),
-    ).await.unwrap();
+    )
+    .await
+    .unwrap();
 
     Arc::new(AppState {
         db,
@@ -69,9 +74,7 @@ async fn build_test_state() -> Arc<AppState> {
         ws_tickets: DashMap::new(),
         login_attempts: DashMap::new(),
         dns_handler,
-        rule_validation_cache: Arc::new(
-            moka::future::Cache::builder().max_capacity(100).build()
-        ),
+        rule_validation_cache: Arc::new(moka::future::Cache::builder().max_capacity(100).build()),
         client_config_cache: None,
         static_dir: "frontend/dist".to_string(),
         allow_default_password: test_cfg.auth.allow_default_password,
@@ -92,7 +95,7 @@ async fn test_sandbox_api() {
     });
 
     let client = reqwest::Client::new();
-    
+
     // Test Sandbox Rules with NO auth required since Sandbox is protected... Wait, we need a token.
     // Let's generate a token using the jwt utils.
     let token = rust_dns::auth::jwt::generate(
@@ -101,9 +104,11 @@ async fn test_sandbox_api() {
         "super_admin",
         "test_secret_32_bytes_long_string_123",
         1,
-    ).unwrap();
+    )
+    .unwrap();
 
-    let res = client.post(format!("http://{}/api/v1/tools/sandbox", addr))
+    let res = client
+        .post(format!("http://{}/api/v1/tools/sandbox", addr))
         .bearer_auth(&token)
         .json(&json!({
             "rule": "||example.com^",
@@ -115,7 +120,7 @@ async fn test_sandbox_api() {
 
     assert_eq!(res.status(), StatusCode::OK);
     let body: Value = res.json().await.unwrap();
-    
+
     assert!(body["rule_valid"].as_bool().unwrap());
     assert_eq!(body["rule_type"].as_str().unwrap(), "block");
     let results = body["results"].as_array().unwrap();
@@ -144,10 +149,18 @@ async fn test_alerts_api() {
         .unwrap();
 
     let client = reqwest::Client::new();
-    let token = rust_dns::auth::jwt::generate("user1", "admin", "super_admin", "test_secret_32_bytes_long_string_123", 1).unwrap();
+    let token = rust_dns::auth::jwt::generate(
+        "user1",
+        "admin",
+        "super_admin",
+        "test_secret_32_bytes_long_string_123",
+        1,
+    )
+    .unwrap();
 
     // GET /api/v1/alerts
-    let res = client.get(format!("http://{}/api/v1/alerts", addr))
+    let res = client
+        .get(format!("http://{}/api/v1/alerts", addr))
         .bearer_auth(&token)
         .send()
         .await
@@ -156,9 +169,10 @@ async fn test_alerts_api() {
     assert_eq!(res.status(), StatusCode::OK);
     let body: Value = res.json().await.unwrap();
     assert_eq!(body["total"].as_i64().unwrap(), 1);
-    
+
     // PUT /api/v1/alerts/123/read
-    let res = client.put(format!("http://{}/api/v1/alerts/123/read", addr))
+    let res = client
+        .put(format!("http://{}/api/v1/alerts/123/read", addr))
         .bearer_auth(&token)
         .send()
         .await
@@ -166,7 +180,8 @@ async fn test_alerts_api() {
     assert_eq!(res.status(), StatusCode::OK);
 
     // GET again and filter by is_read=true
-    let res = client.get(format!("http://{}/api/v1/alerts?is_read=true", addr))
+    let res = client
+        .get(format!("http://{}/api/v1/alerts?is_read=true", addr))
         .bearer_auth(&token)
         .send()
         .await
@@ -175,4 +190,3 @@ async fn test_alerts_api() {
     let body: Value = res.json().await.unwrap();
     assert_eq!(body["total"].as_i64().unwrap(), 1);
 }
-

@@ -198,10 +198,12 @@ pub async fn update_dns(
         }
     }
 
-    // Note: Upstreams are managed by the /upstreams sub-router API. 
+    // Note: Upstreams are managed by the /upstreams sub-router API.
     // We acknowledge update request but just warn.
     if body.upstreams.is_some() {
-        tracing::warn!("upstreams update requested but ignored (managed by /api/v1/settings/upstreams)");
+        tracing::warn!(
+            "upstreams update requested but ignored (managed by /api/v1/settings/upstreams)"
+        );
     }
 
     if let Some(strategy) = body.upstream_strategy {
@@ -210,16 +212,17 @@ pub async fn update_dns(
                 "upstream_strategy must be one of: priority, fastest, load_balance".to_string(),
             ));
         }
-        sqlx::query(
-            "INSERT OR REPLACE INTO settings (key, value) VALUES ('upstream_strategy', ?)",
-        )
-        .bind(&strategy)
-        .execute(&state.db)
-        .await?;
+        sqlx::query("INSERT OR REPLACE INTO settings (key, value) VALUES ('upstream_strategy', ?)")
+            .bind(&strategy)
+            .execute(&state.db)
+            .await?;
 
         // Reload upstream pool mapping to apply the new strategy
         if let Err(e) = state.dns_handler.reload_upstreams().await {
-            tracing::error!("Failed to reload upstream pool after strategy change: {}", e);
+            tracing::error!(
+                "Failed to reload upstream pool after strategy change: {}",
+                e
+            );
         }
     }
 

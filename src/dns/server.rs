@@ -26,7 +26,9 @@ pub async fn run(
     tracing::info!("DNS UDP listening on {}", bind_addr);
 
     // ── UDP concurrency limit via Semaphore (P0-1 fix) ─────────────
-    let max_concurrent = num_cpus::get_physical().max(4) * 8;
+    // With DNS caching, most queries complete in microseconds (cache hit).
+    // Use a much larger pool so burst traffic is absorbed rather than dropped.
+    let max_concurrent = (num_cpus::get_physical().max(4) * 64).max(512);
     let udp_sem = Arc::new(Semaphore::new(max_concurrent));
     tracing::info!(
         "DNS UDP worker concurrency limit: {} (physical cores: {})",

@@ -1,0 +1,10 @@
+[package]
+name = "dns-benchmark"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+tokio = { version = "1.37.0", features = ["full"] }
+hickory-client = "0.24.1"
+hickory-proto = "0.24.1"
+rand = { version = "0.8.5", features = ["small_rng"] }
