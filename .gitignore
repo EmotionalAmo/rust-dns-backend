@@ -24,3 +24,4 @@ frontend/dist/
 .DS_Store
 *.log
 benchmark/target/
+benchmark/datasets/
