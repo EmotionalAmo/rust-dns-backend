@@ -1,0 +1,119 @@
+# ==============================================================================
+# 竞品 Benchmark 对比环境
+# 包含：rust-dns、Pi-hole、AdGuard Home
+#
+# 使用方法：
+#   cd projects/rust-dns-backend
+#   docker build -t rust-dns:latest .
+#   cd benchmarks
+#   docker compose up -d
+#
+# 端口分配（避免冲突）：
+#   rust-dns     -> DNS: 5301, API: 8081
+#   Pi-hole      -> DNS: 5302, API: 8082
+#   AdGuard Home -> DNS: 5303, API: 8083
+# ==============================================================================
+
+services:
+
+  # ---------------------------------------------------------------------------
+  # rust-dns — 本项目，需提前在 projects/rust-dns-backend/ 目录 build 镜像
+  # docker build -t rust-dns:latest .
+  # ---------------------------------------------------------------------------
+  rust-dns:
+    image: rust-dns:latest
+    container_name: bench-rust-dns
+    ports:
+      - "5301:53/udp"
+      - "5301:53/tcp"
+      - "8081:8080"
+    environment:
+      - RUST_DNS__DATABASE__PATH=/data/rust-dns/rust-dns.db
+      - RUST_DNS__DNS__PORT=53
+      - RUST_DNS__API__PORT=8080
+      - RUST_DNS__API__STATIC_DIR=/opt/rust-dns/static
+      - RUST_DNS__AUTH__JWT_SECRET=benchmark-test-secret
+      - RUST_LOG=rust_dns=warn
+    volumes:
+      - rust_dns_bench_data:/data/rust-dns
+    networks:
+      - bench_net
+    restart: unless-stopped
+    # 健康检查：UDP 查询 google.com
+    healthcheck:
+      test: ["CMD-SHELL", "dig +short +time=2 google.com @127.0.0.1 -p 53 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  # ---------------------------------------------------------------------------
+  # Pi-hole — 官方镜像，使用轻量配置
+  # 注意：Pi-hole 需要 WEBPASSWORD，这里设为 benchmark 专用密码
+  # ---------------------------------------------------------------------------
+  pihole:
+    image: pihole/pihole:latest
+    container_name: bench-pihole
+    ports:
+      - "5302:53/udp"
+      - "5302:53/tcp"
+      - "8082:80"
+    environment:
+      - WEBPASSWORD=benchmark123
+      - PIHOLE_DNS_=8.8.8.8;8.8.4.4
+      - DNSMASQ_LISTENING=all
+      # 关闭不必要的功能，降低基准干扰
+      - SKIPGRAVITYONBOOT=1
+      - VIRTUAL_HOST=bench-pihole
+    volumes:
+      - pihole_bench_data:/etc/pihole
+      - pihole_bench_dnsmasq:/etc/dnsmasq.d
+    networks:
+      - bench_net
+    restart: unless-stopped
+    # cap_add 是 Pi-hole 绑定 53 端口所需
+    cap_add:
+      - NET_ADMIN
+    healthcheck:
+      test: ["CMD-SHELL", "dig +short +time=2 google.com @127.0.0.1 -p 53 || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 6
+      start_period: 30s
+
+  # ---------------------------------------------------------------------------
+  # AdGuard Home — 官方镜像
+  # 首次启动会有 setup wizard，用 --no-check-update 跳过
+  # ---------------------------------------------------------------------------
+  adguard:
+    image: adguard/adguardhome:latest
+    container_name: bench-adguard
+    ports:
+      - "5303:53/udp"
+      - "5303:53/tcp"
+      - "8083:3000"
+    volumes:
+      - adguard_bench_work:/opt/adguardhome/work
+      - adguard_bench_conf:/opt/adguardhome/conf
+      # 挂载预配置文件，跳过首次 setup wizard
+      - ./adguard-config:/opt/adguardhome/conf:ro
+    networks:
+      - bench_net
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1:3000 || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 6
+      start_period: 30s
+
+volumes:
+  rust_dns_bench_data:
+  pihole_bench_data:
+  pihole_bench_dnsmasq:
+  adguard_bench_work:
+  adguard_bench_conf:
+
+networks:
+  bench_net:
+    driver: bridge
