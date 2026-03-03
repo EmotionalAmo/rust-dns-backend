@@ -5,7 +5,7 @@
 If Pi-hole v6 broke your setup — the 403 errors, the UI crashes, the config migration that ate your groups — you are not alone. rust-dns is a single binary that just works.
 
 [![GitHub Stars](https://img.shields.io/github/stars/EmotionalAmo/rust-dns-backend?style=flat-square)](https://github.com/EmotionalAmo/rust-dns-backend)
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg?style=flat-square)](LICENSE)
+[![License: Apache-2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg?style=flat-square)](LICENSE)
 [![v1.0.1](https://img.shields.io/badge/version-v1.0.1-orange?style=flat-square)](https://github.com/EmotionalAmo/rust-dns-backend/releases)
 
 ---
@@ -141,4 +141,5 @@ PRs welcome. Check [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
 ## License
 
-MIT — use it, fork it, ship it.
+Apache 2.0 — use it, fork it, ship it.
+
