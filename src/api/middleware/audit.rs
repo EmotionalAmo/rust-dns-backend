@@ -188,6 +188,10 @@ fn method_to_action(method: &Method) -> String {
 
 /// Heuristic: a path segment is an "ID" (not a sub-action keyword) if it
 /// contains only hex characters and hyphens (UUID-like) or is purely numeric.
+///
+/// To avoid treating short action keywords (like "bulk", "toggle") as IDs,
+/// we require the segment to either contain a hyphen or at least one digit —
+/// pure hex-letter words like "bad" are treated as action keywords, not IDs.
 fn is_id_segment(s: &str) -> bool {
     if s.is_empty() {
         return true;
@@ -196,8 +200,12 @@ fn is_id_segment(s: &str) -> bool {
     if s.chars().all(|c| c.is_ascii_digit()) {
         return true;
     }
-    // UUID-shaped: hex digits and hyphens, at least 8 chars
-    if s.len() >= 8 && s.chars().all(|c| c.is_ascii_hexdigit() || c == '-') {
+    // UUID-shaped or short ID: hex digits and hyphens.
+    // Must contain a hyphen or digit so pure-letter words like "bulk" are
+    // not misclassified as IDs.
+    if s.chars().all(|c| c.is_ascii_hexdigit() || c == '-')
+        && (s.contains('-') || s.chars().any(|c| c.is_ascii_digit()))
+    {
         return true;
     }
     false
