@@ -1,5 +1,8 @@
 use super::{
-    cache::{DnsCache, DNS_CACHE_MAX_CAPACITY}, filter::FilterEngine, resolver::DnsResolver, rules::RuleSet,
+    cache::{DnsCache, DNS_CACHE_MAX_CAPACITY},
+    filter::FilterEngine,
+    resolver::DnsResolver,
+    rules::RuleSet,
     upstream_pool::UpstreamPool,
 };
 use crate::config::Config;

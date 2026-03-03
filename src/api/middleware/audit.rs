@@ -212,8 +212,16 @@ mod tests {
 
     fn check(path: &str, method: &Method, expected_resource: &str, expected_action: &str) {
         let (resource, action) = derive_resource_action(path, method);
-        assert_eq!(resource, expected_resource, "resource mismatch for {} {}", method, path);
-        assert_eq!(action, expected_action, "action mismatch for {} {}", method, path);
+        assert_eq!(
+            resource, expected_resource,
+            "resource mismatch for {} {}",
+            method, path
+        );
+        assert_eq!(
+            action, expected_action,
+            "action mismatch for {} {}",
+            method, path
+        );
     }
 
     #[test]
@@ -227,9 +235,19 @@ mod tests {
     #[test]
     fn test_sub_actions() {
         check("/api/v1/rules/bulk", &Method::POST, "rules", "bulk_create");
-        check("/api/v1/rules/bulk", &Method::DELETE, "rules", "bulk_delete");
+        check(
+            "/api/v1/rules/bulk",
+            &Method::DELETE,
+            "rules",
+            "bulk_delete",
+        );
         check("/api/v1/filters/toggle", &Method::POST, "filters", "toggle");
-        check("/api/v1/upstreams/failover", &Method::POST, "upstreams", "failover");
+        check(
+            "/api/v1/upstreams/failover",
+            &Method::POST,
+            "upstreams",
+            "failover",
+        );
         check("/api/v1/cache/flush", &Method::POST, "cache", "flush");
         check("/api/v1/auth/login", &Method::POST, "auth", "login");
         check("/api/v1/auth/ticket", &Method::POST, "auth", "ticket");
@@ -237,8 +255,18 @@ mod tests {
 
     #[test]
     fn test_hyphen_normalisation() {
-        check("/api/v1/client-groups", &Method::POST, "client_groups", "create");
-        check("/api/v1/client-groups/abc-123", &Method::DELETE, "client_groups", "delete");
+        check(
+            "/api/v1/client-groups",
+            &Method::POST,
+            "client_groups",
+            "create",
+        );
+        check(
+            "/api/v1/client-groups/abc-123",
+            &Method::DELETE,
+            "client_groups",
+            "delete",
+        );
     }
 
     #[test]
