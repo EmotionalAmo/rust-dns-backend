@@ -1,4 +1,3 @@
-use crate::api::AppState;
 /// DNS-over-HTTPS (DoH) endpoint — RFC 8484
 ///
 /// Supports both wire-format transports:
@@ -11,6 +10,7 @@ use crate::api::AppState;
 /// open resolvers.  Rate-limiting at the reverse-proxy layer is recommended in
 /// production.  The underlying DnsHandler applies the same filter/cache/rewrite
 /// logic as UDP/TCP DNS queries.
+use crate::api::AppState;
 use axum::{
     body::Bytes,
     extract::{ConnectInfo, Query, State},
@@ -18,6 +18,8 @@ use axum::{
     response::{IntoResponse, Response},
 };
 use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine};
+use hickory_proto::op::Message;
+use hickory_proto::serialize::binary::BinDecodable;
 use serde::Deserialize;
 use std::net::SocketAddr;
 use std::sync::Arc;
@@ -70,16 +72,22 @@ pub async fn post_query(
 async fn resolve_doh(state: Arc<AppState>, data: Vec<u8>, client_ip: String) -> Response {
     match state.dns_handler.handle(data, client_ip).await {
         Ok(response_bytes) => {
-            let mut res = Response::new(axum::body::Body::from(response_bytes));
+            let mut res = Response::new(axum::body::Body::from(response_bytes.clone()));
             res.headers_mut().insert(
                 header::CONTENT_TYPE,
                 HeaderValue::from_static(DNS_MESSAGE_CONTENT_TYPE),
             );
-            // RFC 8484 §5.1: cache-control is derived from the DNS TTL; we use a
-            // conservative default here.  A production implementation could inspect
-            // the response TTL and set the header accordingly.
-            res.headers_mut()
-                .insert(header::CACHE_CONTROL, HeaderValue::from_static("no-store"));
+            // RFC 8484 §5.1: Cache-Control max-age is derived from the minimum TTL
+            // across answer records.  Fall back to no-store when unparseable or TTL=0.
+            let cache_control = Message::from_bytes(&response_bytes)
+                .ok()
+                .and_then(|msg| msg.answers().iter().map(|r| r.ttl()).min())
+                .filter(|&ttl| ttl > 0)
+                .map(|ttl| format!("max-age={ttl}"))
+                .unwrap_or_else(|| "no-store".to_string());
+            if let Ok(val) = HeaderValue::from_str(&cache_control) {
+                res.headers_mut().insert(header::CACHE_CONTROL, val);
+            }
             res
         }
         Err(e) => {
