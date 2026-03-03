@@ -8,6 +8,7 @@ use serde_json::{json, Value};
 use std::sync::Arc;
 
 use crate::api::middleware::auth::AuthUser;
+use crate::api::middleware::client_ip::ClientIp;
 use crate::api::middleware::rbac::AdminUser;
 use crate::api::AppState;
 use crate::db::models::client_group::*;
@@ -83,7 +84,8 @@ pub async fn list_groups(
 /// Create a new client group
 pub async fn create_group(
     State(state): State<Arc<AppState>>,
-    _auth: AdminUser,
+    ClientIp(ip): ClientIp,
+    auth: AdminUser,
     Json(body): Json<CreateClientGroupRequest>,
 ) -> AppResult<Json<Value>> {
     let name = body.name.trim().to_string();
@@ -124,6 +126,17 @@ pub async fn create_group(
     .fetch_one(&state.db)
     .await?;
 
+    crate::db::audit::log_action(
+        state.db.clone(),
+        auth.0.sub.clone(),
+        auth.0.username.clone(),
+        "create",
+        "client_group",
+        Some(id.to_string()),
+        Some(name.clone()),
+        ip,
+    );
+
     Ok(Json(json!({
         "id": id,
         "name": name,
@@ -140,7 +153,8 @@ pub async fn create_group(
 /// Update a client group
 pub async fn update_group(
     State(state): State<Arc<AppState>>,
-    _auth: AdminUser,
+    ClientIp(ip): ClientIp,
+    auth: AdminUser,
     Path(id): Path<i64>,
     Json(body): Json<UpdateClientGroupRequest>,
 ) -> AppResult<Json<Value>> {
@@ -221,6 +235,17 @@ pub async fn update_group(
             .await
             .unwrap_or(0);
 
+    crate::db::audit::log_action(
+        state.db.clone(),
+        auth.0.sub.clone(),
+        auth.0.username.clone(),
+        "update",
+        "client_group",
+        Some(id.to_string()),
+        Some(name.clone()),
+        ip,
+    );
+
     Ok(Json(json!({
         "id": id,
         "name": name,
@@ -237,7 +262,8 @@ pub async fn update_group(
 /// Delete a client group
 pub async fn delete_group(
     State(state): State<Arc<AppState>>,
-    _auth: AdminUser,
+    ClientIp(ip): ClientIp,
+    auth: AdminUser,
     Path(id): Path<i64>,
 ) -> AppResult<Json<Value>> {
     // Check if group exists
@@ -288,6 +314,17 @@ pub async fn delete_group(
         .await?;
 
     tx.commit().await?;
+
+    crate::db::audit::log_action(
+        state.db.clone(),
+        auth.0.sub.clone(),
+        auth.0.username.clone(),
+        "delete",
+        "client_group",
+        Some(id.to_string()),
+        Some(format!("name={}, clients={}, rules={}", name, client_count, rule_count)),
+        ip,
+    );
 
     Ok(Json(json!({
         "message": format!("Group '{}' deleted successfully", name),

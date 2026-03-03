@@ -1,3 +1,4 @@
+use crate::api::middleware::client_ip::ClientIp;
 use crate::api::{middleware::rbac::AdminUser, AppState};
 use crate::error::AppResult;
 use axum::{extract::State, Json};
@@ -7,7 +8,8 @@ use std::sync::Arc;
 
 pub async fn create_backup(
     State(state): State<Arc<AppState>>,
-    _admin: AdminUser,
+    ClientIp(ip): ClientIp,
+    admin: AdminUser,
 ) -> AppResult<Json<serde_json::Value>> {
     let timestamp = Utc::now().format("%Y%m%d-%H%M%S").to_string();
 
@@ -53,6 +55,16 @@ pub async fn create_backup(
     match result {
         Ok(_) => {
             tracing::info!("Backup created: {}", backup_filename);
+            crate::db::audit::log_action(
+                state.db.clone(),
+                admin.0.sub.clone(),
+                admin.0.username.clone(),
+                "create",
+                "backup",
+                None,
+                Some(backup_filename.clone()),
+                ip,
+            );
             Ok(Json(json!({
                 "success": true,
                 "filename": backup_filename,

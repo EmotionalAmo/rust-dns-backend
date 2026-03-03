@@ -210,8 +210,8 @@ pub async fn get(
 
 pub async fn create(
     State(state): State<Arc<AppState>>,
-    #[allow(unused_variables)] ClientIp(ip): ClientIp,
-    _admin: AdminUser,
+    ClientIp(ip): ClientIp,
+    admin: AdminUser,
     Json(body): Json<CreateUpstreamRequest>,
 ) -> AppResult<Json<Value>> {
     let name = body.name.trim().to_string();
@@ -258,6 +258,17 @@ pub async fn create(
         );
     }
 
+    crate::db::audit::log_action(
+        state.db.clone(),
+        admin.0.sub.clone(),
+        admin.0.username.clone(),
+        "create",
+        "upstream",
+        Some(id.clone()),
+        Some(name.clone()),
+        ip,
+    );
+
     Ok(Json(json!({
         "id": id,
         "name": name,
@@ -279,8 +290,8 @@ pub async fn create(
 
 pub async fn update(
     State(state): State<Arc<AppState>>,
-    #[allow(unused_variables)] ClientIp(ip): ClientIp,
-    _admin: AdminUser,
+    ClientIp(ip): ClientIp,
+    admin: AdminUser,
     Path(id): Path<String>,
     Json(body): Json<UpdateUpstreamRequest>,
 ) -> AppResult<Json<Value>> {
@@ -381,6 +392,17 @@ pub async fn update(
         );
     }
 
+    crate::db::audit::log_action(
+        state.db.clone(),
+        admin.0.sub.clone(),
+        admin.0.username.clone(),
+        "update",
+        "upstream",
+        Some(id.clone()),
+        Some(name.clone()),
+        ip,
+    );
+
     Ok(Json(json!({
         "id": id,
         "name": name,
@@ -402,8 +424,8 @@ pub async fn update(
 
 pub async fn delete(
     State(state): State<Arc<AppState>>,
-    #[allow(unused_variables)] ClientIp(ip): ClientIp,
-    _admin: AdminUser,
+    ClientIp(ip): ClientIp,
+    admin: AdminUser,
     Path(id): Path<String>,
 ) -> AppResult<Json<Value>> {
     let result = sqlx::query("DELETE FROM dns_upstreams WHERE id = ?")
@@ -422,6 +444,17 @@ pub async fn delete(
             e
         );
     }
+
+    crate::db::audit::log_action(
+        state.db.clone(),
+        admin.0.sub.clone(),
+        admin.0.username.clone(),
+        "delete",
+        "upstream",
+        Some(id.clone()),
+        None,
+        ip,
+    );
 
     Ok(Json(json!({"success": true})))
 }

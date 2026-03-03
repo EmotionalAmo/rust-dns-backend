@@ -40,17 +40,20 @@ pub async fn audit_middleware(
         return response;
     }
 
+    // Handlers record audit log entries directly (with resource_id and richer detail).
+    // The middleware no longer writes to the audit log to avoid duplicate entries.
+    // Tracing is still emitted here for structured log visibility.
     let (resource, action) = derive_resource_action(&path, &method);
-
-    crate::db::audit::log_action(
-        state.db.clone(),
-        user_id,
-        username,
-        action,
-        resource,
-        None,
-        Some(format!("{} {}", method, path)),
-        ip,
+    tracing::debug!(
+        method = %method,
+        path = %path,
+        resource = %resource,
+        action = %action,
+        user_id = %user_id,
+        username = %username,
+        ip = %ip,
+        status = %status.as_u16(),
+        "audit: write request completed"
     );
 
     response

@@ -63,8 +63,8 @@ pub async fn list(State(state): State<Arc<AppState>>, _admin: AdminUser) -> AppR
 
 pub async fn create(
     State(state): State<Arc<AppState>>,
-    #[allow(unused_variables)] ClientIp(ip): ClientIp,
-    _admin: AdminUser,
+    ClientIp(ip): ClientIp,
+    admin: AdminUser,
     Json(body): Json<CreateUserRequest>,
 ) -> AppResult<Json<Value>> {
     // Validate role
@@ -113,6 +113,17 @@ pub async fn create(
     .execute(&state.db)
     .await?;
 
+    crate::db::audit::log_action(
+        state.db.clone(),
+        admin.0.sub.clone(),
+        admin.0.username.clone(),
+        "create",
+        "user",
+        Some(id.clone()),
+        Some(format!("username={}, role={}", username, body.role)),
+        ip,
+    );
+
     Ok(Json(json!({
         "id": id,
         "username": username,
@@ -125,8 +136,8 @@ pub async fn create(
 
 pub async fn update_role(
     State(state): State<Arc<AppState>>,
-    #[allow(unused_variables)] ClientIp(ip): ClientIp,
-    _admin: AdminUser,
+    ClientIp(ip): ClientIp,
+    admin: AdminUser,
     Path(id): Path<String>,
     Json(body): Json<UpdateRoleRequest>,
 ) -> AppResult<Json<Value>> {
@@ -168,6 +179,17 @@ pub async fn update_role(
         .bind(&id)
         .execute(&state.db)
         .await?;
+
+    crate::db::audit::log_action(
+        state.db.clone(),
+        admin.0.sub.clone(),
+        admin.0.username.clone(),
+        "update_role",
+        "user",
+        Some(id.clone()),
+        Some(format!("username={}, role={}->{}", username, old_role, body.role)),
+        ip,
+    );
 
     Ok(Json(json!({
         "id": id,

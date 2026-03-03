@@ -3,6 +3,7 @@ use serde::Deserialize;
 use serde_json::{json, Value};
 use std::sync::Arc;
 
+use crate::api::middleware::client_ip::ClientIp;
 use crate::api::middleware::rbac::AdminUser;
 use crate::api::AppState;
 use crate::error::{AppError, AppResult};
@@ -95,7 +96,8 @@ pub async fn get_dns(
 /// Update DNS settings
 pub async fn update_dns(
     State(state): State<Arc<AppState>>,
-    _admin: AdminUser,
+    ClientIp(ip): ClientIp,
+    admin: AdminUser,
     Json(body): Json<UpdateDnsSettingsRequest>,
 ) -> AppResult<Json<Value>> {
     // Update cache_ttl if provided
@@ -225,6 +227,17 @@ pub async fn update_dns(
             );
         }
     }
+
+    crate::db::audit::log_action(
+        state.db.clone(),
+        admin.0.sub.clone(),
+        admin.0.username.clone(),
+        "update",
+        "settings",
+        None,
+        None,
+        ip,
+    );
 
     Ok(Json(json!({"success": true})))
 }
