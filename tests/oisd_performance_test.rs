@@ -11,6 +11,7 @@ use chrono::Utc;
 use rust_dns::dns::rules::RuleSet;
 
 #[tokio::test]
+#[ignore = "requires network access to download OISD blocklist, run locally with: cargo test -- --ignored"]
 async fn test_oisd_performance() -> Result<()> {
     println!("======================================");
     println!("OISD Phase 2 Performance Test");
