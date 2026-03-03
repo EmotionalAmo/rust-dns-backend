@@ -107,7 +107,10 @@ async fn main() -> Result<()> {
     // returns so the background file-writer thread has time to flush.
     let _log_guard = init_logging(&cfg.logging)?;
 
-    info!("Starting rust-dns Enterprise v{}", env!("CARGO_PKG_VERSION"));
+    info!(
+        "Starting rust-dns Enterprise v{}",
+        env!("CARGO_PKG_VERSION")
+    );
     info!("Configuration loaded");
 
     let db_pool = db::init(&cfg).await?;
