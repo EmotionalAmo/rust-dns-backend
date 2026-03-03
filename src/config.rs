@@ -68,7 +68,7 @@ pub struct DnsConfig {
     #[allow(dead_code)]
     pub dot_enabled: bool,
     /// TTL（秒）用于 DNS 重写（rewrite）响应。默认 300 秒。
-    /// 可通过 ENT_DNS__DNS__REWRITE_TTL 或 config.toml 中 dns.rewrite_ttl 配置。
+    /// 可通过 RUST_DNS__DNS__REWRITE_TTL 或 config.toml 中 dns.rewrite_ttl 配置。
     #[serde(default = "default_rewrite_ttl")]
     pub rewrite_ttl: u32,
 }
@@ -80,11 +80,11 @@ pub struct ApiConfig {
     #[serde(default = "default_bind")]
     pub bind: String,
     /// Allowed CORS origins. Defaults to localhost dev ports.
-    /// Set ENT_DNS__API__CORS_ALLOWED_ORIGINS in production.
+    /// Set RUST_DNS__API__CORS_ALLOWED_ORIGINS in production.
     #[serde(default = "default_cors_allowed_origins")]
     pub cors_allowed_origins: Vec<String>,
     /// Directory for frontend static files. Defaults to "frontend/dist".
-    /// Override with ENT_DNS__API__STATIC_DIR in production.
+    /// Override with RUST_DNS__API__STATIC_DIR in production.
     #[serde(default = "default_static_dir")]
     pub static_dir: String,
 }
@@ -163,7 +163,7 @@ pub fn validate(cfg: &Config) -> Result<()> {
     if cfg.auth.jwt_secret == DEFAULT_JWT_SECRET {
         anyhow::bail!(
             "SECURITY ERROR: JWT secret must be changed from default value '{}'. \
-            Set ENT_DNS__AUTH__JWT_SECRET environment variable with a strong random value.",
+            Set RUST_DNS__AUTH__JWT_SECRET environment variable with a strong random value.",
             DEFAULT_JWT_SECRET
         );
     }
@@ -192,15 +192,15 @@ pub fn validate(cfg: &Config) -> Result<()> {
 
 /// Load configuration with the following priority (highest → lowest):
 ///
-/// 1. Environment variables (`ENT_DNS__<SECTION>__<KEY>`)
-/// 2. Config file specified via `config_path` argument or `ENT_DNS_CONFIG` env var
+/// 1. Environment variables (`RUST_DNS__<SECTION>__<KEY>`)
+/// 2. Config file specified via `config_path` argument or `RUST_DNS_CONFIG` env var
 /// 3. Auto-discovered config file from default locations (`./config.toml`, `/etc/rust-dns/config.toml`)
 /// 4. Built-in defaults
 pub fn load(config_path: Option<&str>) -> Result<Config> {
-    // Resolve config file path: CLI arg > ENT_DNS_CONFIG env > default search paths
+    // Resolve config file path: CLI arg > RUST_DNS_CONFIG env > default search paths
     let resolved_file = config_path
         .map(|p| p.to_string())
-        .or_else(|| std::env::var("ENT_DNS_CONFIG").ok())
+        .or_else(|| std::env::var("RUST_DNS_CONFIG").ok())
         .or_else(|| {
             DEFAULT_CONFIG_PATHS
                 .iter()
@@ -254,7 +254,7 @@ pub fn load(config_path: Option<&str>) -> Result<Config> {
     }
 
     // Highest priority: environment variables (always override file)
-    builder = builder.add_source(config::Environment::with_prefix("ENT_DNS").separator("__"));
+    builder = builder.add_source(config::Environment::with_prefix("RUST_DNS").separator("__"));
 
     let cfg: Config = builder.build()?.try_deserialize()?;
 

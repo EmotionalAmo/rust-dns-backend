@@ -24,14 +24,14 @@
 
 **测试步骤**:
 ```bash
-ENT_DNS__DATABASE__PATH=/tmp/rust-dns-test1.db ./target/debug/rust-dns
+RUST_DNS__DATABASE__PATH=/tmp/rust-dns-test1.db ./target/debug/rust-dns
 ```
 
 **预期结果**: 程序拒绝启动，显示安全错误
 
 **实际结果**:
 ```
-Error: SECURITY ERROR: JWT secret must be changed from default value 'change-me-in-production'. Set ENT_DNS__AUTH__JWT_SECRET environment variable with a strong random value.
+Error: SECURITY ERROR: JWT secret must be changed from default value 'change-me-in-production'. Set RUST_DNS__AUTH__JWT_SECRET environment variable with a strong random value.
 ```
 
 **结论**: ✅ 通过
@@ -42,7 +42,7 @@ Error: SECURITY ERROR: JWT secret must be changed from default value 'change-me-
 
 **测试步骤**:
 ```bash
-ENT_DNS__AUTH__JWT_SECRET="short" ./target/debug/rust-dns
+RUST_DNS__AUTH__JWT_SECRET="short" ./target/debug/rust-dns
 ```
 
 **预期结果**: 程序拒绝启动，显示配置错误
@@ -60,7 +60,7 @@ Error: CONFIG ERROR: JWT secret must be at least 32 characters (current: 5)
 
 **测试步骤**:
 ```bash
-ENT_DNS__AUTH__JWT_SECRET="this-is-a-very-secure-jwt-secret-key-for-production-32chars" ./target/debug/rust-dns
+RUST_DNS__AUTH__JWT_SECRET="this-is-a-very-secure-jwt-secret-key-for-production-32chars" ./target/debug/rust-dns
 ```
 
 **预期结果**: 程序正常启动，日志显示"Configuration validation passed"
@@ -167,12 +167,12 @@ HTTP 状态码: 403
 
 **实际结果**:
 ```text
-# HELP ent_dns_queries_total Total DNS queries processed
-# TYPE ent_dns_queries_total counter
-ent_dns_queries_total{status="blocked"} 0
-ent_dns_queries_total{status="allowed"} 0
-ent_dns_queries_total{status="cached"} 0
-ent_dns_queries_total{status="total"} 0
+# HELP rust_dns_queries_total Total DNS queries processed
+# TYPE rust_dns_queries_total counter
+rust_dns_queries_total{status="blocked"} 0
+rust_dns_queries_total{status="allowed"} 0
+rust_dns_queries_total{status="cached"} 0
+rust_dns_queries_total{status="total"} 0
 ```
 HTTP 状态码: 200
 

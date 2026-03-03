@@ -2,15 +2,15 @@
 # Copy this file to config.toml (or /etc/rust-dns/config.toml) and adjust as needed.
 #
 # Priority order (highest → lowest):
-#   1. Environment variables  ENT_DNS__<SECTION>__<KEY>=value
-#   2. This config file       --config /path/to/config.toml  or  ENT_DNS_CONFIG=/path/to/config.toml
+#   1. Environment variables  RUST_DNS__<SECTION>__<KEY>=value
+#   2. This config file       --config /path/to/config.toml  or  RUST_DNS_CONFIG=/path/to/config.toml
 #   3. Auto-discovered file   ./config.toml  or  /etc/rust-dns/config.toml
 #   4. Built-in defaults      (shown below)
 #
 # Env var examples:
-#   ENT_DNS__DNS__PORT=53
-#   ENT_DNS__AUTH__JWT_SECRET=my-super-secret
-#   ENT_DNS__API__CORS_ALLOWED_ORIGINS=https://dns.example.com
+#   RUST_DNS__DNS__PORT=53
+#   RUST_DNS__AUTH__JWT_SECRET=my-super-secret
+#   RUST_DNS__API__CORS_ALLOWED_ORIGINS=https://dns.example.com
 
 # ── DNS Server ────────────────────────────────────────────────────────────────
 [dns]
@@ -27,7 +27,7 @@ upstreams = ["1.1.1.1:53", "8.8.8.8:53"]
 # Prefer IPv4 for DNS queries (default: true)
 # When true, IPv6 upstream addresses are skipped and the resolver
 # uses Ipv4Only strategy. Set to false to enable IPv6 queries.
-# Can also be overridden with ENT_DNS__DNS__PREFER_IPV4 environment variable.
+# Can also be overridden with RUST_DNS__DNS__PREFER_IPV4 environment variable.
 prefer_ipv4 = true
 
 # Enable DNS-over-HTTPS endpoint at GET/POST /dns-query (RFC 8484)
@@ -51,7 +51,7 @@ cors_allowed_origins = [
 
 # Directory for frontend static files (relative or absolute path).
 # Default: "frontend/dist" — set to absolute path in production.
-# Can also be overridden with ENT_DNS__API__STATIC_DIR environment variable.
+# Can also be overridden with RUST_DNS__API__STATIC_DIR environment variable.
 static_dir = "frontend/dist"
 
 # ── Database ──────────────────────────────────────────────────────────────────
@@ -80,7 +80,7 @@ level = "info"
 # Optional path for log file output. When set, logs are written to a rolling file.
 # Example: "/var/log/rust-dns/rust-dns.log"
 # When absent, only console (stdout) output is produced.
-# Can also be overridden with ENT_DNS__LOGGING__FILE environment variable.
+# Can also be overridden with RUST_DNS__LOGGING__FILE environment variable.
 # file = "/var/log/rust-dns/rust-dns.log"
 
 # Rolling strategy for the log file: "daily" | "hourly" | "never"

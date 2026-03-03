@@ -63,7 +63,7 @@ EOF
         ls -lh rust-dns.db-wal 2>/dev/null || echo "WAL 文件未找到"
 
         echo -e "\n[Prometheus Metrics]"
-        curl -s http://127.0.0.1:8080/metrics | grep -E "ent_dns_" || echo "无法获取 metrics"
+        curl -s http://127.0.0.1:8080/metrics | grep -E "rust_dns_" || echo "无法获取 metrics"
 
         echo -e "\n[网络连接]"
         netstat -an | grep ":5353 " | grep ESTABLISHED | wc -l | xargs -I {} echo "DNS 连接数: {}"

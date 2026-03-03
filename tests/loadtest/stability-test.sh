@@ -121,7 +121,7 @@ PRAGMA journal_mode;
 EOF
 
             echo -e "\nPrometheus Metrics:"
-            curl -s http://127.0.0.1:8080/metrics | grep -E "ent_dns_queries_total"
+            curl -s http://127.0.0.1:8080/metrics | grep -E "rust_dns_queries_total"
 
             echo -e "\nDNS 负载状态:"
             if ps -p $DNS_PID > /dev/null 2>&1; then

@@ -15,7 +15,7 @@ WorkingDirectory=/opt/rust-dns
 
 # Environment
 EnvironmentFile=/etc/rust-dns/env
-Environment=RUST_LOG=ent_dns=info
+Environment=RUST_LOG=rust_dns=info
 
 # Directories
 RuntimeDirectory=rust-dns

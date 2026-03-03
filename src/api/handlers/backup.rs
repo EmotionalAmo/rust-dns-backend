@@ -12,8 +12,8 @@ pub async fn create_backup(
     let timestamp = Utc::now().format("%Y%m%d-%H%M%S").to_string();
 
     // Use a fixed safe directory to avoid writing to arbitrary cwd.
-    // Operators can override via ENT_DNS_BACKUP_DIR env var.
-    let backup_dir = std::env::var("ENT_DNS_BACKUP_DIR").unwrap_or_else(|_| "/tmp".to_string());
+    // Operators can override via RUST_DNS_BACKUP_DIR env var.
+    let backup_dir = std::env::var("RUST_DNS_BACKUP_DIR").unwrap_or_else(|_| "/tmp".to_string());
 
     // Build the path and canonicalize the directory to prevent traversal.
     let dir_path = std::path::Path::new(&backup_dir);

@@ -53,10 +53,10 @@ The server behaves depending on the given environmental variables:
 
 | Variable | Default Value | Description |
 |---|---|---|
-| `ENT_DNS__DATABASE__PATH` | `/data/rust-dns/rust-dns.db` | Path to the SQLite database file. |
-| `ENT_DNS__DNS__PORT` | `53` | Port for the DNS server to listen on. |
-| `ENT_DNS__API__PORT` | `8080` | Port for the management API to listen on. |
-| `ENT_DNS__API__STATIC_DIR`| `frontend/dist` | Path to frontend static assets (if hosted identically, nullable). |
+| `RUST_DNS__DATABASE__PATH` | `/data/rust-dns/rust-dns.db` | Path to the SQLite database file. |
+| `RUST_DNS__DNS__PORT` | `53` | Port for the DNS server to listen on. |
+| `RUST_DNS__API__PORT` | `8080` | Port for the management API to listen on. |
+| `RUST_DNS__API__STATIC_DIR`| `frontend/dist` | Path to frontend static assets (if hosted identically, nullable). |
 
 ## Security and Verification
 All actions pushed to this repository undergo automated CI tests via GitHub Actions.

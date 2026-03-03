@@ -61,7 +61,7 @@ services:
     volumes:
       - ./data:/data/rust-dns
     environment:
-      - ENT_DNS__DATABASE__PATH=/data/rust-dns/rust-dns.db
+      - RUST_DNS__DATABASE__PATH=/data/rust-dns/rust-dns.db
 ```
 
 **评价**:
@@ -111,7 +111,7 @@ restart: unless-stopped
 ```rust
 config::Config::builder()
     .add_source(config::File::with_name("config").required(false))
-    .add_source(config::Environment::with_prefix("ENT_DNS").separator("__"))
+    .add_source(config::Environment::with_prefix("RUST_DNS").separator("__"))
     .set_default("dns.bind", "0.0.0.0")?
     .set_default("auth.jwt_secret", "change-me-in-production")?
     .build()?;
@@ -216,7 +216,7 @@ GET /metrics
 ```rust
 tracing_subscriber::fmt()
     .with_env_filter(tracing_subscriber::EnvFilter::from_default_env()
-        .add_directive("ent_dns=info".parse()?))
+        .add_directive("rust_dns=info".parse()?))
     .init();
 ```
 

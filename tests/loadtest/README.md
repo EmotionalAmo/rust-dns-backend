@@ -45,9 +45,9 @@ cd /Users/emotionalamo/Developer/rust-dns/projects/rust-dns
 cargo build --release
 
 # 启动（需要设置 JWT_SECRET）
-export ENT_DNS__DNS__PORT=5353
-export ENT_DNS__DATABASE__PATH=/tmp/rust-dns-loadtest.db
-export ENT_DNS__AUTH__JWT_SECRET="test-secret-for-loadtest-only-32chars-min"
+export RUST_DNS__DNS__PORT=5353
+export RUST_DNS__DATABASE__PATH=/tmp/rust-dns-loadtest.db
+export RUST_DNS__AUTH__JWT_SECRET="test-secret-for-loadtest-only-32chars-min"
 ./target/release/rust-dns &
 DNS_PID=$!
 

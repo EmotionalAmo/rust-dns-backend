@@ -69,7 +69,7 @@ for qps in "${QPS_LEVELS[@]}"; do
             {
                 echo "=== $(date -Iseconds) ==="
                 echo "Prometheus Metrics:"
-                curl -s http://127.0.0.1:8080/metrics 2>/dev/null | grep -E "ent_dns_queries_total" || echo "无法获取 metrics"
+                curl -s http://127.0.0.1:8080/metrics 2>/dev/null | grep -E "rust_dns_queries_total" || echo "无法获取 metrics"
                 echo ""
             } >> "$MONITOR_LOG"
             sleep 5

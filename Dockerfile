@@ -39,9 +39,9 @@ VOLUME ["/data/rust-dns"]
 
 USER rust-dns
 
-ENV ENT_DNS__DATABASE__PATH=/data/rust-dns/rust-dns.db \
-    ENT_DNS__DNS__PORT=53 \
-    ENT_DNS__API__PORT=8080 \
-    ENT_DNS__API__STATIC_DIR=/opt/rust-dns/static
+ENV RUST_DNS__DATABASE__PATH=/data/rust-dns/rust-dns.db \
+    RUST_DNS__DNS__PORT=53 \
+    RUST_DNS__API__PORT=8080 \
+    RUST_DNS__API__STATIC_DIR=/opt/rust-dns/static
 
 CMD ["rust-dns"]

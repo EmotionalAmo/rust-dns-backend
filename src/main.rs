@@ -21,15 +21,15 @@ use rust_dns::shutdown;
     about = "Rust DNS filtering server",
     long_about = "rust-dns: high-performance DNS filtering proxy with WebUI.\n\
                   Config is loaded in this priority order:\n\
-                  1. Environment variables (ENT_DNS__<SECTION>__<KEY>)\n\
-                  2. --config file or ENT_DNS_CONFIG env var\n\
+                  1. Environment variables (RUST_DNS__<SECTION>__<KEY>)\n\
+                  2. --config file or RUST_DNS_CONFIG env var\n\
                   3. ./config.toml or /etc/rust-dns/config.toml (auto-discovered)\n\
                   4. Built-in defaults"
 )]
 struct Args {
     /// Path to TOML config file.
-    /// Also readable from ENT_DNS_CONFIG environment variable.
-    #[arg(short, long, env = "ENT_DNS_CONFIG", value_name = "FILE")]
+    /// Also readable from RUST_DNS_CONFIG environment variable.
+    #[arg(short, long, env = "RUST_DNS_CONFIG", value_name = "FILE")]
     config: Option<String>,
 }
 
