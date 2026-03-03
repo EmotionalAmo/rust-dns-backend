@@ -22,6 +22,7 @@ pub struct QueryLogParams {
     status: Option<String>,
     client: Option<String>,
     domain: Option<String>,
+    upstream: Option<String>,
 }
 
 fn default_limit() -> i64 {
@@ -85,6 +86,9 @@ pub async fn list(
     if params.domain.is_some() {
         conditions.push("question LIKE ?".to_string());
     }
+    if params.upstream.is_some() {
+        conditions.push("upstream = ?".to_string());
+    }
 
     let where_clause = if conditions.is_empty() {
         String::new()
@@ -126,6 +130,9 @@ pub async fn list(
         if let Some(ref d) = params.domain {
             q = q.bind(format!("%{d}%"));
         }
+        if let Some(ref u) = params.upstream {
+            q = q.bind(u);
+        }
         q.bind(limit)
             .bind(params.offset)
             .fetch_all(&state.db)
@@ -142,6 +149,9 @@ pub async fn list(
         }
         if let Some(ref d) = params.domain {
             q = q.bind(format!("%{d}%"));
+        }
+        if let Some(ref u) = params.upstream {
+            q = q.bind(u);
         }
         q.fetch_one(&state.db).await?
     };
@@ -425,6 +435,7 @@ fn build_filter_condition(
             };
             Ok((format!("{} {} ?", field, sql_op), vec![value.clone()]))
         }
+        ("upstream", "eq") => Ok((format!("{} = ?", field), vec![value.clone()])),
         _ => Err(format!("Unsupported filter: {} {}", field, op)),
     }
 }
