@@ -322,7 +322,10 @@ pub async fn delete_group(
         "delete",
         "client_group",
         Some(id.to_string()),
-        Some(format!("name={}, clients={}, rules={}", name, client_count, rule_count)),
+        Some(format!(
+            "name={}, clients={}, rules={}",
+            name, client_count, rule_count
+        )),
         ip,
     );
 

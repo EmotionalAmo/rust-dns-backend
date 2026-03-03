@@ -254,7 +254,11 @@ async fn check_upstream_connectivity(
             .map_err(|e| anyhow::anyhow!("Failed to resolve DoH host '{}': {}", host, e))?
             .map(|a| a.ip())
             .collect();
-        anyhow::ensure!(!addrs.is_empty(), "DoH host '{}' resolved to no addresses", host);
+        anyhow::ensure!(
+            !addrs.is_empty(),
+            "DoH host '{}' resolved to no addresses",
+            host
+        );
         let ns_group = NameServerConfigGroup::from_ips_https(&addrs, port, host, false);
         let mut cfg = ResolverConfig::new();
         for ns in ns_group.into_inner() {
@@ -271,7 +275,11 @@ async fn check_upstream_connectivity(
             .map_err(|e| anyhow::anyhow!("Failed to resolve DoT host '{}': {}", host, e))?
             .map(|a| a.ip())
             .collect();
-        anyhow::ensure!(!addrs.is_empty(), "DoT host '{}' resolved to no addresses", host);
+        anyhow::ensure!(
+            !addrs.is_empty(),
+            "DoT host '{}' resolved to no addresses",
+            host
+        );
         let ns_group = NameServerConfigGroup::from_ips_tls(&addrs, port, host, false);
         let mut cfg = ResolverConfig::new();
         for ns in ns_group.into_inner() {

@@ -285,7 +285,10 @@ impl DnsHandler {
         let (response, min_ttl, upstream_name) = if let Some(ref upstreams) = config.upstream_urls {
             let resolver = self.get_or_create_client_resolver(upstreams).await?;
             // For client-specific upstreams, use the first address as the upstream name
-            let name = upstreams.first().cloned().unwrap_or_else(|| "custom".to_string());
+            let name = upstreams
+                .first()
+                .cloned()
+                .unwrap_or_else(|| "custom".to_string());
             let (res, min_ttl, _) = resolver.resolve(&domain, qtype, &request).await?;
             (res, min_ttl, Some(name))
         } else {

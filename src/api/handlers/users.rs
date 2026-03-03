@@ -187,7 +187,10 @@ pub async fn update_role(
         "update_role",
         "user",
         Some(id.clone()),
-        Some(format!("username={}, role={}->{}", username, old_role, body.role)),
+        Some(format!(
+            "username={}, role={}->{}",
+            username, old_role, body.role
+        )),
         ip,
     );
 

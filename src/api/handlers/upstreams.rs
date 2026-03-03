@@ -649,7 +649,10 @@ async fn test_dns_connectivity(addr: &str, timeout: std::time::Duration) -> anyh
             None => rest,
         };
         let (host, port) = match authority.rfind(':') {
-            Some(idx) => (authority[..idx].to_string(), authority[idx + 1..].parse::<u16>()?),
+            Some(idx) => (
+                authority[..idx].to_string(),
+                authority[idx + 1..].parse::<u16>()?,
+            ),
             None => (authority.to_string(), 853u16),
         };
         let lookup_target = format!("{}:{}", host, port);
