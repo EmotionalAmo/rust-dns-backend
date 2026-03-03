@@ -1,4 +1,4 @@
-# Ent-DNS 技术架构与代码质量审视报告
+# rust-dns 技术架构与代码质量审视报告
 
 **审计日期**: 2026-02-19
 **审计人**: cto-vogels (Werner Vogels AI)
@@ -16,7 +16,7 @@
 | 性能与可扩展性 | 7/10 | 基础良好，有优化空间 |
 | 测试覆盖 | 3/10 | 几乎没有测试 |
 
-**总体评价**: Ent-DNS 选择了正确的技术栈，代码质量扎实。主要改进空间在于测试覆盖和一些性能优化点。
+**总体评价**: rust-dns 选择了正确的技术栈，代码质量扎实。主要改进空间在于测试覆盖和一些性能优化点。
 
 ---
 
@@ -279,8 +279,8 @@ FROM debian:bookworm-slim
 ### 7.2 非_root 用户运行 ✅
 
 ```dockerfile
-RUN useradd -r -g ent-dns -s /sbin/nologin ent-dns
-USER ent-dns
+RUN useradd -r -g rust-dns -s /sbin/nologin rust-dns
+USER rust-dns
 ```
 
 ### 7.3 配置管理 ✅
@@ -368,7 +368,7 @@ USER ent-dns
 
 ## 结论
 
-Ent-DNS 的技术架构决策合理，代码质量扎实。主要改进空间在于：
+rust-dns 的技术架构决策合理，代码质量扎实。主要改进空间在于：
 
 1. **测试覆盖** - 最优先处理
 2. **文档** - API 文档和代码注释

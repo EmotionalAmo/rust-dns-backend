@@ -1,4 +1,4 @@
-# Ent-DNS 安全改进测试报告
+# rust-dns 安全改进测试报告
 
 **测试日期**: 2026-02-19
 **测试人员**: QA Agent (Bach)
@@ -24,7 +24,7 @@
 
 **测试步骤**:
 ```bash
-ENT_DNS__DATABASE__PATH=/tmp/ent-dns-test1.db ./target/debug/ent-dns
+ENT_DNS__DATABASE__PATH=/tmp/rust-dns-test1.db ./target/debug/rust-dns
 ```
 
 **预期结果**: 程序拒绝启动，显示安全错误
@@ -42,7 +42,7 @@ Error: SECURITY ERROR: JWT secret must be changed from default value 'change-me-
 
 **测试步骤**:
 ```bash
-ENT_DNS__AUTH__JWT_SECRET="short" ./target/debug/ent-dns
+ENT_DNS__AUTH__JWT_SECRET="short" ./target/debug/rust-dns
 ```
 
 **预期结果**: 程序拒绝启动，显示配置错误
@@ -60,7 +60,7 @@ Error: CONFIG ERROR: JWT secret must be at least 32 characters (current: 5)
 
 **测试步骤**:
 ```bash
-ENT_DNS__AUTH__JWT_SECRET="this-is-a-very-secure-jwt-secret-key-for-production-32chars" ./target/debug/ent-dns
+ENT_DNS__AUTH__JWT_SECRET="this-is-a-very-secure-jwt-secret-key-for-production-32chars" ./target/debug/rust-dns
 ```
 
 **预期结果**: 程序正常启动，日志显示"Configuration validation passed"
@@ -68,7 +68,7 @@ ENT_DNS__AUTH__JWT_SECRET="this-is-a-very-secure-jwt-secret-key-for-production-3
 **实际结果**:
 ```
 [INFO] Configuration validation passed
-[INFO] Starting Ent-DNS Enterprise v0.1.0
+[INFO] Starting rust-dns Enterprise v0.1.0
 ```
 
 **结论**: ✅ 通过
@@ -88,13 +88,13 @@ ENT_DNS__AUTH__JWT_SECRET="this-is-a-very-secure-jwt-secret-key-for-production-3
 **实际结果**:
 ```json
 {
-  "filename": "ent-dns-backup-20260219-192546.db",
+  "filename": "rust-dns-backup-20260219-192546.db",
   "success": true,
   "timestamp": "20260219-192546"
 }
 ```
 
-备份文件已生成: `ent-dns-backup-20260219-192546.db` (135168 bytes)
+备份文件已生成: `rust-dns-backup-20260219-192546.db` (135168 bytes)
 
 **结论**: ✅ 通过
 
@@ -205,7 +205,7 @@ HTTP 状态码: 200
 - ✅ AdminUser RBAC 保护
 - ✅ SQLite VACUUM INTO 备份
 - ✅ WAL checkpoint 确保 WAL 文件同步
-- ✅ 备份文件命名: `ent-dns-backup-{timestamp}.db`
+- ✅ 备份文件命名: `rust-dns-backup-{timestamp}.db`
 
 ### 3. Metrics 保护 (`src/api/handlers/metrics.rs`)
 - ✅ AdminUser RBAC 保护
@@ -222,7 +222,7 @@ HTTP 状态码: 200
 2. **备份 API**: Admin 可以成功创建备份，无认证访问被拒绝
 3. **Metrics 保护**: 只有 admin 可以访问 Prometheus metrics，普通用户和未认证用户被阻止
 
-这些安全增强措施有效提升了 Ent-DNS 的安全性，符合企业级 DNS 管理系统的要求。
+这些安全增强措施有效提升了 rust-dns 的安全性，符合企业级 DNS 管理系统的要求。
 
 ---
 

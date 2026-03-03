@@ -11,12 +11,12 @@ echo "=================================================="
 echo ""
 
 # Create a temporary database
-TEMP_DB="/tmp/ent-dns-perf-test-$(date +%s).db"
+TEMP_DB="/tmp/rust-dns-perf-test-$(date +%s).db"
 echo "Using temporary database: $TEMP_DB"
 echo ""
 
 # Remove old test databases
-rm -f /tmp/ent-dns-perf-test-*.db
+rm -f /tmp/rust-dns-perf-test-*.db
 
 # Test 1: PRAGMA Settings
 echo "Test 1: Verify PRAGMA Settings"

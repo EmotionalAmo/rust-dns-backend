@@ -18,7 +18,7 @@ GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 NC='\033[0m'
 
-echo -e "${GREEN}=== Ent-DNS DNS QPS 容量测试 ===${NC}"
+echo -e "${GREEN}=== rust-dns DNS QPS 容量测试 ===${NC}"
 echo "目标服务器: ${DNS_SERVER}:${DNS_PORT}"
 echo "测试持续时间: ${DURATION} 秒/阶段"
 echo "QPS 级别: ${QPS_LEVELS[@]}"

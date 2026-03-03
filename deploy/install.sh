@@ -1,16 +1,16 @@
 #!/usr/bin/env bash
 # ================================================================
-# Ent-DNS Enterprise — Installation Script
+# rust-dns Enterprise — Installation Script
 # Tested on: Ubuntu 22.04 / Debian 12
 # Run as root: sudo bash install.sh
 # ================================================================
 set -euo pipefail
 
-INSTALL_DIR="/opt/ent-dns"
-DATA_DIR="/var/lib/ent-dns"
-CONFIG_DIR="/etc/ent-dns"
-SERVICE_NAME="ent-dns"
-BINARY_NAME="ent-dns"
+INSTALL_DIR="/opt/rust-dns"
+DATA_DIR="/var/lib/rust-dns"
+CONFIG_DIR="/etc/rust-dns"
+SERVICE_NAME="rust-dns"
+BINARY_NAME="rust-dns"
 
 # --- Sanity checks ---
 if [[ $EUID -ne 0 ]]; then
@@ -20,11 +20,11 @@ fi
 
 if [[ ! -f "./${BINARY_NAME}" ]]; then
     echo "ERROR: Binary './${BINARY_NAME}' not found in current directory." >&2
-    echo "       Build it first: cargo build --release && cp target/release/ent-dns ." >&2
+    echo "       Build it first: cargo build --release && cp target/release/rust-dns ." >&2
     exit 1
 fi
 
-echo "==> Installing Ent-DNS Enterprise..."
+echo "==> Installing rust-dns Enterprise..."
 
 # --- Create system user ---
 if ! id "${SERVICE_NAME}" &>/dev/null; then
@@ -46,7 +46,7 @@ install -m 755 "./${BINARY_NAME}" "${INSTALL_DIR}/${BINARY_NAME}"
 if [[ ! -f "${CONFIG_DIR}/env" ]]; then
     echo "==> Creating config file ${CONFIG_DIR}/env..."
     cat > "${CONFIG_DIR}/env" <<'EOF'
-ENT_DNS__DATABASE__PATH=/var/lib/ent-dns/ent-dns.db
+ENT_DNS__DATABASE__PATH=/var/lib/rust-dns/rust-dns.db
 ENT_DNS__DNS__BIND=0.0.0.0
 ENT_DNS__DNS__PORT=53
 ENT_DNS__API__BIND=0.0.0.0
@@ -64,7 +64,7 @@ fi
 
 # --- Install systemd service ---
 echo "==> Installing systemd service..."
-install -m 644 "$(dirname "$0")/ent-dns.service" "/etc/systemd/system/${SERVICE_NAME}.service"
+install -m 644 "$(dirname "$0")/rust-dns.service" "/etc/systemd/system/${SERVICE_NAME}.service"
 systemctl daemon-reload
 
 # --- Set capabilities (allow port 53 without root) ---
@@ -77,7 +77,7 @@ systemctl enable "${SERVICE_NAME}"
 systemctl restart "${SERVICE_NAME}"
 
 echo ""
-echo "==> Ent-DNS installed successfully!"
+echo "==> rust-dns installed successfully!"
 echo "    Status:  systemctl status ${SERVICE_NAME}"
 echo "    Logs:    journalctl -u ${SERVICE_NAME} -f"
 echo "    Config:  ${CONFIG_DIR}/env"

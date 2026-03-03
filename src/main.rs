@@ -16,14 +16,14 @@ use rust_dns::shutdown;
 
 #[derive(Parser, Debug)]
 #[command(
-    name = "ent-dns",
+    name = "rust-dns",
     version,
-    about = "Enterprise DNS filtering server",
-    long_about = "Ent-DNS: high-performance DNS filtering proxy with WebUI.\n\
+    about = "Rust DNS filtering server",
+    long_about = "rust-dns: high-performance DNS filtering proxy with WebUI.\n\
                   Config is loaded in this priority order:\n\
                   1. Environment variables (ENT_DNS__<SECTION>__<KEY>)\n\
                   2. --config file or ENT_DNS_CONFIG env var\n\
-                  3. ./config.toml or /etc/ent-dns/config.toml (auto-discovered)\n\
+                  3. ./config.toml or /etc/rust-dns/config.toml (auto-discovered)\n\
                   4. Built-in defaults"
 )]
 struct Args {
@@ -53,7 +53,7 @@ fn init_logging(logging: &config::LoggingConfig) -> Result<Option<WorkerGuard>> 
         let dir = path.parent().unwrap_or(std::path::Path::new("."));
         let file_name = path
             .file_name()
-            .unwrap_or_else(|| std::ffi::OsStr::new("ent-dns.log"));
+            .unwrap_or_else(|| std::ffi::OsStr::new("rust-dns.log"));
 
         if !dir.exists() {
             std::fs::create_dir_all(dir).map_err(|e| {
@@ -107,7 +107,7 @@ async fn main() -> Result<()> {
     // returns so the background file-writer thread has time to flush.
     let _log_guard = init_logging(&cfg.logging)?;
 
-    info!("Starting Ent-DNS Enterprise v{}", env!("CARGO_PKG_VERSION"));
+    info!("Starting rust-dns Enterprise v{}", env!("CARGO_PKG_VERSION"));
     info!("Configuration loaded");
 
     let db_pool = db::init(&cfg).await?;
@@ -332,6 +332,6 @@ async fn main() -> Result<()> {
     info!("Closing database connection pool...");
     db_pool.close().await;
 
-    info!("Ent-DNS shutdown complete");
+    info!("rust-dns shutdown complete");
     Ok(())
 }

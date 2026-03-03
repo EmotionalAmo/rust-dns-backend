@@ -1,4 +1,4 @@
-# Ent-DNS 集成测试报告
+# rust-dns 集成测试报告
 
 **测试日期**: 2026-02-19
 **测试人员**: qa-bach (James Bach)
@@ -281,7 +281,7 @@ Query Logs 页面中的筛选器 Select 组件使用了空字符串作为某些 
 3. 打开浏览器开发者工具 Console
 
 **预期修复方案**:
-1. 检查 `/Users/emotionalamo/Developer/Ent-DNS/projects/ent-dns/frontend/src/pages/Logs.tsx` 中的 Select 组件使用
+1. 检查 `/Users/emotionalamo/Developer/rust-dns/projects/rust-dns/frontend/src/pages/Logs.tsx` 中的 Select 组件使用
 2. 确保所有 Select.Item 都有非空的 value 属性
 3. 对于"全部"或"不限"选项，使用特殊值如 `"all"` 而不是空字符串 `""`
 
@@ -359,7 +359,7 @@ Query Logs 页面中的筛选器 Select 组件使用了空字符串作为某些 
 
 ## 结论
 
-Ent-DNS 项目的核心功能已基本完成，DNS 引擎工作正常，API 响应正确，前端 UI 功能齐全。主题切换功能实现完善，支持 Light、Dark、System 三种模式并正确持久化。
+rust-dns 项目的核心功能已基本完成，DNS 引擎工作正常，API 响应正确，前端 UI 功能齐全。主题切换功能实现完善，支持 Light、Dark、System 三种模式并正确持久化。
 
 发现 1 个 Minor 级别的前端 bug（Query Logs 页面 Select 组件），不影响核心功能，但建议尽快修复以提升用户体验。
 

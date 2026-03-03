@@ -1,4 +1,4 @@
-# Ent-DNS 全量质量检查报告
+# rust-dns 全量质量检查报告
 
 **检查时间**: 2026-02-23
 **检查范围**: Round 13 新增功能（Insights / App Catalog）+ 全量回归
@@ -115,7 +115,7 @@ Response: "Failed to deserialize query string: missing field `app_id`"  (plain t
 在 QA 检查期间，运行中的服务的 `_sqlx_migrations` 表记录了 `009 success=1`，但 `app_catalog` 表实际不存在，导致所有 catalog/insights API 返回 `Internal Server Error`。经手动执行 SQL 后补丁，服务恢复正常。
 
 **根因分析**:
-当前服务运行的 `/tmp/ent-dns-test.db` 是在 Round 12 之前创建的旧数据库，该数据库在 Round 13 加入 migration 009 之前已经被多次使用，但当该服务重新启动并加载 009 migration 时，服务日志中没有明显报错。
+当前服务运行的 `/tmp/rust-dns-test.db` 是在 Round 12 之前创建的旧数据库，该数据库在 Round 13 加入 migration 009 之前已经被多次使用，但当该服务重新启动并加载 009 migration 时，服务日志中没有明显报错。
 
 **建议**:
 1. 对于**生产部署**，在 `install.sh` 或 Docker 启动脚本中加入迁移健康检查：验证关键表是否存在

@@ -30,7 +30,7 @@ cargo run --release
 By default, the server expects to bind to port `53` (TCP/UDP) for DNS operations. Running natively might require `sudo` privileges for binding to privileged ports (< 1024).
 
 ```bash
-sudo ./target/release/ent-dns
+sudo ./target/release/rust-dns
 ```
 
 ### Running with Docker
@@ -43,7 +43,7 @@ docker run -d \
   -p 53:53/udp \
   -p 53:53/tcp \
   -p 8080:8080 \
-  -v ent-dns-data:/data/ent-dns \
+  -v rust-dns-data:/data/rust-dns \
   rust-dns-backend
 ```
 
@@ -53,7 +53,7 @@ The server behaves depending on the given environmental variables:
 
 | Variable | Default Value | Description |
 |---|---|---|
-| `ENT_DNS__DATABASE__PATH` | `/data/ent-dns/ent-dns.db` | Path to the SQLite database file. |
+| `ENT_DNS__DATABASE__PATH` | `/data/rust-dns/rust-dns.db` | Path to the SQLite database file. |
 | `ENT_DNS__DNS__PORT` | `53` | Port for the DNS server to listen on. |
 | `ENT_DNS__API__PORT` | `8080` | Port for the management API to listen on. |
 | `ENT_DNS__API__STATIC_DIR`| `frontend/dist` | Path to frontend static assets (if hosted identically, nullable). |

@@ -18,7 +18,7 @@ GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 NC='\033[0m'
 
-echo -e "${GREEN}=== Ent-DNS 长时间稳定性测试 ===${NC}"
+echo -e "${GREEN}=== rust-dns 长时间稳定性测试 ===${NC}"
 echo "测试时长: ${DURATION} 秒 ($(($DURATION / 3600)) 小时)"
 echo "DNS 负载: ${DNS_QPS} QPS"
 echo "API 负载: ${API_VUS} VUs"
@@ -73,13 +73,13 @@ echo ""
 {
     echo "=== 初始状态 ($(date -Iseconds)) ==="
     echo "进程信息:"
-    ps aux | grep ent-dns | grep -v grep
+    ps aux | grep rust-dns | grep -v grep
     echo ""
     echo "内存使用:"
-    ps aux | grep ent-dns | grep -v grep | awk '{sum += $6; count++} END {print "总 RSS:", sum, "KB (", sum/1024, "MB)"; print "进程数:", count}'
+    ps aux | grep rust-dns | grep -v grep | awk '{sum += $6; count++} END {print "总 RSS:", sum, "KB (", sum/1024, "MB)"; print "进程数:", count}'
     echo ""
     echo "磁盘使用:"
-    du -sh ent-dns.db 2>/dev/null || echo "数据库文件未找到"
+    du -sh rust-dns.db 2>/dev/null || echo "数据库文件未找到"
     echo ""
 } > "$RESULTS_DIR/initial_state.txt"
 
@@ -103,17 +103,17 @@ while true; do
             echo "=== 快照: 小时 $HOURS ($(date -Iseconds)) ==="
 
             echo "进程信息:"
-            ps aux | grep ent-dns | grep -v grep | awk '{print "PID:", $2, "RSS:", $6, "KB", "VSZ:", $5, "KB", "%CPU:", $3, "%MEM:", $4}'
+            ps aux | grep rust-dns | grep -v grep | awk '{print "PID:", $2, "RSS:", $6, "KB", "VSZ:", $5, "KB", "%CPU:", $3, "%MEM:", $4}'
 
             echo -e "\n内存趋势:"
-            ps aux | grep ent-dns | grep -v grep | awk '{sum += $6; count++} END {print "总 RSS:", sum, "KB (", sum/1024, "MB)"; print "进程数:", count}'
+            ps aux | grep rust-dns | grep -v grep | awk '{sum += $6; count++} END {print "总 RSS:", sum, "KB (", sum/1024, "MB)"; print "进程数:", count}'
 
             echo -e "\n磁盘使用:"
-            du -sh ent-dns.db 2>/dev/null || echo "数据库文件未找到"
-            ls -lh ent-dns.db-wal 2>/dev/null || echo "WAL 文件未找到"
+            du -sh rust-dns.db 2>/dev/null || echo "数据库文件未找到"
+            ls -lh rust-dns.db-wal 2>/dev/null || echo "WAL 文件未找到"
 
             echo -e "\nSQLite 状态:"
-            sqlite3 ent-dns.db <<EOF 2>/dev/null
+            sqlite3 rust-dns.db <<EOF 2>/dev/null
 SELECT "查询总数:" || COUNT(*) FROM query_log;
 SELECT "表大小:" || (SELECT page_count * page_size FROM pragma_page_count, pragma_page_size) || " bytes";
 PRAGMA lock_status;
@@ -175,13 +175,13 @@ wait $K6_PID 2>/dev/null || true
 {
     echo "=== 最终状态 ($(date -Iseconds)) ==="
     echo "进程信息:"
-    ps aux | grep ent-dns | grep -v grep || echo "未找到运行中的进程"
+    ps aux | grep rust-dns | grep -v grep || echo "未找到运行中的进程"
     echo ""
     echo "磁盘使用:"
-    du -sh ent-dns.db 2>/dev/null || echo "数据库文件未找到"
+    du -sh rust-dns.db 2>/dev/null || echo "数据库文件未找到"
     echo ""
     echo "SQLite 状态:"
-    sqlite3 ent-dns.db <<EOF 2>/dev/null
+    sqlite3 rust-dns.db <<EOF 2>/dev/null
 SELECT "查询总数:" || COUNT(*) FROM query_log;
 SELECT "表大小:" || (SELECT page_count * page_size FROM pragma_page_count, pragma_page_size) || " bytes";
 PRAGMA integrity_check;
@@ -206,8 +206,8 @@ echo -e "${GREEN}生成对比报告...${NC}"
     fi
 
     echo -e "\n=== 磁盘增长分析 ==="
-    INITIAL_DISK=$(du -sk ent-dns.db 2>/dev/null | awk '{print $1}') || echo "0"
-    FINAL_DISK=$(du -sk ent-dns.db 2>/dev/null | awk '{print $1}') || echo "0"
+    INITIAL_DISK=$(du -sk rust-dns.db 2>/dev/null | awk '{print $1}') || echo "0"
+    FINAL_DISK=$(du -sk rust-dns.db 2>/dev/null | awk '{print $1}') || echo "0"
     DISK_DIFF=$((FINAL_DISK - INITIAL_DISK))
 
     echo "初始磁盘: $INITIAL_DISK KB"

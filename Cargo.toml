@@ -2,11 +2,11 @@
 name = "rust-dns"
 version = "1.0.0"
 edition = "2021"
-authors = ["Ent-DNS Team"]
+authors = ["rust-dns Team"]
 description = "Enterprise-grade DNS filtering server"
 
 [[bin]]
-name = "ent-dns"
+name = "rust-dns"
 path = "src/main.rs"
 
 [lib]

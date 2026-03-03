@@ -1,26 +1,26 @@
 [Unit]
-Description=Ent-DNS Enterprise DNS Server
-Documentation=https://github.com/your-org/ent-dns
+Description=rust-dns Rust DNS Server
+Documentation=https://github.com/your-org/rust-dns
 After=network-online.target
 Wants=network-online.target
 
 [Service]
 Type=simple
-User=ent-dns
-Group=ent-dns
+User=rust-dns
+Group=rust-dns
 
 # Binary and data paths
-ExecStart=/opt/ent-dns/ent-dns
-WorkingDirectory=/opt/ent-dns
+ExecStart=/opt/rust-dns/rust-dns
+WorkingDirectory=/opt/rust-dns
 
 # Environment
-EnvironmentFile=/etc/ent-dns/env
+EnvironmentFile=/etc/rust-dns/env
 Environment=RUST_LOG=ent_dns=info
 
 # Directories
-RuntimeDirectory=ent-dns
-StateDirectory=ent-dns
-LogsDirectory=ent-dns
+RuntimeDirectory=rust-dns
+StateDirectory=rust-dns
+LogsDirectory=rust-dns
 
 # Allow binding to privileged ports (53) without root
 CapabilityBoundingSet=CAP_NET_BIND_SERVICE
@@ -30,7 +30,7 @@ AmbientCapabilities=CAP_NET_BIND_SERVICE
 NoNewPrivileges=true
 ProtectSystem=strict
 ProtectHome=true
-ReadWritePaths=/var/lib/ent-dns
+ReadWritePaths=/var/lib/rust-dns
 PrivateTmp=true
 PrivateDevices=true
 

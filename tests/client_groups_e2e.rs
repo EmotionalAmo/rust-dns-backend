@@ -184,7 +184,7 @@ async fn test_client_group_dns_blocking() {
     let rule_id = uuid::Uuid::new_v4().to_string();
     sqlx::query(
         "INSERT INTO custom_rules (id, rule, comment, is_enabled, created_by, created_at)
-         VALUES (?, '||ent-dns-group-blocked.invalid^', 'E2E group rule', 1, 'test', ?)",
+         VALUES (?, '||rust-dns-group-blocked.invalid^', 'E2E group rule', 1, 'test', ?)",
     )
     .bind(&rule_id)
     .bind(&now)
@@ -231,7 +231,7 @@ async fn test_client_group_dns_blocking() {
     .expect("Insert group rule binding");
 
     // ── 6. Query the blocked domain from the group client IP ──────────────────
-    let query_bytes = build_dns_query("ent-dns-group-blocked.invalid");
+    let query_bytes = build_dns_query("rust-dns-group-blocked.invalid");
     let resp_bytes = state
         .dns_handler
         .handle(query_bytes, "192.168.100.1".to_string())
@@ -264,7 +264,7 @@ async fn test_global_filter_blocks_non_group_clients() {
     let rule_id = uuid::Uuid::new_v4().to_string();
     sqlx::query(
         "INSERT INTO custom_rules (id, rule, comment, is_enabled, created_by, created_at)
-         VALUES (?, '||ent-dns-global-blocked.invalid^', 'E2E global rule', 1, 'test', ?)",
+         VALUES (?, '||rust-dns-global-blocked.invalid^', 'E2E global rule', 1, 'test', ?)",
     )
     .bind(&rule_id)
     .bind(&now)
@@ -276,7 +276,7 @@ async fn test_global_filter_blocks_non_group_clients() {
     state.filter.reload().await.expect("FilterEngine::reload");
 
     // ── 3. Query from an IP with no client config (falls back to global filter) ─
-    let query_bytes = build_dns_query("ent-dns-global-blocked.invalid");
+    let query_bytes = build_dns_query("rust-dns-global-blocked.invalid");
     let resp_bytes = state
         .dns_handler
         .handle(query_bytes, "10.0.0.99".to_string())
@@ -311,7 +311,7 @@ async fn test_group_rules_layer_over_global_filter() {
     let global_rule_id = uuid::Uuid::new_v4().to_string();
     sqlx::query(
         "INSERT INTO custom_rules (id, rule, comment, is_enabled, created_by, created_at)
-         VALUES (?, '||ent-dns-global-only.invalid^', 'Global-only rule', 1, 'test', ?)",
+         VALUES (?, '||rust-dns-global-only.invalid^', 'Global-only rule', 1, 'test', ?)",
     )
     .bind(&global_rule_id)
     .bind(&now)
@@ -338,7 +338,7 @@ async fn test_group_rules_layer_over_global_filter() {
     let group_rule_id = uuid::Uuid::new_v4().to_string();
     sqlx::query(
         "INSERT INTO custom_rules (id, rule, comment, is_enabled, created_by, created_at)
-         VALUES (?, '||ent-dns-group-specific.invalid^', 'Group-specific rule', 1, 'test', ?)",
+         VALUES (?, '||rust-dns-group-specific.invalid^', 'Group-specific rule', 1, 'test', ?)",
     )
     .bind(&group_rule_id)
     .bind(&now)
@@ -418,7 +418,7 @@ async fn test_group_rules_layer_over_global_filter() {
     // ── 3. Group client queries the GLOBAL-only blocked domain ────────────────
     // Since the group ruleset does NOT contain this domain, it should FALLBACK
     // to the global FilterEngine and be blocked!
-    let query_bytes = build_dns_query("ent-dns-global-only.invalid");
+    let query_bytes = build_dns_query("rust-dns-global-only.invalid");
     let resp_bytes = state
         .dns_handler
         .handle(query_bytes, "192.168.200.1".to_string())
@@ -432,7 +432,7 @@ async fn test_group_rules_layer_over_global_filter() {
     );
 
     // ── 4. Verify the group rule IS enforced for its own domain ───────────────
-    let group_query_bytes = build_dns_query("ent-dns-group-specific.invalid");
+    let group_query_bytes = build_dns_query("rust-dns-group-specific.invalid");
     let group_resp_bytes = state
         .dns_handler
         .handle(group_query_bytes, "192.168.200.1".to_string())

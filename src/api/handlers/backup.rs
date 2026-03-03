@@ -25,7 +25,7 @@ pub async fn create_backup(
     }
 
     // Filename is derived only from timestamp — no user input involved.
-    let backup_filename = format!("ent-dns-backup-{}.db", timestamp);
+    let backup_filename = format!("rust-dns-backup-{}.db", timestamp);
     let backup_path = dir_path.join(&backup_filename);
     let backup_path_str = backup_path
         .to_str()

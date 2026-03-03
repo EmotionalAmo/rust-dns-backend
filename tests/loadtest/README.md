@@ -1,4 +1,4 @@
-# Ent-DNS 性能测试快速启动指南
+# rust-dns 性能测试快速启动指南
 
 ## 前置条件
 
@@ -20,7 +20,7 @@ sudo apt-get install k6
 ### 2. 准备测试域名列表
 
 ```bash
-cd /Users/emotionalamo/Developer/Ent-DNS/projects/ent-dns/tests/loadtest
+cd /Users/emotionalamo/Developer/rust-dns/projects/rust-dns/tests/loadtest
 
 # 方法 1: 使用真实域名列表（推荐）
 curl -s https://raw.githubusercontent.com/curl/curl/master/docs/examples/html-list.html | \
@@ -36,22 +36,22 @@ for i in {1..1000}; do
 done > domains.txt
 ```
 
-### 3. 启动 Ent-DNS（释放模式）
+### 3. 启动 rust-dns（释放模式）
 
 ```bash
-cd /Users/emotionalamo/Developer/Ent-DNS/projects/ent-dns
+cd /Users/emotionalamo/Developer/rust-dns/projects/rust-dns
 
 # 编译释放版本
 cargo build --release
 
 # 启动（需要设置 JWT_SECRET）
 export ENT_DNS__DNS__PORT=5353
-export ENT_DNS__DATABASE__PATH=/tmp/ent-dns-loadtest.db
+export ENT_DNS__DATABASE__PATH=/tmp/rust-dns-loadtest.db
 export ENT_DNS__AUTH__JWT_SECRET="test-secret-for-loadtest-only-32chars-min"
-./target/release/ent-dns &
+./target/release/rust-dns &
 DNS_PID=$!
 
-echo "Ent-DNS 启动 PID: $DNS_PID"
+echo "rust-dns 启动 PID: $DNS_PID"
 ```
 
 ### 4. 验证服务健康
@@ -74,7 +74,7 @@ curl http://127.0.0.1:8080/metrics
 ### 场景 1: DNS QPS 容量测试（快速）
 
 ```bash
-cd /Users/emotionalamo/Developer/Ent-DNS/projects/ent-dns/tests/loadtest
+cd /Users/emotionalamo/Developer/rust-dns/projects/rust-dns/tests/loadtest
 
 # 快速测试（5 分钟/阶段）
 ./dns-qps-test.sh
@@ -86,7 +86,7 @@ cat results/qps-test-*/comparison.txt
 ### 场景 2: API 并发写入测试
 
 ```bash
-cd /Users/emotionalamo/Developer/Ent-DNS/projects/ent-dns/tests/loadtest
+cd /Users/emotionalamo/Developer/rust-dns/projects/rust-dns/tests/loadtest
 
 # 获取 JWT Token
 TOKEN=$(curl -s -X POST http://127.0.0.1:8080/api/v1/auth/login \
@@ -104,7 +104,7 @@ k6 run api-write-test.js --out json=results/k6-results.json
 ### 场景 3: 短期稳定性测试（1 小时）
 
 ```bash
-cd /Users/emotionalamo/Developer/Ent-DNS/projects/ent-dns/tests/loadtest
+cd /Users/emotionalamo/Developer/rust-dns/projects/rust-dns/tests/loadtest
 
 # 1 小时稳定性测试（3600 秒）
 export DURATION=3600
@@ -117,7 +117,7 @@ cat results/stability-*/comparison.txt
 ### 场景 4: 指标采集（独立运行）
 
 ```bash
-cd /Users/emotionalamo/Developer/Ent-DNS/projects/ent-dns/tests/loadtest
+cd /Users/emotionalamo/Developer/rust-dns/projects/rust-dns/tests/loadtest
 
 # 启动指标采集（10 秒间隔，1 小时）
 ./collect-metrics.sh &
@@ -209,13 +209,13 @@ cat results/stability-*/snapshot_*.txt | grep "lock_status"
 **诊断命令**：
 ```bash
 # CPU 使用率
-top -pid $(pgrep ent-dns)
+top -pid $(pgrep rust-dns)
 
 # SQLite 锁等待
-sqlite3 ent-dns.db "PRAGMA lock_status"
+sqlite3 rust-dns.db "PRAGMA lock_status"
 
 # 查询慢 SQL（需要开启日志）
-sqlite3 ent-dns.db "PRAGMA busy_timeout"
+sqlite3 rust-dns.db "PRAGMA busy_timeout"
 ```
 
 ### 问题 2: 错误率过高
@@ -244,7 +244,7 @@ grep -r "panic" results/
 **诊断命令**：
 ```bash
 # 查询日志数量
-sqlite3 ent-dns.db "SELECT COUNT(*) FROM query_log;"
+sqlite3 rust-dns.db "SELECT COUNT(*) FROM query_log;"
 
 # 查看内存趋势
 cat results/stability-*/snapshot_*.txt | grep "总 RSS:"
@@ -255,7 +255,7 @@ cat results/stability-*/snapshot_*.txt | grep "总 RSS:"
 ## 停止测试
 
 ```bash
-# 停止 Ent-DNS
+# 停止 rust-dns
 kill $DNS_PID
 
 # 停止所有测试进程
@@ -270,8 +270,8 @@ pkill -f collect-metrics
 
 ```bash
 # 删除测试数据库
-rm -f /tmp/ent-dns-loadtest.db*
-rm -f ent-dns.db*
+rm -f /tmp/rust-dns-loadtest.db*
+rm -f rust-dns.db*
 
 # 删除结果目录（可选）
 # rm -rf results/
@@ -287,7 +287,7 @@ rm -f ent-dns.db*
 
 **解决**:
 ```bash
-cd /Users/emotionalamo/Developer/Ent-DNS/projects/ent-dns/tests/loadtest
+cd /Users/emotionalamo/Developer/rust-dns/projects/rust-dns/tests/loadtest
 ls -la domains.txt
 ```
 
@@ -316,10 +316,10 @@ curl http://127.0.0.1:8080/api/v1/users -H "Authorization: Bearer $TOKEN"
 **解决**:
 ```bash
 # 手动 checkpoint
-sqlite3 ent-dns.db "PRAGMA wal_checkpoint(TRUNCATE);"
+sqlite3 rust-dns.db "PRAGMA wal_checkpoint(TRUNCATE);"
 
 # 清理旧日志（需要在代码中实现自动轮转）
-sqlite3 ent-dns.db "DELETE FROM query_log WHERE time < datetime('now', '-7 days');"
+sqlite3 rust-dns.db "DELETE FROM query_log WHERE time < datetime('now', '-7 days');"
 ```
 
 ---

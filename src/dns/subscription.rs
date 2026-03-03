@@ -97,7 +97,7 @@ pub async fn fetch_remote_filter(url: &str) -> Result<String> {
 
     let client = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(FETCH_TIMEOUT_SECS))
-        .user_agent("Ent-DNS/1.0")
+        .user_agent("rust-dns/1.0")
         // Do not follow redirects that change the scheme (prevents http→file redirect tricks)
         .redirect(reqwest::redirect::Policy::limited(5))
         .build()

@@ -1,11 +1,11 @@
-# Ent-DNS Design System
+# rust-dns Design System
 ## UI 设计总监规范文档 (Matías Duarte 思维模型)
 
 ---
 
 ## 一、视觉哲学
 
-Ent-DNS 是一个给 IT 工程师用的工具，不是给普通消费者的。这决定了我们的设计方向：
+rust-dns 是一个给 IT 工程师用的工具，不是给普通消费者的。这决定了我们的设计方向：
 
 - **信息密度优先于留白美学** — 工程师需要在一屏内看到尽量多的有效数据
 - **状态可读性优先于装饰** — 颜色必须承载语义，不能只是审美
@@ -298,7 +298,7 @@ Label：
 卡片：w-full max-w-sm，居中垂直水平
 卡片内容：
   顶部 Shield 图标 (text-primary, h-10 w-10)，居中
-  产品名 "Ent-DNS"：text-2xl font-bold，居中
+  产品名 "rust-dns"：text-2xl font-bold，居中
   副标题：text-sm text-muted-foreground，居中
 
 不要显示 "默认账号: admin / admin" 在生产环境

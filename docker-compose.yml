@@ -5,19 +5,19 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: ent-dns-backend
+    container_name: rust-dns-backend
     restart: unless-stopped
     ports:
       - "53:53/udp"
       - "53:53/tcp"
       - "8080:8080"
     volumes:
-      - dns_data:/data/ent-dns
+      - dns_data:/data/rust-dns
     environment:
-      - ENT_DNS__DATABASE__PATH=/data/ent-dns/ent-dns.db
+      - ENT_DNS__DATABASE__PATH=/data/rust-dns/rust-dns.db
       - ENT_DNS__DNS__PORT=53
       - ENT_DNS__API__PORT=8080
-      - ENT_DNS__API__STATIC_DIR=/opt/ent-dns/static
+      - ENT_DNS__API__STATIC_DIR=/opt/rust-dns/static
       - ENT_DNS__AUTH__JWT_SECRET=${ENT_DNS__AUTH__JWT_SECRET:-CHANGE_ME_REPLACE_WITH_RANDOM_SECRET}
       - RUST_LOG=rust_dns=info
     cap_add:

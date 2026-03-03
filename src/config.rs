@@ -24,7 +24,7 @@ pub struct LoggingConfig {
 
     /// Optional path for log file output.
     /// When set, log records are written to a rolling file at this path.
-    /// Example: "/var/log/ent-dns/ent-dns.log"
+    /// Example: "/var/log/rust-dns/rust-dns.log"
     /// When absent, only console (stdout) output is produced.
     pub file: Option<String>,
 
@@ -51,7 +51,7 @@ impl Default for LoggingConfig {
 }
 
 /// Default config file search paths (tried in order when no explicit path given).
-const DEFAULT_CONFIG_PATHS: &[&str] = &["./config.toml", "/etc/ent-dns/config.toml"];
+const DEFAULT_CONFIG_PATHS: &[&str] = &["./config.toml", "/etc/rust-dns/config.toml"];
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct DnsConfig {
@@ -122,7 +122,7 @@ fn default_api_port() -> u16 {
     8080
 }
 fn default_db_path() -> String {
-    "./ent-dns.db".to_string()
+    "./rust-dns.db".to_string()
 }
 fn default_jwt_expiry() -> u64 {
     24
@@ -194,7 +194,7 @@ pub fn validate(cfg: &Config) -> Result<()> {
 ///
 /// 1. Environment variables (`ENT_DNS__<SECTION>__<KEY>`)
 /// 2. Config file specified via `config_path` argument or `ENT_DNS_CONFIG` env var
-/// 3. Auto-discovered config file from default locations (`./config.toml`, `/etc/ent-dns/config.toml`)
+/// 3. Auto-discovered config file from default locations (`./config.toml`, `/etc/rust-dns/config.toml`)
 /// 4. Built-in defaults
 pub fn load(config_path: Option<&str>) -> Result<Config> {
     // Resolve config file path: CLI arg > ENT_DNS_CONFIG env > default search paths
@@ -220,7 +220,7 @@ pub fn load(config_path: Option<&str>) -> Result<Config> {
         .set_default("api.bind", "0.0.0.0")?
         .set_default("api.port", 8080)?
         .set_default("api.static_dir", "frontend/dist")?
-        .set_default("database.path", "./ent-dns.db")?
+        .set_default("database.path", "./rust-dns.db")?
         .set_default("database.query_log_retention_days", 7)?
         .set_default("auth.jwt_secret", DEFAULT_JWT_SECRET)?
         .set_default("auth.jwt_expiry_hours", 24)?

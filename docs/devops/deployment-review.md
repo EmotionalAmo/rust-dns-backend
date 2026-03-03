@@ -1,4 +1,4 @@
-# Ent-DNS 部署与运维审视报告
+# rust-dns 部署与运维审视报告
 
 **审计日期**: 2026-02-19
 **审计人**: devops-hightower (Kelsey Hightower AI)
@@ -17,7 +17,7 @@
 | 故障处理 | 6/10 | 健康检查存在，缺少自动恢复 |
 | 文档质量 | 8/10 | 配置示例清晰 |
 
-**总体评价**: Ent-DNS 具备生产就绪的部署配置，监控指标完善。主要改进空间在于自动化备份、日志聚合和故障自愈能力。
+**总体评价**: rust-dns 具备生产就绪的部署配置，监控指标完善。主要改进空间在于自动化备份、日志聚合和故障自愈能力。
 
 ---
 
@@ -42,8 +42,8 @@ Stage 3: Runtime (debian:bookworm-slim)
 
 **安全性检查**:
 ```dockerfile
-RUN useradd -r -g ent-dns -s /sbin/nologin ent-dns
-USER ent-dns
+RUN useradd -r -g rust-dns -s /sbin/nologin rust-dns
+USER rust-dns
 ```
 ✅ 非 root 用户，遵循最小权限原则
 
@@ -52,16 +52,16 @@ USER ent-dns
 ```yaml
 version: '3.8'
 services:
-  ent-dns:
-    image: ent-dns:latest
+  rust-dns:
+    image: rust-dns:latest
     ports:
       - "53:53/udp"
       - "53:53/tcp"
       - "8080:8080"
     volumes:
-      - ./data:/data/ent-dns
+      - ./data:/data/rust-dns
     environment:
-      - ENT_DNS__DATABASE__PATH=/data/ent-dns/ent-dns.db
+      - ENT_DNS__DATABASE__PATH=/data/rust-dns/rust-dns.db
 ```
 
 **评价**:
@@ -254,7 +254,7 @@ tracing_subscriber::fmt()
 
 1. **SQL 导出备份**:
 ```bash
-sqlite3 ent-dns.db ".backup backup.db"
+sqlite3 rust-dns.db ".backup backup.db"
 ```
 
 2. **定时任务**:
@@ -270,7 +270,7 @@ services:
       sh -c '
         apk add sqlite
         while true; do
-          sqlite3 /data/ent-dns.db ".backup /backups/ent-dns-$(date +%Y%m%d-%H%M%S).db"
+          sqlite3 /data/rust-dns.db ".backup /backups/rust-dns-$(date +%Y%m%d-%H%M%S).db"
           find /backups -name "*.db" -mtime +7 -delete
           sleep 86400
         done
@@ -352,9 +352,9 @@ services:
 
 **建议**:
 ```dockerfile
-RUN chmod 444 /usr/local/bin/ent-dns
-USER ent-dns
-VOLUME ["/data/ent-dns"]
+RUN chmod 444 /usr/local/bin/rust-dns
+USER rust-dns
+VOLUME ["/data/rust-dns"]
 ```
 
 ### 7.2 网络安全
@@ -406,13 +406,13 @@ jobs:
       - name: Build Rust binary
         run: cargo build --release
       - name: Build Docker image
-        run: docker build -t ent-dns:${{ github.sha }} .
+        run: docker build -t rust-dns:${{ github.sha }} .
       - name: Login to registry
         if: github.ref == 'refs/heads/main'
         uses: docker/login-action@v3
       - name: Push image
         if: github.ref == 'refs/heads/main'
-        run: docker push ent-dns:${{ github.sha }}
+        run: docker push rust-dns:${{ github.sha }}
 ```
 
 ---
@@ -439,9 +439,9 @@ jobs:
 ### 9.3 故障处理流程
 
 1. **服务无响应**
-   - 检查日志: `journalctl -u ent-dns`
+   - 检查日志: `journalctl -u rust-dns`
    - 检查端口: `netstat -tulpn | grep 53`
-   - 重启服务: `systemctl restart ent-dns`
+   - 重启服务: `systemctl restart rust-dns`
 
 2. **数据库损坏**
    - 停止服务
@@ -486,7 +486,7 @@ jobs:
 
 ## 结论
 
-Ent-DNS 的部署和运维基础**扎实，具备生产就绪条件**。主要优势：
+rust-dns 的部署和运维基础**扎实，具备生产就绪条件**。主要优势：
 
 1. ✅ Docker 和 systemd 双部署支持
 2. ✅ 配置管理遵循 12-Factor 原则

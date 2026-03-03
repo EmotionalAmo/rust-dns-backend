@@ -41,14 +41,14 @@ while true; do
         echo -e "\n[系统资源]"
         # CPU 和内存
         if command -v top &> /dev/null; then
-            top -l 1 -n 10 -pid $(pgrep ent-dns | head -n 1) 2>/dev/null || top -l 1 | head -n 10
+            top -l 1 -n 10 -pid $(pgrep rust-dns | head -n 1) 2>/dev/null || top -l 1 | head -n 10
         fi
 
         echo -e "\n[进程信息]"
-        ps aux | grep ent-dns | grep -v grep || echo "未找到运行中的 ent-dns 进程"
+        ps aux | grep rust-dns | grep -v grep || echo "未找到运行中的 rust-dns 进程"
 
         echo -e "\n[SQLite 状态]"
-        sqlite3 ent-dns.db <<EOF 2>/dev/null
+        sqlite3 rust-dns.db <<EOF 2>/dev/null
 .mode column
 SELECT "查询总数:" || COUNT(*) FROM query_log;
 SELECT "表页数:" || page_count FROM pragma_page_count;
@@ -59,8 +59,8 @@ PRAGMA journal_mode;
 EOF
 
         echo -e "\n[磁盘使用]"
-        du -sh ent-dns.db 2>/dev/null || echo "数据库文件未找到"
-        ls -lh ent-dns.db-wal 2>/dev/null || echo "WAL 文件未找到"
+        du -sh rust-dns.db 2>/dev/null || echo "数据库文件未找到"
+        ls -lh rust-dns.db-wal 2>/dev/null || echo "WAL 文件未找到"
 
         echo -e "\n[Prometheus Metrics]"
         curl -s http://127.0.0.1:8080/metrics | grep -E "ent_dns_" || echo "无法获取 metrics"

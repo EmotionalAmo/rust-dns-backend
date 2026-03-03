@@ -1,10 +1,10 @@
-# Ent-DNS Configuration File
-# Copy this file to config.toml (or /etc/ent-dns/config.toml) and adjust as needed.
+# rust-dns Configuration File
+# Copy this file to config.toml (or /etc/rust-dns/config.toml) and adjust as needed.
 #
 # Priority order (highest → lowest):
 #   1. Environment variables  ENT_DNS__<SECTION>__<KEY>=value
 #   2. This config file       --config /path/to/config.toml  or  ENT_DNS_CONFIG=/path/to/config.toml
-#   3. Auto-discovered file   ./config.toml  or  /etc/ent-dns/config.toml
+#   3. Auto-discovered file   ./config.toml  or  /etc/rust-dns/config.toml
 #   4. Built-in defaults      (shown below)
 #
 # Env var examples:
@@ -57,7 +57,7 @@ static_dir = "frontend/dist"
 # ── Database ──────────────────────────────────────────────────────────────────
 [database]
 # SQLite database file path
-path = "/var/lib/ent-dns/ent-dns.db"
+path = "/var/lib/rust-dns/rust-dns.db"
 
 # Delete query log entries older than N days (0 = keep forever)
 query_log_retention_days = 30
@@ -78,10 +78,10 @@ jwt_expiry_hours = 24
 level = "info"
 
 # Optional path for log file output. When set, logs are written to a rolling file.
-# Example: "/var/log/ent-dns/ent-dns.log"
+# Example: "/var/log/rust-dns/rust-dns.log"
 # When absent, only console (stdout) output is produced.
 # Can also be overridden with ENT_DNS__LOGGING__FILE environment variable.
-# file = "/var/log/ent-dns/ent-dns.log"
+# file = "/var/log/rust-dns/rust-dns.log"
 
 # Rolling strategy for the log file: "daily" | "hourly" | "never"
 # Has no effect when `file` is not set.
