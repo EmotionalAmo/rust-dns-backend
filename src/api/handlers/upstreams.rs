@@ -574,30 +574,60 @@ pub async fn failover_log(
     Ok(Json(json!({ "data": data, "total": data.len() })))
 }
 
-/// Simple DNS connectivity test using hickory-resolver
+/// Simple DNS connectivity test using hickory-resolver.
+///
+/// Supports:
+/// - Plain UDP: `"1.1.1.1"` or `"1.1.1.1:53"`
+/// - DoH: `"https://dns.cloudflare.com/dns-query"` or `"https://1.1.1.1/dns-query"`
 async fn test_dns_connectivity(addr: &str, timeout: std::time::Duration) -> anyhow::Result<()> {
-    use hickory_resolver::config::{NameServerConfig, Protocol, ResolverConfig};
-    use hickory_resolver::TokioAsyncResolver;
-
-    // Parse address (format: "ip:port" or "ip")
-    let (ip, port) = if addr.contains(':') {
-        let parts: Vec<&str> = addr.rsplitn(2, ':').collect();
-        (parts[1], parts[0].parse::<u16>()?)
-    } else {
-        (addr, 53)
+    use hickory_resolver::config::{
+        NameServerConfig, NameServerConfigGroup, Protocol, ResolverConfig,
     };
+    use hickory_resolver::TokioAsyncResolver;
+    use std::net::ToSocketAddrs;
 
-    let ip_addr = ip.parse::<std::net::IpAddr>()?;
+    let config = if addr.starts_with("https://") {
+        // DoH connectivity test
+        let (host, port, _path) = parse_doh_host_port(addr)?;
+        let lookup_target = format!("{}:{}", host, port);
+        let addrs: Vec<std::net::IpAddr> = lookup_target
+            .as_str()
+            .to_socket_addrs()
+            .map_err(|e| anyhow::anyhow!("Failed to resolve DoH host '{}': {}", host, e))?
+            .map(|a| a.ip())
+            .collect();
 
-    let mut config = ResolverConfig::new();
-    config.add_name_server(NameServerConfig {
-        socket_addr: (ip_addr, port).into(),
-        protocol: Protocol::Udp,
-        trust_negative_responses: false,
-        tls_config: None,
-        bind_addr: None,
-        tls_dns_name: None,
-    });
+        if addrs.is_empty() {
+            anyhow::bail!("DoH host '{}' resolved to no addresses", host);
+        }
+
+        let ns_group = NameServerConfigGroup::from_ips_https(&addrs, port, host, false);
+        let mut cfg = ResolverConfig::new();
+        for ns in ns_group.into_inner() {
+            cfg.add_name_server(ns);
+        }
+        cfg
+    } else {
+        // Plain UDP connectivity test
+        let (ip, port) = if addr.contains(':') {
+            let parts: Vec<&str> = addr.rsplitn(2, ':').collect();
+            (parts[1], parts[0].parse::<u16>()?)
+        } else {
+            (addr, 53)
+        };
+
+        let ip_addr = ip.parse::<std::net::IpAddr>()?;
+        let mut cfg = ResolverConfig::new();
+        cfg.add_name_server(NameServerConfig {
+            socket_addr: (ip_addr, port).into(),
+            protocol: Protocol::Udp,
+            trust_negative_responses: false,
+            tls_config: None,
+            bind_addr: None,
+            tls_dns_name: None,
+        });
+        cfg
+    };
 
     let opts = hickory_resolver::config::ResolverOpts::default();
     let resolver = TokioAsyncResolver::tokio(config, opts);
@@ -606,6 +636,54 @@ async fn test_dns_connectivity(addr: &str, timeout: std::time::Duration) -> anyh
     let _ = tokio::time::timeout(timeout, resolver.lookup_ip("example.com.")).await??;
 
     Ok(())
+}
+
+/// Extract (host, port) from a DoH URL like `https://hostname[:port][/path]`.
+fn parse_doh_host_port(url: &str) -> anyhow::Result<(String, u16, String)> {
+    let rest = url
+        .strip_prefix("https://")
+        .ok_or_else(|| anyhow::anyhow!("URL must start with https://: {}", url))?;
+
+    let (authority, path) = match rest.find('/') {
+        Some(idx) => (&rest[..idx], rest[idx..].to_string()),
+        None => (rest, "/dns-query".to_string()),
+    };
+
+    let (host, port) = if authority.starts_with('[') {
+        // IPv6 literal: [::1] or [::1]:443
+        let end_bracket = authority
+            .rfind(']')
+            .ok_or_else(|| anyhow::anyhow!("Malformed IPv6 address in URL: {}", url))?;
+        let host_part = authority[1..end_bracket].to_string();
+        let port_part = &authority[end_bracket + 1..];
+        let port = if port_part.is_empty() {
+            443u16
+        } else {
+            port_part
+                .strip_prefix(':')
+                .and_then(|p| p.parse::<u16>().ok())
+                .ok_or_else(|| anyhow::anyhow!("Invalid port in URL: {}", url))?
+        };
+        (host_part, port)
+    } else {
+        match authority.rfind(':') {
+            Some(idx) => {
+                let host_part = authority[..idx].to_string();
+                let port_str = &authority[idx + 1..];
+                let port = port_str
+                    .parse::<u16>()
+                    .map_err(|_| anyhow::anyhow!("Invalid port '{}' in URL: {}", port_str, url))?;
+                (host_part, port)
+            }
+            None => (authority.to_string(), 443u16),
+        }
+    };
+
+    if host.is_empty() {
+        anyhow::bail!("Empty host in DoH URL: {}", url);
+    }
+
+    Ok((host, port, path))
 }
 
 pub async fn get_health(

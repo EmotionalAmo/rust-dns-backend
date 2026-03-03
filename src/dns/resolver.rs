@@ -2,10 +2,12 @@ use crate::config::Config;
 use anyhow::Result;
 use hickory_proto::op::{Message, MessageType, OpCode, ResponseCode};
 use hickory_proto::rr::RecordType;
-use hickory_resolver::config::{NameServerConfig, Protocol, ResolverConfig, ResolverOpts};
+use hickory_resolver::config::{
+    NameServerConfig, NameServerConfigGroup, Protocol, ResolverConfig, ResolverOpts,
+};
 use hickory_resolver::error::ResolveErrorKind;
 use hickory_resolver::TokioAsyncResolver;
-use std::net::SocketAddr;
+use std::net::{IpAddr, SocketAddr, ToSocketAddrs};
 
 pub struct DnsResolver {
     inner: TokioAsyncResolver,
@@ -46,8 +48,15 @@ impl DnsResolver {
         Ok(Self { inner: resolver })
     }
 
-    /// Create a resolver using custom upstream IPs (plain UDP port 53).
-    /// Accepts IP addresses like ["192.168.1.1", "8.8.8.8"].
+    /// Create a resolver using custom upstreams.
+    ///
+    /// Accepts:
+    /// - Plain IP addresses: `"192.168.1.1"`, `"8.8.8.8:53"`
+    /// - DoH URLs: `"https://dns.cloudflare.com/dns-query"`, `"https://1.1.1.1/dns-query"`
+    ///
+    /// DoH URLs require hostname-to-IP resolution at startup (blocking via
+    /// `std::net::ToSocketAddrs`). If hostname resolution fails, the entry is
+    /// skipped with a warning.
     pub fn with_upstreams(upstreams: &[String], prefer_ipv4: bool) -> Result<Self> {
         let ip_strategy = if prefer_ipv4 {
             hickory_resolver::config::LookupIpStrategy::Ipv4Only
@@ -67,28 +76,82 @@ impl DnsResolver {
 
         for upstream in upstreams {
             let upstream = upstream.trim();
-            // Accept "ip" or "ip:port" format
-            let addr: Option<SocketAddr> = if let Ok(a) = upstream.parse::<SocketAddr>() {
-                // Filter out IPv6 addresses if prefer_ipv4 is true
-                if prefer_ipv4 && a.is_ipv6() {
-                    tracing::debug!("Skipping IPv6 upstream due to prefer_ipv4: {}", a);
-                    continue;
-                }
-                Some(a)
-            } else if let Ok(ip) = upstream.parse::<std::net::IpAddr>() {
-                if prefer_ipv4 && ip.is_ipv6() {
-                    tracing::debug!("Skipping IPv6 upstream due to prefer_ipv4: {}", ip);
-                    continue;
-                }
-                Some(SocketAddr::new(ip, 53))
-            } else {
-                tracing::warn!("Invalid upstream address, skipping: {}", upstream);
-                None
-            };
 
-            if let Some(addr) = addr {
-                config.add_name_server(NameServerConfig::new(addr, Protocol::Udp));
-                added += 1;
+            if upstream.starts_with("https://") {
+                // --- DoH (DNS-over-HTTPS) upstream ---
+                match parse_doh_url(upstream) {
+                    Ok((host, port, _path)) => {
+                        // Resolve hostname to IP(s) synchronously (acceptable at init time)
+                        let lookup_target = format!("{}:{}", host, port);
+                        match lookup_target.as_str().to_socket_addrs() {
+                            Ok(addrs) => {
+                                let ips: Vec<IpAddr> = addrs
+                                    .filter(|a| if prefer_ipv4 { a.is_ipv4() } else { true })
+                                    .map(|a| a.ip())
+                                    .collect();
+
+                                if ips.is_empty() {
+                                    tracing::warn!(
+                                        "DoH upstream {}: no usable IPs after resolution (prefer_ipv4={}), skipping",
+                                        upstream, prefer_ipv4
+                                    );
+                                    continue;
+                                }
+
+                                let ns_group = NameServerConfigGroup::from_ips_https(
+                                    &ips,
+                                    port,
+                                    host.clone(),
+                                    false,
+                                );
+                                for ns in ns_group.into_inner() {
+                                    config.add_name_server(ns);
+                                    added += 1;
+                                }
+                                tracing::info!(
+                                    "Added DoH upstream {} -> {} IP(s) at port {}",
+                                    upstream,
+                                    ips.len(),
+                                    port
+                                );
+                            }
+                            Err(e) => {
+                                tracing::warn!(
+                                    "DoH upstream {}: failed to resolve host '{}': {}, skipping",
+                                    upstream,
+                                    host,
+                                    e
+                                );
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        tracing::warn!("Invalid DoH upstream URL '{}': {}, skipping", upstream, e);
+                    }
+                }
+            } else {
+                // --- Plain UDP upstream (ip or ip:port) ---
+                let addr: Option<SocketAddr> = if let Ok(a) = upstream.parse::<SocketAddr>() {
+                    if prefer_ipv4 && a.is_ipv6() {
+                        tracing::debug!("Skipping IPv6 upstream due to prefer_ipv4: {}", a);
+                        continue;
+                    }
+                    Some(a)
+                } else if let Ok(ip) = upstream.parse::<IpAddr>() {
+                    if prefer_ipv4 && ip.is_ipv6() {
+                        tracing::debug!("Skipping IPv6 upstream due to prefer_ipv4: {}", ip);
+                        continue;
+                    }
+                    Some(SocketAddr::new(ip, 53))
+                } else {
+                    tracing::warn!("Invalid upstream address, skipping: {}", upstream);
+                    None
+                };
+
+                if let Some(addr) = addr {
+                    config.add_name_server(NameServerConfig::new(addr, Protocol::Udp));
+                    added += 1;
+                }
             }
         }
 
@@ -188,4 +251,67 @@ impl DnsResolver {
 
         Ok((response.to_vec()?, min_ttl))
     }
+}
+
+/// Parse a DoH URL into (host, port, path) components.
+///
+/// Supports formats:
+/// - `https://hostname/path`
+/// - `https://hostname:port/path`
+/// - `https://hostname` (no path)
+///
+/// Returns an error string if the URL is not a valid `https://` URL.
+fn parse_doh_url(url: &str) -> std::result::Result<(String, u16, String), String> {
+    // Strip the "https://" prefix
+    let rest = url
+        .strip_prefix("https://")
+        .ok_or_else(|| format!("URL must start with https://: {}", url))?;
+
+    if rest.is_empty() {
+        return Err(format!("Empty host in DoH URL: {}", url));
+    }
+
+    // Split authority from path at the first '/'
+    let (authority, path) = match rest.find('/') {
+        Some(idx) => (&rest[..idx], rest[idx..].to_string()),
+        None => (rest, "/dns-query".to_string()),
+    };
+
+    // Split host from port at the last ':' — but be careful of IPv6 literals like [::1]:443
+    let (host, port) = if authority.starts_with('[') {
+        // IPv6 literal: [::1] or [::1]:443
+        let end_bracket = authority
+            .rfind(']')
+            .ok_or_else(|| format!("Malformed IPv6 address in URL: {}", url))?;
+        let host_part = authority[1..end_bracket].to_string();
+        let port_part = &authority[end_bracket + 1..];
+        let port = if port_part.is_empty() {
+            443u16
+        } else {
+            port_part
+                .strip_prefix(':')
+                .and_then(|p| p.parse::<u16>().ok())
+                .ok_or_else(|| format!("Invalid port in URL: {}", url))?
+        };
+        (host_part, port)
+    } else {
+        // Regular hostname or IPv4
+        match authority.rfind(':') {
+            Some(idx) => {
+                let host_part = authority[..idx].to_string();
+                let port_str = &authority[idx + 1..];
+                let port = port_str
+                    .parse::<u16>()
+                    .map_err(|_| format!("Invalid port '{}' in URL: {}", port_str, url))?;
+                (host_part, port)
+            }
+            None => (authority.to_string(), 443u16),
+        }
+    };
+
+    if host.is_empty() {
+        return Err(format!("Empty host in DoH URL: {}", url));
+    }
+
+    Ok((host, port, path))
 }
