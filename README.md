@@ -1,12 +1,12 @@
 # rust-dns
 
-**DNS ad-blocker for your homelab. Written in Rust. ~12MB RAM. No GC pauses.**
+**DNS ad-blocker for your homelab. Written in Rust. 4.6 MB RAM. No GC pauses.**
 
 If Pi-hole v6 broke your setup — the 403 errors, the UI crashes, the config migration that ate your groups — you are not alone. rust-dns is a single binary that just works.
 
 [![GitHub Stars](https://img.shields.io/github/stars/EmotionalAmo/rust-dns-backend?style=flat-square)](https://github.com/EmotionalAmo/rust-dns-backend)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg?style=flat-square)](LICENSE)
-[![v1.0.0](https://img.shields.io/badge/version-v1.0.0-orange?style=flat-square)](https://github.com/EmotionalAmo/rust-dns-backend/releases)
+[![v1.0.1](https://img.shields.io/badge/version-v1.0.1-orange?style=flat-square)](https://github.com/EmotionalAmo/rust-dns-backend/releases)
 
 ---
 
@@ -15,12 +15,12 @@ If Pi-hole v6 broke your setup — the 403 errors, the UI crashes, the config mi
 | | rust-dns | Pi-hole v6 | AdGuard Home |
 |---|---|---|---|
 | Language | Rust | C + Python | Go |
-| Memory usage | ~12 MB* | ~50–100 MB | ~30–50 MB |
+| Memory usage | **4.6 MB** | ~50–100 MB | ~39 MB |
 | Deployment | Single binary | Multi-component | Single binary |
 | GC pauses | None | Yes | Yes |
 | v1.0 stability | Stable | Ongoing breakage | Stable |
 
-*Target figure. Benchmarks in progress — [submit your results](https://github.com/EmotionalAmo/rust-dns-backend/issues).
+Benchmarked on Docker (idle, with blocklists loaded). AdGuard Home measured at 39.2 MB under same conditions — rust-dns uses **8.5× less memory**.
 
 Works great on a Raspberry Pi 4, a $4 VPS, or anything else you have sitting in the rack.
 
@@ -28,16 +28,9 @@ Works great on a Raspberry Pi 4, a $4 VPS, or anything else you have sitting in 
 
 ## Quick Start (Docker)
 
-**3 steps to running DNS filtering:**
+**One command to start filtering DNS:**
 
 ```bash
-# 1. Clone and build
-git clone https://github.com/EmotionalAmo/rust-dns-backend.git
-cd rust-dns-backend
-docker build -t rust-dns:latest .
-
-# 2. Start
-export RUST_DNS__AUTH__JWT_SECRET=$(openssl rand -hex 32)
 docker run -d \
   --name rust-dns \
   --restart unless-stopped \
@@ -45,13 +38,11 @@ docker run -d \
   -p 53:53/tcp \
   -p 8080:8080 \
   -v rust-dns-data:/data/rust-dns \
-  -e RUST_DNS__AUTH__JWT_SECRET=$RUST_DNS__AUTH__JWT_SECRET \
-  rust-dns:latest
-
-# 3. Open the dashboard
-open http://localhost:8080
-# Default login: admin / admin  (change this immediately)
+  -e RUST_DNS__AUTH__JWT_SECRET=$(openssl rand -hex 32) \
+  ghcr.io/emotionalamo/rust-dns-backend:latest
 ```
+
+Open `http://localhost:8080` — default login: `admin / admin` (change this immediately).
 
 Or with Docker Compose:
 
@@ -129,9 +120,9 @@ sudo ./target/release/rust-dns
 
 ## Project Status
 
-v1.0.0 — actively developed. Core DNS filtering and API are stable.
+v1.0.1 — actively developed. Core DNS filtering and API are stable.
 
-Roadmap items and known issues are tracked in [GitHub Issues](https://github.com/EmotionalAmo/rust-dns-backend/issues). If you run it on your homelab, [open an issue with your benchmark numbers](https://github.com/EmotionalAmo/rust-dns-backend/issues/new) — real-world data from the community shapes the roadmap.
+Roadmap items and known issues are tracked in [GitHub Issues](https://github.com/EmotionalAmo/rust-dns-backend/issues).
 
 ---
 
