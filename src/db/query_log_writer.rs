@@ -21,6 +21,7 @@ pub struct QueryLogEntry {
     pub answer: Option<String>,
     pub elapsed_ns: i64,
     pub upstream_ns: Option<i64>,
+    pub upstream_name: Option<String>,
     pub app_id: Option<i64>,
 }
 
@@ -154,26 +155,26 @@ async fn write_batch(db: &DbPool, batch: &[QueryLogEntry]) -> Result<(), sqlx::E
     }
 
     // SQLite SQLITE_MAX_VARIABLE_NUMBER defaults to 32766.
-    // 10 fields/row → safe limit is 3276 rows/statement.
+    // 11 fields/row → safe limit is 2978 rows/statement.
     // BATCH_SIZE=500 is well within limits; chunk defensively for future-proofing.
-    const FIELDS_PER_ROW: usize = 10;
-    const MAX_ROWS_PER_STMT: usize = 32766 / FIELDS_PER_ROW; // 3276
+    const FIELDS_PER_ROW: usize = 11;
+    const MAX_ROWS_PER_STMT: usize = 32766 / FIELDS_PER_ROW; // 2978
 
     let mut tx = db.begin().await?;
 
     for chunk in batch.chunks(MAX_ROWS_PER_STMT) {
-        // Build multi-row VALUES placeholders: (?,?,?,?,?,?,?,?,?,?),(?,...),...
+        // Build multi-row VALUES placeholders: (?,?,?,?,?,?,?,?,?,?,?),(?,...),...
         // Values are bound via parameters — no SQL injection risk.
         let placeholders: String = chunk
             .iter()
-            .map(|_| "(?,?,?,?,?,?,?,?,?,?)")
+            .map(|_| "(?,?,?,?,?,?,?,?,?,?,?)")
             .collect::<Vec<_>>()
             .join(",");
 
         let sql = format!(
             "INSERT INTO query_log \
              (time, client_ip, question, qtype, status, reason, answer, \
-              elapsed_ns, upstream_ns, app_id) VALUES {}",
+              elapsed_ns, upstream_ns, upstream, app_id) VALUES {}",
             placeholders
         );
 
@@ -189,6 +190,7 @@ async fn write_batch(db: &DbPool, batch: &[QueryLogEntry]) -> Result<(), sqlx::E
                 .bind(&entry.answer)
                 .bind(entry.elapsed_ns)
                 .bind(entry.upstream_ns)
+                .bind(&entry.upstream_name)
                 .bind(entry.app_id);
         }
         query.execute(&mut *tx).await?;

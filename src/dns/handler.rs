@@ -198,6 +198,7 @@ impl DnsHandler {
                         Some(answer.to_string()),
                         elapsed,
                         None,
+                        Some("rewrite".to_string()),
                         self.app_catalog.match_domain(domain_normalized),
                     );
                     return Ok(response);
@@ -237,6 +238,7 @@ impl DnsHandler {
                     None,
                     elapsed,
                     None,
+                    None,
                     self.app_catalog.match_domain(domain_normalized),
                 );
                 return self.nxdomain(&request);
@@ -272,6 +274,7 @@ impl DnsHandler {
                 None,
                 elapsed,
                 None,
+                None,
                 self.app_catalog.match_domain(domain_normalized),
             );
             return Ok(updated_cached);
@@ -279,9 +282,12 @@ impl DnsHandler {
 
         // Resolve: use client-specific upstream if configured, else global upstream_pool
         let upstream_start = Instant::now();
-        let (response, min_ttl) = if let Some(ref upstreams) = config.upstream_urls {
+        let (response, min_ttl, upstream_name) = if let Some(ref upstreams) = config.upstream_urls {
             let resolver = self.get_or_create_client_resolver(upstreams).await?;
-            resolver.resolve(&domain, qtype, &request).await?
+            // For client-specific upstreams, use the first address as the upstream name
+            let name = upstreams.first().cloned().unwrap_or_else(|| "custom".to_string());
+            let (res, min_ttl, _) = resolver.resolve(&domain, qtype, &request).await?;
+            (res, min_ttl, Some(name))
         } else {
             let pool = self.upstream_pool.read().await;
             pool.resolve(&domain, qtype, &request).await?
@@ -326,6 +332,7 @@ impl DnsHandler {
             answer_str,
             elapsed,
             Some(upstream_ns),
+            upstream_name,
             self.app_catalog.match_domain(domain_normalized),
         );
 
@@ -596,6 +603,7 @@ impl DnsHandler {
         answer: Option<String>,
         elapsed_ns: i64,
         upstream_ns: Option<i64>,
+        upstream_name: Option<String>,
         app_id: Option<i64>,
     ) {
         let now = Utc::now().to_rfc3339();
@@ -612,6 +620,7 @@ impl DnsHandler {
             answer: answer.clone(),
             elapsed_ns,
             upstream_ns,
+            upstream_name: upstream_name.clone(),
             app_id,
         };
         if let Err(e) = self.query_log_entry_tx.try_send(entry) {
@@ -633,6 +642,7 @@ impl DnsHandler {
             "answer": &answer,
             "elapsed_ns": elapsed_ns,
             "upstream_ns": upstream_ns,
+            "upstream": upstream_name,
         });
         let _ = self.query_log_tx.send(event);
     }

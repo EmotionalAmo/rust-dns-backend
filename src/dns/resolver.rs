@@ -256,12 +256,13 @@ impl DnsResolver {
     /// Resolve a DNS query.  Returns the serialised DNS wire format response
     /// together with the minimum TTL extracted from the answer records so the
     /// caller can store it in the cache with a matching expiry.
+    /// Returns: (response_bytes, min_ttl, upstream_name)
     pub async fn resolve(
         &self,
         domain: &str,
         qtype: RecordType,
         request: &Message,
-    ) -> Result<(Vec<u8>, Option<u32>)> {
+    ) -> Result<(Vec<u8>, Option<u32>, Option<String>)> {
         let request_id = request.id();
         tracing::debug!("resolver: received request with id={}", request_id);
 
@@ -328,7 +329,7 @@ impl DnsResolver {
             final_id
         );
 
-        Ok((response.to_vec()?, min_ttl))
+        Ok((response.to_vec()?, min_ttl, None))
     }
 }
 

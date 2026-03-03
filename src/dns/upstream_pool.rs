@@ -123,12 +123,13 @@ impl UpstreamPool {
 
     /// Select an upstream based on the current strategy and resolve the query.
     /// On failure, falls back to remaining nodes in priority order.
+    /// Returns: (response_bytes, min_ttl, upstream_name)
     pub async fn resolve(
         &self,
         domain: &str,
         qtype: RecordType,
         request: &Message,
-    ) -> Result<(Vec<u8>, Option<u32>)> {
+    ) -> Result<(Vec<u8>, Option<u32>, Option<String>)> {
         // Build an ordered list of nodes to try
         let nodes_to_try: Vec<Arc<UpstreamNode>> = match self.strategy {
             UpstreamStrategy::Priority => {
@@ -154,7 +155,9 @@ impl UpstreamPool {
         for node in &nodes_to_try {
             tracing::debug!("UpstreamPool: trying {} for {}", node.model.name, domain);
             match node.resolver.resolve(domain, qtype, request).await {
-                Ok(res) => return Ok(res),
+                Ok((res, min_ttl, _)) => {
+                    return Ok((res, min_ttl, Some(node.model.name.clone())));
+                }
                 Err(e) => {
                     tracing::warn!(
                         "Upstream {} failed for {}: {}; trying next",

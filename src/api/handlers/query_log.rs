@@ -93,7 +93,7 @@ pub async fn list(
     };
 
     let data_sql = format!(
-        "SELECT id, time, client_ip, client_name, question, qtype, answer, status, reason, elapsed_ns, upstream_ns
+        "SELECT id, time, client_ip, client_name, question, qtype, answer, status, reason, elapsed_ns, upstream_ns, upstream
          FROM query_log {where_clause} ORDER BY time DESC LIMIT ? OFFSET ?"
     );
     let count_sql = format!("SELECT COUNT(*) FROM query_log {where_clause}");
@@ -114,6 +114,7 @@ pub async fn list(
                 Option<String>,
                 Option<i64>,
                 Option<i64>,
+                Option<String>,
             ),
         >(&data_sql);
         if let Some(ref s) = params.status {
@@ -160,6 +161,7 @@ pub async fn list(
                 reason,
                 elapsed_ns,
                 upstream_ns,
+                upstream,
             )| {
                 json!({
                     "id": id,
@@ -173,6 +175,7 @@ pub async fn list(
                     "reason": reason,
                     "elapsed_ns": elapsed_ns,
                     "upstream_ns": upstream_ns,
+                    "upstream": upstream,
                 })
             },
         )
