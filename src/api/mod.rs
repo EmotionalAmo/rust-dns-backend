@@ -288,7 +288,11 @@ fn build_cors_layer(allowed_origins: &[String]) -> CorsLayer {
 
 pub fn build_app(state: Arc<AppState>, cors: CorsLayer) -> Router {
     Router::new()
-        .merge(router::routes(state))
+        .merge(router::routes(state.clone()))
+        .layer(axum::middleware::from_fn_with_state(
+            state,
+            middleware::audit::audit_middleware,
+        ))
         .layer(TraceLayer::new_for_http())
         .layer(cors)
 }
