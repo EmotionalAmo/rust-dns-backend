@@ -1,0 +1,631 @@
+DNS Performance Testing Tool
+Version 2.15.0
+
+[Status] Command line: dnsperf -s 127.0.0.1 -p 5301 -d /Users/emotionalamo/Developer/DNS-Project/projects/rust-dns-backend/benchmarks/../benchmark/datasets/top-10k-dnsperf.txt -l 30 -c 50 -Q 500 -e
+[Status] Sending queries (to 127.0.0.1:5301)
+[Status] Started at: Tue Mar  3 11:42:47 2026
+[Status] Stopping after 30.000000 seconds
+[Timeout] Query timed out: msg id 1566
+Warning: received a response with an unexpected (maybe timed out) id: 1566
+[Timeout] Query timed out: msg id 3389
+Warning: received a response with an unexpected (maybe timed out) id: 3389
+[Timeout] Query timed out: msg id 4220
+[Timeout] Query timed out: msg id 4458
+[Timeout] Query timed out: msg id 4836
+Warning: received a response with an unexpected (maybe timed out) id: 4458
+[Timeout] Query timed out: msg id 5536
+Warning: received a response with an unexpected (maybe timed out) id: 5536
+[Timeout] Query timed out: msg id 5936
+[Timeout] Query timed out: msg id 5941
+[Timeout] Query timed out: msg id 5942
+[Timeout] Query timed out: msg id 5945
+[Timeout] Query timed out: msg id 5947
+[Timeout] Query timed out: msg id 5950
+[Timeout] Query timed out: msg id 5955
+[Timeout] Query timed out: msg id 5956
+[Timeout] Query timed out: msg id 5957
+[Timeout] Query timed out: msg id 5959
+[Timeout] Query timed out: msg id 5960
+[Timeout] Query timed out: msg id 5961
+[Timeout] Query timed out: msg id 5967
+Warning: received a response with an unexpected (maybe timed out) id: 5959
+Warning: received a response with an unexpected (maybe timed out) id: 5961
+[Timeout] Query timed out: msg id 5971
+[Timeout] Query timed out: msg id 5972
+[Timeout] Query timed out: msg id 5973
+[Timeout] Query timed out: msg id 5976
+Warning: received a response with an unexpected (maybe timed out) id: 5973
+[Timeout] Query timed out: msg id 5979
+[Timeout] Query timed out: msg id 5981
+[Timeout] Query timed out: msg id 5982
+[Timeout] Query timed out: msg id 5983
+Warning: received a response with an unexpected (maybe timed out) id: 5942
+[Timeout] Query timed out: msg id 5986
+Warning: received a response with an unexpected (maybe timed out) id: 5979
+[Timeout] Query timed out: msg id 5990
+Warning: received a response with an unexpected (maybe timed out) id: 5945
+[Timeout] Query timed out: msg id 5992
+[Timeout] Query timed out: msg id 5994
+[Timeout] Query timed out: msg id 5996
+[Timeout] Query timed out: msg id 5997
+[Timeout] Query timed out: msg id 5999
+[Timeout] Query timed out: msg id 6007
+[Timeout] Query timed out: msg id 6009
+[Timeout] Query timed out: msg id 6010
+[Timeout] Query timed out: msg id 6012
+Warning: received a response with an unexpected (maybe timed out) id: 5955
+[Timeout] Query timed out: msg id 6014
+[Timeout] Query timed out: msg id 6015
+[Timeout] Query timed out: msg id 6016
+[Timeout] Query timed out: msg id 6017
+[Timeout] Query timed out: msg id 6018
+[Timeout] Query timed out: msg id 6021
+Warning: received a response with an unexpected (maybe timed out) id: 5957
+[Timeout] Query timed out: msg id 6023
+[Timeout] Query timed out: msg id 6025
+[Timeout] Query timed out: msg id 6026
+Warning: received a response with an unexpected (maybe timed out) id: 5983
+Warning: received a response with an unexpected (maybe timed out) id: 5982
+[Timeout] Query timed out: msg id 6028
+[Timeout] Query timed out: msg id 6029
+Warning: received a response with an unexpected (maybe timed out) id: 5967
+Warning: received a response with an unexpected (maybe timed out) id: 5996
+Warning: received a response with an unexpected (maybe timed out) id: 6012
+Warning: received a response with an unexpected (maybe timed out) id: 5999
+[Timeout] Query timed out: msg id 6035
+[Timeout] Query timed out: msg id 6036
+Warning: received a response with an unexpected (maybe timed out) id: 6007
+Warning: received a response with an unexpected (maybe timed out) id: 6017
+[Timeout] Query timed out: msg id 6041
+[Timeout] Query timed out: msg id 6043
+[Timeout] Query timed out: msg id 6044
+Warning: received a response with an unexpected (maybe timed out) id: 6041
+[Timeout] Query timed out: msg id 6045
+Warning: received a response with an unexpected (maybe timed out) id: 6026
+[Timeout] Query timed out: msg id 6051
+Warning: received a response with an unexpected (maybe timed out) id: 5992
+[Timeout] Query timed out: msg id 6054
+[Timeout] Query timed out: msg id 6056
+Warning: received a response with an unexpected (maybe timed out) id: 6028
+[Timeout] Query timed out: msg id 6058
+[Timeout] Query timed out: msg id 6059
+[Timeout] Query timed out: msg id 6061
+Warning: received a response with an unexpected (maybe timed out) id: 6056
+[Timeout] Query timed out: msg id 6066
+[Timeout] Query timed out: msg id 6067
+Warning: received a response with an unexpected (maybe timed out) id: 6015
+Warning: received a response with an unexpected (maybe timed out) id: 6016
+Warning: received a response with an unexpected (maybe timed out) id: 6018
+[Timeout] Query timed out: msg id 6071
+Warning: received a response with an unexpected (maybe timed out) id: 6071
+Warning: received a response with an unexpected (maybe timed out) id: 6036
+[Timeout] Query timed out: msg id 6074
+Warning: received a response with an unexpected (maybe timed out) id: 6029
+[Timeout] Query timed out: msg id 6077
+Warning: received a response with an unexpected (maybe timed out) id: 6059
+[Timeout] Query timed out: msg id 6078
+[Timeout] Query timed out: msg id 6080
+Warning: received a response with an unexpected (maybe timed out) id: 6058
+[Timeout] Query timed out: msg id 6081
+[Timeout] Query timed out: msg id 6084
+[Timeout] Query timed out: msg id 6089
+Warning: received a response with an unexpected (maybe timed out) id: 5994
+[Timeout] Query timed out: msg id 6091
+Warning: received a response with an unexpected (maybe timed out) id: 6084
+[Timeout] Query timed out: msg id 6096
+Warning: received a response with an unexpected (maybe timed out) id: 6078
+[Timeout] Query timed out: msg id 6099
+[Timeout] Query timed out: msg id 6100
+[Timeout] Query timed out: msg id 6101
+Warning: received a response with an unexpected (maybe timed out) id: 6099
+[Timeout] Query timed out: msg id 6103
+Warning: received a response with an unexpected (maybe timed out) id: 5981
+[Timeout] Query timed out: msg id 6109
+Warning: received a response with an unexpected (maybe timed out) id: 5936
+Warning: received a response with an unexpected (maybe timed out) id: 6074
+Warning: received a response with an unexpected (maybe timed out) id: 6021
+[Timeout] Query timed out: msg id 6111
+Warning: received a response with an unexpected (maybe timed out) id: 6045
+Warning: received a response with an unexpected (maybe timed out) id: 6111
+[Timeout] Query timed out: msg id 6113
+[Timeout] Query timed out: msg id 6114
+Warning: received a response with an unexpected (maybe timed out) id: 6113
+[Timeout] Query timed out: msg id 6115
+[Timeout] Query timed out: msg id 6116
+Warning: received a response with an unexpected (maybe timed out) id: 6116
+[Timeout] Query timed out: msg id 6118
+Warning: received a response with an unexpected (maybe timed out) id: 6118
+Warning: received a response with an unexpected (maybe timed out) id: 6114
+[Timeout] Query timed out: msg id 6122
+[Timeout] Query timed out: msg id 6124
+Warning: received a response with an unexpected (maybe timed out) id: 5956
+[Timeout] Query timed out: msg id 6126
+[Timeout] Query timed out: msg id 6128
+[Timeout] Query timed out: msg id 6132
+[Timeout] Query timed out: msg id 6133
+[Timeout] Query timed out: msg id 6134
+[Timeout] Query timed out: msg id 6136
+[Timeout] Query timed out: msg id 6138
+Warning: received a response with an unexpected (maybe timed out) id: 6138
+Warning: received a response with an unexpected (maybe timed out) id: 5950
+Warning: received a response with an unexpected (maybe timed out) id: 6134
+[Timeout] Query timed out: msg id 6141
+Warning: received a response with an unexpected (maybe timed out) id: 4220
+Warning: received a response with an unexpected (maybe timed out) id: 6132
+Warning: received a response with an unexpected (maybe timed out) id: 6124
+[Timeout] Query timed out: msg id 6142
+[Timeout] Query timed out: msg id 6143
+[Timeout] Query timed out: msg id 6144
+Warning: received a response with an unexpected (maybe timed out) id: 6144
+Warning: received a response with an unexpected (maybe timed out) id: 6136
+[Timeout] Query timed out: msg id 6146
+Warning: received a response with an unexpected (maybe timed out) id: 6146
+Warning: received a response with an unexpected (maybe timed out) id: 6143
+[Timeout] Query timed out: msg id 6152
+Warning: received a response with an unexpected (maybe timed out) id: 6152
+[Timeout] Query timed out: msg id 6156
+Warning: received a response with an unexpected (maybe timed out) id: 6156
+[Timeout] Query timed out: msg id 6160
+[Timeout] Query timed out: msg id 6162
+Warning: received a response with an unexpected (maybe timed out) id: 6162
+[Timeout] Query timed out: msg id 6163
+[Timeout] Query timed out: msg id 6164
+Warning: received a response with an unexpected (maybe timed out) id: 6163
+Warning: received a response with an unexpected (maybe timed out) id: 6164
+[Timeout] Query timed out: msg id 6165
+[Timeout] Query timed out: msg id 6167
+Warning: received a response with an unexpected (maybe timed out) id: 6167
+Warning: received a response with an unexpected (maybe timed out) id: 5941
+[Timeout] Query timed out: msg id 6169
+[Timeout] Query timed out: msg id 6172
+[Timeout] Query timed out: msg id 6174
+[Timeout] Query timed out: msg id 6176
+[Timeout] Query timed out: msg id 6177
+Warning: received a response with an unexpected (maybe timed out) id: 6172
+Warning: received a response with an unexpected (maybe timed out) id: 6169
+[Timeout] Query timed out: msg id 6183
+[Timeout] Query timed out: msg id 6186
+[Timeout] Query timed out: msg id 6187
+[Timeout] Query timed out: msg id 6189
+[Timeout] Query timed out: msg id 6190
+[Timeout] Query timed out: msg id 6191
+Warning: received a response with an unexpected (maybe timed out) id: 6187
+Warning: received a response with an unexpected (maybe timed out) id: 6186
+[Timeout] Query timed out: msg id 6192
+Warning: received a response with an unexpected (maybe timed out) id: 5986
+[Timeout] Query timed out: msg id 6196
+[Timeout] Query timed out: msg id 6200
+[Timeout] Query timed out: msg id 6207
+Warning: received a response with an unexpected (maybe timed out) id: 5960
+[Timeout] Query timed out: msg id 6209
+[Timeout] Query timed out: msg id 6211
+[Timeout] Query timed out: msg id 6212
+[Timeout] Query timed out: msg id 6216
+[Timeout] Query timed out: msg id 6218
+[Timeout] Query timed out: msg id 6219
+[Timeout] Query timed out: msg id 6221
+Warning: received a response with an unexpected (maybe timed out) id: 6219
+Warning: received a response with an unexpected (maybe timed out) id: 6025
+[Timeout] Query timed out: msg id 6227
+[Timeout] Query timed out: msg id 6228
+Warning: received a response with an unexpected (maybe timed out) id: 5997
+Warning: received a response with an unexpected (maybe timed out) id: 6183
+[Timeout] Query timed out: msg id 6230
+[Timeout] Query timed out: msg id 6233
+Warning: received a response with an unexpected (maybe timed out) id: 6211
+Warning: received a response with an unexpected (maybe timed out) id: 6174
+Warning: received a response with an unexpected (maybe timed out) id: 6230
+Warning: received a response with an unexpected (maybe timed out) id: 6212
+Warning: received a response with an unexpected (maybe timed out) id: 6216
+[Timeout] Query timed out: msg id 6237
+[Timeout] Query timed out: msg id 6238
+Warning: received a response with an unexpected (maybe timed out) id: 6044
+Warning: received a response with an unexpected (maybe timed out) id: 6196
+[Timeout] Query timed out: msg id 6242
+Warning: received a response with an unexpected (maybe timed out) id: 6051
+Warning: received a response with an unexpected (maybe timed out) id: 6010
+[Timeout] Query timed out: msg id 6247
+[Timeout] Query timed out: msg id 6248
+Warning: received a response with an unexpected (maybe timed out) id: 6227
+[Timeout] Query timed out: msg id 6251
+Warning: received a response with an unexpected (maybe timed out) id: 6035
+[Timeout] Query timed out: msg id 6255
+[Timeout] Query timed out: msg id 6256
+Warning: received a response with an unexpected (maybe timed out) id: 6251
+[Timeout] Query timed out: msg id 6257
+[Timeout] Query timed out: msg id 6258
+[Timeout] Query timed out: msg id 6259
+Warning: received a response with an unexpected (maybe timed out) id: 5976
+Warning: received a response with an unexpected (maybe timed out) id: 6218
+[Timeout] Query timed out: msg id 6263
+Warning: received a response with an unexpected (maybe timed out) id: 6242
+[Timeout] Query timed out: msg id 6266
+[Timeout] Query timed out: msg id 6267
+Warning: received a response with an unexpected (maybe timed out) id: 6014
+[Timeout] Query timed out: msg id 6268
+[Timeout] Query timed out: msg id 6269
+[Timeout] Query timed out: msg id 6270
+Warning: received a response with an unexpected (maybe timed out) id: 6247
+[Timeout] Query timed out: msg id 6271
+Warning: received a response with an unexpected (maybe timed out) id: 6043
+Warning: received a response with an unexpected (maybe timed out) id: 5971
+[Timeout] Query timed out: msg id 6275
+Warning: received a response with an unexpected (maybe timed out) id: 6263
+[Timeout] Query timed out: msg id 6277
+Warning: received a response with an unexpected (maybe timed out) id: 6237
+Warning: received a response with an unexpected (maybe timed out) id: 6248
+Warning: received a response with an unexpected (maybe timed out) id: 6077
+[Timeout] Query timed out: msg id 6281
+[Timeout] Query timed out: msg id 6282
+[Timeout] Query timed out: msg id 6283
+Warning: received a response with an unexpected (maybe timed out) id: 6081
+[Timeout] Query timed out: msg id 6286
+Warning: received a response with an unexpected (maybe timed out) id: 6283
+[Timeout] Query timed out: msg id 6288
+[Timeout] Query timed out: msg id 6289
+[Timeout] Query timed out: msg id 6290
+Warning: received a response with an unexpected (maybe timed out) id: 6061
+[Timeout] Query timed out: msg id 6292
+Warning: received a response with an unexpected (maybe timed out) id: 6192
+Warning: received a response with an unexpected (maybe timed out) id: 6288
+[Timeout] Query timed out: msg id 6294
+Warning: received a response with an unexpected (maybe timed out) id: 6209
+Warning: received a response with an unexpected (maybe timed out) id: 6277
+[Timeout] Query timed out: msg id 6295
+[Timeout] Query timed out: msg id 6296
+Warning: received a response with an unexpected (maybe timed out) id: 6080
+Warning: received a response with an unexpected (maybe timed out) id: 6103
+Warning: received a response with an unexpected (maybe timed out) id: 6067
+[Timeout] Query timed out: msg id 6298
+[Timeout] Query timed out: msg id 6299
+[Timeout] Query timed out: msg id 6300
+Warning: received a response with an unexpected (maybe timed out) id: 6298
+Warning: received a response with an unexpected (maybe timed out) id: 6299
+Warning: received a response with an unexpected (maybe timed out) id: 6257
+[Timeout] Query timed out: msg id 6302
+[Timeout] Query timed out: msg id 6303
+[Timeout] Query timed out: msg id 6304
+[Timeout] Query timed out: msg id 6305
+Warning: received a response with an unexpected (maybe timed out) id: 6304
+[Timeout] Query timed out: msg id 6306
+Warning: received a response with an unexpected (maybe timed out) id: 6294
+[Timeout] Query timed out: msg id 6310
+Warning: received a response with an unexpected (maybe timed out) id: 6109
+[Timeout] Query timed out: msg id 6315
+[Timeout] Query timed out: msg id 6316
+[Timeout] Query timed out: msg id 6321
+Warning: received a response with an unexpected (maybe timed out) id: 6306
+Warning: received a response with an unexpected (maybe timed out) id: 6292
+[Timeout] Query timed out: msg id 6329
+[Timeout] Query timed out: msg id 6331
+[Timeout] Query timed out: msg id 6333
+[Timeout] Query timed out: msg id 6335
+Warning: received a response with an unexpected (maybe timed out) id: 6128
+[Timeout] Query timed out: msg id 6338
+[Timeout] Query timed out: msg id 6339
+[Timeout] Query timed out: msg id 6340
+Warning: received a response with an unexpected (maybe timed out) id: 6335
+Warning: received a response with an unexpected (maybe timed out) id: 6340
+[Timeout] Query timed out: msg id 6343
+[Timeout] Query timed out: msg id 6344
+[Timeout] Query timed out: msg id 6347
+[Timeout] Query timed out: msg id 6349
+Warning: received a response with an unexpected (maybe timed out) id: 6339
+Warning: received a response with an unexpected (maybe timed out) id: 6331
+[Timeout] Query timed out: msg id 6352
+[Timeout] Query timed out: msg id 6353
+[Timeout] Query timed out: msg id 6354
+Warning: received a response with an unexpected (maybe timed out) id: 6354
+Warning: received a response with an unexpected (maybe timed out) id: 6141
+[Timeout] Query timed out: msg id 6355
+[Timeout] Query timed out: msg id 6356
+Warning: received a response with an unexpected (maybe timed out) id: 6344
+[Timeout] Query timed out: msg id 6357
+Warning: received a response with an unexpected (maybe timed out) id: 6353
+Warning: received a response with an unexpected (maybe timed out) id: 6142
+[Timeout] Query timed out: msg id 6360
+[Timeout] Query timed out: msg id 6361
+Warning: received a response with an unexpected (maybe timed out) id: 6355
+Warning: received a response with an unexpected (maybe timed out) id: 6360
+[Timeout] Query timed out: msg id 6364
+[Timeout] Query timed out: msg id 6365
+Warning: received a response with an unexpected (maybe timed out) id: 6364
+Warning: received a response with an unexpected (maybe timed out) id: 6361
+[Timeout] Query timed out: msg id 6366
+Warning: received a response with an unexpected (maybe timed out) id: 6365
+[Timeout] Query timed out: msg id 6368
+[Timeout] Query timed out: msg id 6369
+[Timeout] Query timed out: msg id 6370
+Warning: received a response with an unexpected (maybe timed out) id: 6370
+[Timeout] Query timed out: msg id 6371
+Warning: received a response with an unexpected (maybe timed out) id: 6369
+Warning: received a response with an unexpected (maybe timed out) id: 4836
+[Timeout] Query timed out: msg id 6376
+Warning: received a response with an unexpected (maybe timed out) id: 6349
+[Timeout] Query timed out: msg id 6377
+[Timeout] Query timed out: msg id 6379
+[Timeout] Query timed out: msg id 6381
+[Timeout] Query timed out: msg id 6382
+Warning: received a response with an unexpected (maybe timed out) id: 5947
+[Timeout] Query timed out: msg id 6383
+[Timeout] Query timed out: msg id 6384
+[Timeout] Query timed out: msg id 6385
+[Timeout] Query timed out: msg id 6386
+[Timeout] Query timed out: msg id 6387
+Warning: received a response with an unexpected (maybe timed out) id: 5972
+[Timeout] Query timed out: msg id 6388
+[Timeout] Query timed out: msg id 6389
+[Timeout] Query timed out: msg id 6390
+[Timeout] Query timed out: msg id 6391
+[Timeout] Query timed out: msg id 6392
+[Timeout] Query timed out: msg id 6393
+Warning: received a response with an unexpected (maybe timed out) id: 5990
+Warning: received a response with an unexpected (maybe timed out) id: 6189
+Warning: received a response with an unexpected (maybe timed out) id: 6191
+[Timeout] Query timed out: msg id 6394
+Warning: received a response with an unexpected (maybe timed out) id: 6009
+[Timeout] Query timed out: msg id 6395
+[Timeout] Query timed out: msg id 6396
+[Timeout] Query timed out: msg id 6397
+Warning: received a response with an unexpected (maybe timed out) id: 6190
+Warning: received a response with an unexpected (maybe timed out) id: 6023
+[Timeout] Query timed out: msg id 6398
+[Timeout] Query timed out: msg id 6399
+[Timeout] Query timed out: msg id 6400
+[Timeout] Query timed out: msg id 6401
+[Timeout] Query timed out: msg id 6402
+[Timeout] Query timed out: msg id 6403
+[Timeout] Query timed out: msg id 6404
+[Timeout] Query timed out: msg id 6405
+[Timeout] Query timed out: msg id 6406
+Warning: received a response with an unexpected (maybe timed out) id: 6228
+[Timeout] Query timed out: msg id 6407
+[Timeout] Query timed out: msg id 6408
+[Timeout] Query timed out: msg id 6409
+[Timeout] Query timed out: msg id 6410
+[Timeout] Query timed out: msg id 6411
+Warning: received a response with an unexpected (maybe timed out) id: 6054
+[Timeout] Query timed out: msg id 6412
+[Timeout] Query timed out: msg id 6413
+[Timeout] Query timed out: msg id 6414
+Warning: received a response with an unexpected (maybe timed out) id: 6066
+Warning: received a response with an unexpected (maybe timed out) id: 6200
+[Timeout] Query timed out: msg id 6415
+[Timeout] Query timed out: msg id 6416
+Warning: received a response with an unexpected (maybe timed out) id: 6177
+Warning: received a response with an unexpected (maybe timed out) id: 6255
+[Timeout] Query timed out: msg id 6417
+[Timeout] Query timed out: msg id 6418
+[Timeout] Query timed out: msg id 6419
+[Timeout] Query timed out: msg id 6420
+[Timeout] Query timed out: msg id 6421
+[Timeout] Query timed out: msg id 6422
+Warning: received a response with an unexpected (maybe timed out) id: 6266
+[Timeout] Query timed out: msg id 6423
+[Timeout] Query timed out: msg id 6424
+[Timeout] Query timed out: msg id 6425
+Warning: received a response with an unexpected (maybe timed out) id: 6089
+[Timeout] Query timed out: msg id 6426
+Warning: received a response with an unexpected (maybe timed out) id: 6091
+Warning: received a response with an unexpected (maybe timed out) id: 6096
+[Timeout] Query timed out: msg id 6427
+Warning: received a response with an unexpected (maybe timed out) id: 6275
+[Timeout] Query timed out: msg id 6428
+Warning: received a response with an unexpected (maybe timed out) id: 6100
+Warning: received a response with an unexpected (maybe timed out) id: 6101
+[Timeout] Query timed out: msg id 6429
+[Timeout] Query timed out: msg id 6430
+[Timeout] Query timed out: msg id 6431
+[Timeout] Query timed out: msg id 6432
+Warning: received a response with an unexpected (maybe timed out) id: 6282
+[Timeout] Query timed out: msg id 6433
+[Timeout] Query timed out: msg id 6434
+[Timeout] Query timed out: msg id 6435
+[Timeout] Query timed out: msg id 6436
+[Timeout] Query timed out: msg id 6437
+[Timeout] Query timed out: msg id 6438
+[Timeout] Query timed out: msg id 6439
+Warning: received a response with an unexpected (maybe timed out) id: 6115
+[Timeout] Query timed out: msg id 6440
+[Timeout] Query timed out: msg id 6441
+[Timeout] Query timed out: msg id 6442
+[Timeout] Query timed out: msg id 6443
+[Timeout] Query timed out: msg id 6444
+[Timeout] Query timed out: msg id 6445
+[Timeout] Query timed out: msg id 6446
+Warning: received a response with an unexpected (maybe timed out) id: 6268
+[Timeout] Query timed out: msg id 6447
+Warning: received a response with an unexpected (maybe timed out) id: 6122
+[Timeout] Query timed out: msg id 6448
+Warning: received a response with an unexpected (maybe timed out) id: 6300
+Warning: received a response with an unexpected (maybe timed out) id: 6207
+Warning: received a response with an unexpected (maybe timed out) id: 6281
+Warning: received a response with an unexpected (maybe timed out) id: 6126
+[Timeout] Query timed out: msg id 6449
+[Timeout] Query timed out: msg id 6450
+[Timeout] Query timed out: msg id 6451
+Warning: received a response with an unexpected (maybe timed out) id: 6133
+[Timeout] Query timed out: msg id 6452
+[Timeout] Query timed out: msg id 6453
+[Timeout] Query timed out: msg id 6454
+[Timeout] Query timed out: msg id 6455
+[Timeout] Query timed out: msg id 6456
+[Timeout] Query timed out: msg id 6457
+[Timeout] Query timed out: msg id 6458
+[Timeout] Query timed out: msg id 6459
+[Timeout] Query timed out: msg id 6460
+Warning: received a response with an unexpected (maybe timed out) id: 6347
+[Timeout] Query timed out: msg id 6461
+[Timeout] Query timed out: msg id 6462
+Warning: received a response with an unexpected (maybe timed out) id: 6238
+Warning: received a response with an unexpected (maybe timed out) id: 6316
+[Timeout] Query timed out: msg id 6463
+[Timeout] Query timed out: msg id 6464
+[Timeout] Query timed out: msg id 6465
+Warning: received a response with an unexpected (maybe timed out) id: 6329
+[Timeout] Query timed out: msg id 6466
+[Timeout] Query timed out: msg id 6467
+[Timeout] Query timed out: msg id 6468
+[Timeout] Query timed out: msg id 6469
+[Timeout] Query timed out: msg id 6470
+Warning: received a response with an unexpected (maybe timed out) id: 6357
+[Timeout] Query timed out: msg id 6471
+[Timeout] Query timed out: msg id 6472
+Warning: received a response with an unexpected (maybe timed out) id: 6352
+[Timeout] Query timed out: msg id 6473
+Warning: received a response with an unexpected (maybe timed out) id: 6366
+Warning: received a response with an unexpected (maybe timed out) id: 6160
+[Timeout] Query timed out: msg id 6474
+[Timeout] Query timed out: msg id 6475
+[Timeout] Query timed out: msg id 6476
+[Timeout] Query timed out: msg id 6477
+Warning: received a response with an unexpected (maybe timed out) id: 6371
+Warning: received a response with an unexpected (maybe timed out) id: 6368
+[Timeout] Query timed out: msg id 6478
+[Timeout] Query timed out: msg id 6479
+[Timeout] Query timed out: msg id 6480
+Warning: received a response with an unexpected (maybe timed out) id: 6377
+Warning: received a response with an unexpected (maybe timed out) id: 6165
+Warning: received a response with an unexpected (maybe timed out) id: 6376
+Warning: received a response with an unexpected (maybe timed out) id: 6379
+[Timeout] Query timed out: msg id 6481
+Warning: received a response with an unexpected (maybe timed out) id: 6381
+[Timeout] Query timed out: msg id 6482
+Warning: received a response with an unexpected (maybe timed out) id: 6176
+[Timeout] Query timed out: msg id 6483
+[Timeout] Query timed out: msg id 6484
+[Timeout] Query timed out: msg id 6485
+[Timeout] Query timed out: msg id 6486
+[Timeout] Query timed out: msg id 6487
+[Timeout] Query timed out: msg id 6488
+[Timeout] Query timed out: msg id 6489
+[Timeout] Query timed out: msg id 6490
+[Timeout] Query timed out: msg id 6491
+[Timeout] Query timed out: msg id 6492
+[Timeout] Query timed out: msg id 6493
+[Timeout] Query timed out: msg id 6494
+[Timeout] Query timed out: msg id 6495
+[Timeout] Query timed out: msg id 6496
+[Timeout] Query timed out: msg id 6497
+Warning: received a response with an unexpected (maybe timed out) id: 6221
+[Timeout] Query timed out: msg id 6498
+[Timeout] Query timed out: msg id 6499
+[Timeout] Query timed out: msg id 6500
+[Timeout] Query timed out: msg id 6501
+[Timeout] Query timed out: msg id 6502
+[Timeout] Query timed out: msg id 6503
+[Timeout] Query timed out: msg id 6504
+[Timeout] Query timed out: msg id 6505
+[Timeout] Query timed out: msg id 6506
+Warning: received a response with an unexpected (maybe timed out) id: 6233
+[Timeout] Query timed out: msg id 6507
+[Timeout] Query timed out: msg id 6508
+[Timeout] Query timed out: msg id 6509
+[Timeout] Query timed out: msg id 6510
+[Timeout] Query timed out: msg id 6511
+[Timeout] Query timed out: msg id 6512
+[Timeout] Query timed out: msg id 6513
+[Timeout] Query timed out: msg id 6514
+[Timeout] Query timed out: msg id 6515
+[Timeout] Query timed out: msg id 6516
+Warning: received a response with an unexpected (maybe timed out) id: 6256
+Warning: received a response with an unexpected (maybe timed out) id: 6259
+Warning: received a response with an unexpected (maybe timed out) id: 6258
+Warning: received a response with an unexpected (maybe timed out) id: 6267
+[Timeout] Query timed out: msg id 6517
+[Timeout] Query timed out: msg id 6518
+[Timeout] Query timed out: msg id 6519
+[Timeout] Query timed out: msg id 6520
+[Timeout] Query timed out: msg id 6521
+[Timeout] Query timed out: msg id 6522
+Warning: received a response with an unexpected (maybe timed out) id: 6270
+Warning: received a response with an unexpected (maybe timed out) id: 6269
+[Timeout] Query timed out: msg id 6523
+[Timeout] Query timed out: msg id 6524
+[Timeout] Query timed out: msg id 6525
+Warning: received a response with an unexpected (maybe timed out) id: 6271
+[Timeout] Query timed out: msg id 6526
+[Timeout] Query timed out: msg id 6527
+[Timeout] Query timed out: msg id 6528
+[Timeout] Query timed out: msg id 6529
+[Timeout] Query timed out: msg id 6530
+[Timeout] Query timed out: msg id 6531
+[Timeout] Query timed out: msg id 6532
+Warning: received a response with an unexpected (maybe timed out) id: 6286
+Warning: received a response with an unexpected (maybe timed out) id: 6290
+Warning: received a response with an unexpected (maybe timed out) id: 6289
+Warning: received a response with an unexpected (maybe timed out) id: 6295
+Warning: received a response with an unexpected (maybe timed out) id: 6296
+[Timeout] Query timed out: msg id 6533
+[Timeout] Query timed out: msg id 6534
+[Timeout] Query timed out: msg id 6535
+[Timeout] Query timed out: msg id 6536
+[Timeout] Query timed out: msg id 6537
+[Timeout] Query timed out: msg id 6538
+[Timeout] Query timed out: msg id 6539
+Warning: received a response with an unexpected (maybe timed out) id: 6302
+Warning: received a response with an unexpected (maybe timed out) id: 6303
+Warning: received a response with an unexpected (maybe timed out) id: 6305
+[Timeout] Query timed out: msg id 6540
+[Timeout] Query timed out: msg id 6541
+[Timeout] Query timed out: msg id 6542
+[Timeout] Query timed out: msg id 6543
+[Timeout] Query timed out: msg id 6544
+[Timeout] Query timed out: msg id 6545
+[Timeout] Query timed out: msg id 6546
+[Timeout] Query timed out: msg id 6547
+Warning: received a response with an unexpected (maybe timed out) id: 6310
+[Timeout] Query timed out: msg id 6548
+Warning: received a response with an unexpected (maybe timed out) id: 6315
+Warning: received a response with an unexpected (maybe timed out) id: 6321
+[Timeout] Query timed out: msg id 6549
+[Timeout] Query timed out: msg id 6550
+[Timeout] Query timed out: msg id 6551
+Warning: received a response with an unexpected (maybe timed out) id: 6333
+Warning: received a response with an unexpected (maybe timed out) id: 6338
+[Timeout] Query timed out: msg id 6552
+[Timeout] Query timed out: msg id 6553
+[Timeout] Query timed out: msg id 6554
+[Timeout] Query timed out: msg id 6555
+[Timeout] Query timed out: msg id 6556
+[Timeout] Query timed out: msg id 6557
+[Timeout] Query timed out: msg id 6558
+Warning: received a response with an unexpected (maybe timed out) id: 6343
+[Timeout] Query timed out: msg id 6559
+[Timeout] Query timed out: msg id 6560
+[Timeout] Query timed out: msg id 6561
+[Timeout] Query timed out: msg id 6562
+[Timeout] Query timed out: msg id 6563
+[Timeout] Query timed out: msg id 6564
+[Timeout] Query timed out: msg id 6565
+Warning: received a response with an unexpected (maybe timed out) id: 6356
+[Timeout] Query timed out: msg id 6566
+[Timeout] Query timed out: msg id 6567
+[Timeout] Query timed out: msg id 6568
+[Timeout] Query timed out: msg id 6569
+[Timeout] Query timed out: msg id 6570
+[Timeout] Query timed out: msg id 6571
+[Timeout] Query timed out: msg id 6572
+[Timeout] Query timed out: msg id 6573
+[Timeout] Query timed out: msg id 6574
+[Timeout] Query timed out: msg id 6575
+[Timeout] Query timed out: msg id 6576
+[Timeout] Query timed out: msg id 6577
+[Timeout] Query timed out: msg id 6578
+[Status] Testing complete (time limit)
+
+Statistics:
+
+  Queries sent:         6579
+  Queries completed:    6177 (93.89%)
+  Queries lost:         402 (6.11%)
+  Unexpected IDs:       205 (3.12%)
+
+  Response codes:       NOERROR 6167 (99.84%), SERVFAIL 5 (0.08%), NXDOMAIN 5 (0.08%)
+  Average packet size:  request 40, response 57
+  Run time (s):         33.593863
+  Queries per second:   183.872870
+
+  Average Latency (s):  0.163761 (min 0.005952, max 4.334449)
+  Latency StdDev (s):   0.215273
+

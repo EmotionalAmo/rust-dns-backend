@@ -1,0 +1,40 @@
+DNS Performance Testing Tool
+Version 2.15.0
+
+[Status] Command line: dnsperf -s 127.0.0.1 -p 5303 -d /Users/emotionalamo/Developer/DNS-Project/projects/rust-dns-backend/benchmarks/../benchmark/datasets/top-10k-dnsperf.txt -l 30 -c 50 -Q 500 -e
+[Status] Sending queries (to 127.0.0.1:5303)
+[Status] Started at: Tue Mar  3 11:40:52 2026
+[Status] Stopping after 30.000000 seconds
+[Timeout] Query timed out: msg id 3017
+Warning: received a response with an unexpected (maybe timed out) id: 3017
+[Timeout] Query timed out: msg id 3606
+Warning: received a response with an unexpected (maybe timed out) id: 3606
+[Timeout] Query timed out: msg id 4129
+Warning: received a response with an unexpected (maybe timed out) id: 4129
+[Timeout] Query timed out: msg id 4458
+Warning: received a response with an unexpected (maybe timed out) id: 4458
+[Timeout] Query timed out: msg id 6393
+Warning: received a response with an unexpected (maybe timed out) id: 6393
+[Timeout] Query timed out: msg id 6841
+Warning: received a response with an unexpected (maybe timed out) id: 6841
+[Timeout] Query timed out: msg id 6951
+Warning: received a response with an unexpected (maybe timed out) id: 6951
+[Timeout] Query timed out: msg id 7482
+Warning: received a response with an unexpected (maybe timed out) id: 7482
+[Status] Testing complete (time limit)
+
+Statistics:
+
+  Queries sent:         14874
+  Queries completed:    14866 (99.95%)
+  Queries lost:         8 (0.05%)
+  Unexpected IDs:       8 (0.05%)
+
+  Response codes:       NOERROR 14816 (99.66%), SERVFAIL 37 (0.25%), NXDOMAIN 13 (0.09%)
+  Average packet size:  request 40, response 80
+  Run time (s):         30.743652
+  Queries per second:   483.546977
+
+  Average Latency (s):  0.115543 (min 0.000214, max 4.488496)
+  Latency StdDev (s):   0.172778
+

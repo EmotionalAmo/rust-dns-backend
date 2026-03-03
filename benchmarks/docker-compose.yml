@@ -32,7 +32,7 @@ services:
       - RUST_DNS__DNS__PORT=53
       - RUST_DNS__API__PORT=8080
       - RUST_DNS__API__STATIC_DIR=/opt/rust-dns/static
-      - RUST_DNS__AUTH__JWT_SECRET=benchmark-test-secret
+      - RUST_DNS__AUTH__JWT_SECRET=benchmark-test-secret-for-dns-perf-test
       - RUST_LOG=rust_dns=warn
     volumes:
       - rust_dns_bench_data:/data/rust-dns
@@ -95,8 +95,8 @@ services:
     volumes:
       - adguard_bench_work:/opt/adguardhome/work
       - adguard_bench_conf:/opt/adguardhome/conf
-      # 挂载预配置文件，跳过首次 setup wizard
-      - ./adguard-config:/opt/adguardhome/conf:ro
+      # 挂载预配置文件，跳过首次 setup wizard（可写，允许 config migration）
+      - ./adguard-config:/opt/adguardhome/conf
     networks:
       - bench_net
     restart: unless-stopped

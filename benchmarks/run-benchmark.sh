@@ -217,20 +217,17 @@ main() {
 
     # 2. 等待服务就绪
     log_step "Step 2: 等待服务就绪"
-    declare -A SERVICE_READY
-    SERVICE_READY["rust-dns"]=0
-    SERVICE_READY["pihole"]=0
-    SERVICE_READY["adguard"]=0
+    local SVC_READY_RUST=0 SVC_READY_PIHOLE=0 SVC_READY_ADGUARD=0
 
-    wait_for_dns "rust-dns"     "$RUST_DNS_PORT" && SERVICE_READY["rust-dns"]=1  || true
-    wait_for_dns "Pi-hole"      "$PIHOLE_PORT"   && SERVICE_READY["pihole"]=1    || true
-    wait_for_dns "AdGuard Home" "$ADGUARD_PORT"  && SERVICE_READY["adguard"]=1   || true
+    wait_for_dns "rust-dns"     "$RUST_DNS_PORT" && SVC_READY_RUST=1    || true
+    wait_for_dns "Pi-hole"      "$PIHOLE_PORT"   && SVC_READY_PIHOLE=1  || true
+    wait_for_dns "AdGuard Home" "$ADGUARD_PORT"  && SVC_READY_ADGUARD=1 || true
 
     # 检查是否有任何服务就绪
     local any_ready=0
-    for svc in rust-dns pihole adguard; do
-        [[ ${SERVICE_READY[$svc]} -eq 1 ]] && any_ready=1
-    done
+    [[ $SVC_READY_RUST    -eq 1 ]] && any_ready=1
+    [[ $SVC_READY_PIHOLE  -eq 1 ]] && any_ready=1
+    [[ $SVC_READY_ADGUARD -eq 1 ]] && any_ready=1
 
     if [[ $any_ready -eq 0 ]]; then
         log_error "所有服务均未就绪，请先运行: docker compose up -d"
@@ -256,7 +253,7 @@ main() {
     local raw_adguard="${RESULTS_DIR}/raw-adguard-$(date +%Y%m%d-%H%M%S).txt"
 
     # 测试 rust-dns
-    if [[ ${SERVICE_READY["rust-dns"]} -eq 1 ]]; then
+    if [[ $SVC_READY_RUST -eq 1 ]]; then
         run_dnsperf "rust-dns" "$RUST_DNS_PORT" "$raw_rust"
         local load_mem_rust
         load_mem_rust=$(get_container_memory "$RUST_DNS_CONTAINER")
@@ -269,7 +266,7 @@ main() {
     sleep 5
 
     # 测试 Pi-hole
-    if [[ ${SERVICE_READY["pihole"]} -eq 1 ]]; then
+    if [[ $SVC_READY_PIHOLE -eq 1 ]]; then
         run_dnsperf "Pi-hole" "$PIHOLE_PORT" "$raw_pihole"
         local load_mem_pihole
         load_mem_pihole=$(get_container_memory "$PIHOLE_CONTAINER")
@@ -281,7 +278,7 @@ main() {
     sleep 5
 
     # 测试 AdGuard Home
-    if [[ ${SERVICE_READY["adguard"]} -eq 1 ]]; then
+    if [[ $SVC_READY_ADGUARD -eq 1 ]]; then
         run_dnsperf "AdGuard Home" "$ADGUARD_PORT" "$raw_adguard"
         local load_mem_adguard
         load_mem_adguard=$(get_container_memory "$ADGUARD_CONTAINER")

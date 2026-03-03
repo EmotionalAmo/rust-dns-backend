@@ -1,24 +1,17 @@
-# AdGuard Home 预配置文件
-# 用于 benchmark 测试，跳过首次 setup wizard
-# 使用最小化配置，减少额外处理对性能数据的干扰
-
 http:
   pprof:
     port: 6060
     enabled: false
   address: 0.0.0.0:3000
   session_ttl: 720h
-
 users:
   - name: admin
     password: $2y$10$benchmark123hashplaceholder
-
 auth_attempts: 5
 block_auth_min: 15
 http_proxy: ""
 language: ""
 theme: auto
-
 dns:
   bind_hosts:
     - 0.0.0.0
@@ -48,10 +41,13 @@ dns:
   trusted_proxies:
     - 127.0.0.0/8
     - ::1/128
+  cache_enabled: true
   cache_size: 4194304
   cache_ttl_min: 0
   cache_ttl_max: 0
   cache_optimistic: false
+  cache_optimistic_answer_ttl: 30s
+  cache_optimistic_max_age: 12h
   bogus_nxdomain: []
   aaaa_disabled: false
   enable_dnssec: false
@@ -64,19 +60,7 @@ dns:
   ipset: []
   ipset_file: ""
   bootstrap_prefer_ipv6: false
-  filtering_enabled: true
-  filters_update_interval: 24
-  parental_enabled: false
-  safe_browsing_enabled: false
-  safe_browsing_cache_size: 1048576
-  safe_search:
-    enabled: false
-  rewrites: []
-  blocked_services:
-    schedule:
-      time_zone: Local
-    ids: []
-  protection_disabled_until: null
+  upstream_timeout: 10s
   private_networks: []
   use_private_ptr_resolvers: true
   local_ptr_upstreams: []
@@ -86,7 +70,8 @@ dns:
   use_http3_upstreams: false
   serve_plain_dns: true
   hostsfile_enabled: true
-
+  pending_requests:
+    enabled: true
 tls:
   enabled: false
   server_name: ""
@@ -102,20 +87,20 @@ tls:
   certificate_path: ""
   private_key_path: ""
   strict_sni_check: false
-
 querylog:
+  dir_path: ""
   ignored: []
-  interval: 90s
+  interval: 1h
   size_memory: 1000
   enabled: false
+  ignored_enabled: false
   file_enabled: false
-
 statistics:
+  dir_path: ""
   ignored: []
-  interval: 90s
+  interval: 1h
   enabled: false
-  limit: 0
-
+  ignored_enabled: false
 filters:
   - enabled: false
     url: https://adguardteam.github.io/HostlistsRegistry/assets/filter_1.txt
@@ -125,10 +110,8 @@ filters:
     url: https://adguardteam.github.io/HostlistsRegistry/assets/filter_2.txt
     name: AdAway Default Blocklist
     id: 2
-
 whitelist_filters: []
 user_rules: []
-
 dhcp:
   enabled: false
   interface_name: ""
@@ -146,16 +129,48 @@ dhcp:
     lease_duration: 86400
     ra_slaac_only: false
     ra_allow_slaac: false
-
 filtering:
   blocking_ipv4: ""
   blocking_ipv6: ""
+  blocked_services:
+    schedule:
+      time_zone: UTC
+    ids: []
+  protection_disabled_until: null
+  safe_search:
+    enabled: false
+    bing: true
+    duckduckgo: true
+    ecosia: true
+    google: true
+    pixabay: true
+    yandex: true
+    youtube: true
+  blocking_mode: default
+  parental_block_host: family-block.dns.adguard.com
+  safebrowsing_block_host: standard-block.dns.adguard.com
+  rewrites: []
+  safe_fs_patterns:
+    - /opt/adguardhome/work/data/userfilters/*
+  safebrowsing_cache_size: 1048576
+  safesearch_cache_size: 1048576
+  parental_cache_size: 1048576
+  cache_time: 30
+  filters_update_interval: 24
   blocked_response_ttl: 10
-  protection_enabled: true
   filtering_enabled: true
+  rewrites_enabled: true
   parental_enabled: false
-  safe_browsing_enabled: false
-
+  safebrowsing_enabled: false
+  protection_enabled: true
+clients:
+  runtime_sources:
+    whois: true
+    arp: true
+    rdns: true
+    dhcp: true
+    hosts: true
+  persistent: []
 log:
   enabled: true
   file: ""
@@ -165,10 +180,8 @@ log:
   compress: false
   local_time: false
   verbose: false
-
 os:
   group: ""
   user: ""
   rlimit_nofile: 0
-
-schema_version: 28
+schema_version: 33
