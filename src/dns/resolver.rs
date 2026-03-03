@@ -129,6 +129,58 @@ impl DnsResolver {
                         tracing::warn!("Invalid DoH upstream URL '{}': {}, skipping", upstream, e);
                     }
                 }
+            } else if upstream.starts_with("tls://") {
+                // --- DoT (DNS-over-TLS) upstream ---
+                match parse_dot_url(upstream) {
+                    Ok((host, port)) => {
+                        // Resolve hostname to IP(s) synchronously (acceptable at init time)
+                        let lookup_target = format!("{}:{}", host, port);
+                        match lookup_target.as_str().to_socket_addrs() {
+                            Ok(addrs) => {
+                                let ips: Vec<IpAddr> = addrs
+                                    .filter(|a| if prefer_ipv4 { a.is_ipv4() } else { true })
+                                    .map(|a| a.ip())
+                                    .collect();
+
+                                if ips.is_empty() {
+                                    tracing::warn!(
+                                        "DoT upstream {}: no usable IPs after resolution (prefer_ipv4={}), skipping",
+                                        upstream, prefer_ipv4
+                                    );
+                                    continue;
+                                }
+
+                                let ns_group = NameServerConfigGroup::from_ips_tls(
+                                    &ips,
+                                    port,
+                                    host.clone(),
+                                    false,
+                                );
+                                for ns in ns_group.into_inner() {
+                                    config.add_name_server(ns);
+                                    added += 1;
+                                }
+                                tracing::info!(
+                                    "Added DoT upstream {} -> {} IP(s) at port {}",
+                                    upstream,
+                                    ips.len(),
+                                    port
+                                );
+                            }
+                            Err(e) => {
+                                tracing::warn!(
+                                    "DoT upstream {}: failed to resolve host '{}': {}, skipping",
+                                    upstream,
+                                    host,
+                                    e
+                                );
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        tracing::warn!("Invalid DoT upstream URL '{}': {}, skipping", upstream, e);
+                    }
+                }
             } else {
                 // --- Plain UDP upstream (ip or ip:port) ---
                 let addr: Option<SocketAddr> = if let Ok(a) = upstream.parse::<SocketAddr>() {
@@ -251,6 +303,70 @@ impl DnsResolver {
 
         Ok((response.to_vec()?, min_ttl))
     }
+}
+
+/// Parse a DoT URL into (host, port) components.
+///
+/// Supports formats:
+/// - `tls://hostname` (default port 853)
+/// - `tls://hostname:853`
+/// - `tls://1.1.1.1`
+/// - `tls://[::1]:853` (IPv6)
+///
+/// Returns an error string if the URL is not a valid `tls://` URL.
+fn parse_dot_url(url: &str) -> std::result::Result<(String, u16), String> {
+    // Strip the "tls://" prefix
+    let rest = url
+        .strip_prefix("tls://")
+        .ok_or_else(|| format!("URL must start with tls://: {}", url))?;
+
+    if rest.is_empty() {
+        return Err(format!("Empty host in DoT URL: {}", url));
+    }
+
+    // Strip any trailing path (DoT doesn't use paths, but be defensive)
+    let authority = match rest.find('/') {
+        Some(idx) => &rest[..idx],
+        None => rest,
+    };
+
+    // Split host from port — handle IPv6 literals like [::1] or [::1]:853
+    let (host, port) = if authority.starts_with('[') {
+        // IPv6 literal
+        let end_bracket = authority
+            .rfind(']')
+            .ok_or_else(|| format!("Malformed IPv6 address in URL: {}", url))?;
+        let host_part = authority[1..end_bracket].to_string();
+        let port_part = &authority[end_bracket + 1..];
+        let port = if port_part.is_empty() {
+            853u16
+        } else {
+            port_part
+                .strip_prefix(':')
+                .and_then(|p| p.parse::<u16>().ok())
+                .ok_or_else(|| format!("Invalid port in URL: {}", url))?
+        };
+        (host_part, port)
+    } else {
+        // Regular hostname or IPv4
+        match authority.rfind(':') {
+            Some(idx) => {
+                let host_part = authority[..idx].to_string();
+                let port_str = &authority[idx + 1..];
+                let port = port_str
+                    .parse::<u16>()
+                    .map_err(|_| format!("Invalid port '{}' in URL: {}", port_str, url))?;
+                (host_part, port)
+            }
+            None => (authority.to_string(), 853u16),
+        }
+    };
+
+    if host.is_empty() {
+        return Err(format!("Empty host in DoT URL: {}", url));
+    }
+
+    Ok((host, port))
 }
 
 /// Parse a DoH URL into (host, port, path) components.
