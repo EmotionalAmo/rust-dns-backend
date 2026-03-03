@@ -18,6 +18,9 @@ pub struct CacheEntry {
     pub ttl: Duration,
 }
 
+/// Maximum number of DNS responses kept in the in-memory cache.
+pub const DNS_CACHE_MAX_CAPACITY: u64 = 50_000;
+
 /// Per-entry expiry policy: each entry expires after its own TTL.
 struct DnsCacheExpiry;
 
@@ -45,7 +48,7 @@ impl Default for DnsCache {
 impl DnsCache {
     pub fn new() -> Self {
         let inner = Cache::builder()
-            .max_capacity(50_000)
+            .max_capacity(DNS_CACHE_MAX_CAPACITY)
             .expire_after(DnsCacheExpiry)
             .build();
         Self { inner }

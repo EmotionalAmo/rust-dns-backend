@@ -1,5 +1,5 @@
 use super::{
-    cache::DnsCache, filter::FilterEngine, resolver::DnsResolver, rules::RuleSet,
+    cache::{DnsCache, DNS_CACHE_MAX_CAPACITY}, filter::FilterEngine, resolver::DnsResolver, rules::RuleSet,
     upstream_pool::UpstreamPool,
 };
 use crate::config::Config;
@@ -672,7 +672,7 @@ impl DnsHandler {
 
     /// Returns DNS cache statistics as (entry_count, max_capacity).
     pub async fn cache_stats(&self) -> (u64, u64) {
-        (self.cache.entry_count(), 10_000)
+        (self.cache.entry_count(), DNS_CACHE_MAX_CAPACITY)
     }
 
     /// Flushes all entries from the DNS cache.
