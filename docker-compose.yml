@@ -2,9 +2,11 @@ version: '3.8'
 
 services:
   backend:
-    build:
-      context: .
-      dockerfile: Dockerfile
+    image: ghcr.io/emotionalamo/rust-dns-backend:latest
+    # To build from source instead:
+    # build:
+    #   context: .
+    #   dockerfile: Dockerfile
     container_name: rust-dns-backend
     restart: unless-stopped
     ports:
