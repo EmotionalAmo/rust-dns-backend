@@ -51,10 +51,12 @@ impl DnsResolver {
     /// Create a resolver using custom upstreams.
     ///
     /// Accepts:
-    /// - Plain IP addresses: `"192.168.1.1"`, `"8.8.8.8:53"`
+    /// - Plain IP addresses: `"192.168.1.1"`, `"8.8.8.8:53"` (UDP)
+    /// - TCP addresses: `"tcp://8.8.8.8"`, `"tcp://8.8.8.8:53"`
     /// - DoH URLs: `"https://dns.cloudflare.com/dns-query"`, `"https://1.1.1.1/dns-query"`
+    /// - DoT URLs: `"tls://1.1.1.1"`, `"tls://dns.google:853"`
     ///
-    /// DoH URLs require hostname-to-IP resolution at startup (blocking via
+    /// DoH/DoT/TCP URLs require hostname-to-IP resolution at startup (blocking via
     /// `std::net::ToSocketAddrs`). If hostname resolution fails, the entry is
     /// skipped with a warning.
     pub fn with_upstreams(upstreams: &[String], prefer_ipv4: bool) -> Result<Self> {
@@ -180,6 +182,31 @@ impl DnsResolver {
                     Err(e) => {
                         tracing::warn!("Invalid DoT upstream URL '{}': {}, skipping", upstream, e);
                     }
+                }
+            } else if upstream.starts_with("tcp://") {
+                // --- TCP upstream (tcp://ip or tcp://ip:port) ---
+                let rest = upstream.strip_prefix("tcp://").unwrap();
+                let addr: Option<SocketAddr> = if let Ok(a) = rest.parse::<SocketAddr>() {
+                    if prefer_ipv4 && a.is_ipv6() {
+                        tracing::debug!("Skipping IPv6 TCP upstream due to prefer_ipv4: {}", a);
+                        continue;
+                    }
+                    Some(a)
+                } else if let Ok(ip) = rest.parse::<IpAddr>() {
+                    if prefer_ipv4 && ip.is_ipv6() {
+                        tracing::debug!("Skipping IPv6 TCP upstream due to prefer_ipv4: {}", ip);
+                        continue;
+                    }
+                    Some(SocketAddr::new(ip, 53))
+                } else {
+                    tracing::warn!("Invalid TCP upstream address, skipping: {}", upstream);
+                    None
+                };
+
+                if let Some(addr) = addr {
+                    config.add_name_server(NameServerConfig::new(addr, Protocol::Tcp));
+                    added += 1;
+                    tracing::info!("Added TCP upstream {}", addr);
                 }
             } else {
                 // --- Plain UDP upstream (ip or ip:port) ---

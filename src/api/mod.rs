@@ -157,10 +157,6 @@ pub async fn serve(
                                 Some(a) => a.clone(),
                                 None => continue,
                             };
-                            if first_addr.starts_with("https://") || first_addr.starts_with("tls://") {
-                                continue;
-                            }
-
                             let timeout = std::time::Duration::from_secs(timeout_secs as u64);
                             let start = std::time::Instant::now();
                             let success = check_upstream_connectivity(&first_addr, timeout)
@@ -237,34 +233,124 @@ pub async fn serve(
 }
 
 /// Minimal DNS connectivity check used by the background health monitor.
+/// Supports UDP (plain IP), DoH (https://), and DoT (tls://) upstreams.
 async fn check_upstream_connectivity(
     addr: &str,
     timeout: std::time::Duration,
 ) -> anyhow::Result<()> {
-    use hickory_resolver::config::{NameServerConfig, Protocol, ResolverConfig, ResolverOpts};
-    use hickory_resolver::TokioAsyncResolver;
-
-    let (ip_str, port) = if addr.contains(':') {
-        let parts: Vec<&str> = addr.rsplitn(2, ':').collect();
-        (parts[1], parts[0].parse::<u16>()?)
-    } else {
-        (addr, 53u16)
+    use hickory_resolver::config::{
+        NameServerConfig, NameServerConfigGroup, Protocol, ResolverConfig, ResolverOpts,
     };
+    use hickory_resolver::TokioAsyncResolver;
+    use std::net::ToSocketAddrs;
 
-    let ip_addr = ip_str.parse::<std::net::IpAddr>()?;
-    let mut config = ResolverConfig::new();
-    config.add_name_server(NameServerConfig {
-        socket_addr: (ip_addr, port).into(),
-        protocol: Protocol::Udp,
-        trust_negative_responses: false,
-        tls_config: None,
-        bind_addr: None,
-        tls_dns_name: None,
-    });
+    let config = if addr.starts_with("https://") {
+        // DoH upstream health check
+        let (host, port) = parse_url_host_port(addr, "https://", 443)?;
+        let lookup_target = format!("{}:{}", host, port);
+        let addrs: Vec<std::net::IpAddr> = lookup_target
+            .as_str()
+            .to_socket_addrs()
+            .map_err(|e| anyhow::anyhow!("Failed to resolve DoH host '{}': {}", host, e))?
+            .map(|a| a.ip())
+            .collect();
+        anyhow::ensure!(!addrs.is_empty(), "DoH host '{}' resolved to no addresses", host);
+        let ns_group = NameServerConfigGroup::from_ips_https(&addrs, port, host, false);
+        let mut cfg = ResolverConfig::new();
+        for ns in ns_group.into_inner() {
+            cfg.add_name_server(ns);
+        }
+        cfg
+    } else if addr.starts_with("tls://") {
+        // DoT upstream health check — performs a real TLS handshake via hickory
+        let (host, port) = parse_url_host_port(addr, "tls://", 853)?;
+        let lookup_target = format!("{}:{}", host, port);
+        let addrs: Vec<std::net::IpAddr> = lookup_target
+            .as_str()
+            .to_socket_addrs()
+            .map_err(|e| anyhow::anyhow!("Failed to resolve DoT host '{}': {}", host, e))?
+            .map(|a| a.ip())
+            .collect();
+        anyhow::ensure!(!addrs.is_empty(), "DoT host '{}' resolved to no addresses", host);
+        let ns_group = NameServerConfigGroup::from_ips_tls(&addrs, port, host, false);
+        let mut cfg = ResolverConfig::new();
+        for ns in ns_group.into_inner() {
+            cfg.add_name_server(ns);
+        }
+        cfg
+    } else {
+        // Plain UDP upstream health check
+        let (ip_str, port) = if addr.contains(':') {
+            let parts: Vec<&str> = addr.rsplitn(2, ':').collect();
+            (parts[1], parts[0].parse::<u16>()?)
+        } else {
+            (addr, 53u16)
+        };
+        let ip_addr = ip_str.parse::<std::net::IpAddr>()?;
+        let mut cfg = ResolverConfig::new();
+        cfg.add_name_server(NameServerConfig {
+            socket_addr: (ip_addr, port).into(),
+            protocol: Protocol::Udp,
+            trust_negative_responses: false,
+            tls_config: None,
+            bind_addr: None,
+            tls_dns_name: None,
+        });
+        cfg
+    };
 
     let resolver = TokioAsyncResolver::tokio(config, ResolverOpts::default());
     let _ = tokio::time::timeout(timeout, resolver.lookup_ip("example.com.")).await??;
     Ok(())
+}
+
+/// Parse (host, port) from a URL with the given scheme prefix and default port.
+/// Examples: "https://dns.cloudflare.com/dns-query" → ("dns.cloudflare.com", 443)
+///           "tls://1.1.1.1" → ("1.1.1.1", 853)
+fn parse_url_host_port(
+    url: &str,
+    prefix: &str,
+    default_port: u16,
+) -> anyhow::Result<(String, u16)> {
+    let rest = url
+        .strip_prefix(prefix)
+        .ok_or_else(|| anyhow::anyhow!("URL must start with {}: {}", prefix, url))?;
+    // Strip any path component
+    let authority = match rest.find('/') {
+        Some(idx) => &rest[..idx],
+        None => rest,
+    };
+    if authority.is_empty() {
+        anyhow::bail!("Empty host in URL: {}", url);
+    }
+    // Handle IPv6 literals like [::1] or [::1]:853
+    if authority.starts_with('[') {
+        let end = authority
+            .rfind(']')
+            .ok_or_else(|| anyhow::anyhow!("Malformed IPv6 address in URL: {}", url))?;
+        let host = authority[1..end].to_string();
+        let port_part = &authority[end + 1..];
+        let port = if port_part.is_empty() {
+            default_port
+        } else {
+            port_part
+                .strip_prefix(':')
+                .and_then(|p| p.parse::<u16>().ok())
+                .ok_or_else(|| anyhow::anyhow!("Invalid port in URL: {}", url))?
+        };
+        return Ok((host, port));
+    }
+    // Regular hostname or IPv4
+    match authority.rfind(':') {
+        Some(idx) => {
+            let host = authority[..idx].to_string();
+            let port = authority[idx + 1..]
+                .parse::<u16>()
+                .map_err(|_| anyhow::anyhow!("Invalid port in URL: {}", url))?;
+            Ok((host, port))
+        }
+        None => Ok((authority.to_string(), default_port)),
+    }
 }
 
 fn build_cors_layer(allowed_origins: &[String]) -> CorsLayer {

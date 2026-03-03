@@ -612,6 +612,7 @@ pub async fn failover_log(
 /// Supports:
 /// - Plain UDP: `"1.1.1.1"` or `"1.1.1.1:53"`
 /// - DoH: `"https://dns.cloudflare.com/dns-query"` or `"https://1.1.1.1/dns-query"`
+/// - DoT: `"tls://1.1.1.1"` or `"tls://dns.google:853"`
 async fn test_dns_connectivity(addr: &str, timeout: std::time::Duration) -> anyhow::Result<()> {
     use hickory_resolver::config::{
         NameServerConfig, NameServerConfigGroup, Protocol, ResolverConfig,
@@ -635,6 +636,35 @@ async fn test_dns_connectivity(addr: &str, timeout: std::time::Duration) -> anyh
         }
 
         let ns_group = NameServerConfigGroup::from_ips_https(&addrs, port, host, false);
+        let mut cfg = ResolverConfig::new();
+        for ns in ns_group.into_inner() {
+            cfg.add_name_server(ns);
+        }
+        cfg
+    } else if addr.starts_with("tls://") {
+        // DoT connectivity test — performs a real TLS handshake via hickory
+        let rest = addr.strip_prefix("tls://").unwrap();
+        let authority = match rest.find('/') {
+            Some(idx) => &rest[..idx],
+            None => rest,
+        };
+        let (host, port) = match authority.rfind(':') {
+            Some(idx) => (authority[..idx].to_string(), authority[idx + 1..].parse::<u16>()?),
+            None => (authority.to_string(), 853u16),
+        };
+        let lookup_target = format!("{}:{}", host, port);
+        let addrs: Vec<std::net::IpAddr> = lookup_target
+            .as_str()
+            .to_socket_addrs()
+            .map_err(|e| anyhow::anyhow!("Failed to resolve DoT host '{}': {}", host, e))?
+            .map(|a| a.ip())
+            .collect();
+
+        if addrs.is_empty() {
+            anyhow::bail!("DoT host '{}' resolved to no addresses", host);
+        }
+
+        let ns_group = NameServerConfigGroup::from_ips_tls(&addrs, port, host, false);
         let mut cfg = ResolverConfig::new();
         for ns in ns_group.into_inner() {
             cfg.add_name_server(ns);

@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-03-03
+
+### Added
+
+- **TCP upstream support** — configure upstream DNS servers over TCP by prefixing addresses with `tcp://` (e.g., `tcp://8.8.8.8`, `tcp://8.8.8.8:53`). Useful when UDP is blocked by firewalls or unreliable on a given network path.
+
+### Fixed
+
+- **DoH/DoT upstream health checks were silently skipped** — the background health monitor was skipping all `https://` and `tls://` upstreams with a hard-coded `continue`, causing `health_status` to remain `"unknown"` indefinitely and disabling failover for these upstream types. Health checks now run correctly for all protocols (UDP, DoH, DoT).
+- **DoT upstream test connectivity always failed** — the on-demand connectivity test (`POST /api/upstreams/:id/test`) was trying to parse `tls://...` addresses as raw IP addresses, causing immediate parse errors. DoT connectivity is now verified with a real TLS handshake via hickory-resolver.
+
 ## [1.1.0] - 2026-03-03
 
 ### Added
