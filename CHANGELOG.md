@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.5.0] - 2026-03-04
+
+### Fixed
+
+- **上游趋势数据时间排序错乱** — `get_upstream_trend` handler 中的数据聚合容器由 `HashMap` 改为 `BTreeMap`，确保按时间 key 自然升序输出，修复图表时间轴乱序问题。
+
 ## [1.2.0] - 2026-03-03
 
 ### Added
@@ -63,7 +69,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Audit log for tracking configuration changes.
 - Docker and Docker Compose support.
 
-[Unreleased]: https://github.com/EmotionalAmo/rust-dns-backend/compare/v1.1.0...HEAD
+[Unreleased]: https://github.com/EmotionalAmo/rust-dns-backend/compare/v1.5.0...HEAD
+[1.5.0]: https://github.com/EmotionalAmo/rust-dns-backend/compare/v1.2.0...v1.5.0
+[1.2.0]: https://github.com/EmotionalAmo/rust-dns-backend/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/EmotionalAmo/rust-dns-backend/compare/v1.0.1...v1.1.0
 [1.0.1]: https://github.com/EmotionalAmo/rust-dns-backend/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/EmotionalAmo/rust-dns-backend/releases/tag/v1.0.0

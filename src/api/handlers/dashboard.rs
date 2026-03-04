@@ -7,6 +7,8 @@ use axum::{
 };
 use serde::Deserialize;
 use serde_json::{json, Value};
+use sqlx::Row;
+use std::collections::{BTreeMap, HashMap};
 use std::sync::Arc;
 
 pub async fn get_stats(
@@ -186,6 +188,134 @@ pub async fn get_query_trend(
                 "total": total,
                 "blocked": blocked,
                 "allowed": allowed,
+            })
+        })
+        .collect();
+
+    Ok(Json(json!(data)))
+}
+
+#[derive(Deserialize)]
+pub struct UpstreamTrendParams {
+    pub hours: Option<i64>,
+    pub limit: Option<i64>,
+}
+
+pub async fn get_upstream_trend(
+    State(state): State<Arc<AppState>>,
+    _auth: AuthUser,
+    Query(params): Query<UpstreamTrendParams>,
+) -> AppResult<Json<Value>> {
+    let hours = params.hours.unwrap_or(24).clamp(1, 720);
+    let limit = params.limit.unwrap_or(10).clamp(1, 50);
+    let time_filter = format!("-{} hours", hours);
+
+    // First, find top N upstreams in the time window
+    let top_upstreams: Vec<String> = sqlx::query_scalar(
+        "SELECT upstream FROM query_log
+         WHERE time >= datetime('now', ?) AND upstream IS NOT NULL
+         GROUP BY upstream ORDER BY COUNT(*) DESC LIMIT ?",
+    )
+    .bind(&time_filter)
+    .bind(limit)
+    .fetch_all(&state.db)
+    .await?;
+
+    if top_upstreams.is_empty() {
+        return Ok(Json(json!({"data": [], "total_upstreams": 0})));
+    }
+
+    // Build IN clause placeholders
+    let placeholders = vec!["?"; top_upstreams.len()].join(",");
+
+    // Get hourly aggregates for top upstreams
+    let query = format!(
+        "SELECT
+            strftime('%Y-%m-%dT%H:00:00Z', time) as time,
+            upstream,
+            COUNT(*) as count
+         FROM query_log
+         WHERE time >= datetime('now', ?) AND upstream IN ({})
+         GROUP BY strftime('%Y-%m-%d %H', time), upstream
+         ORDER BY time ASC",
+        placeholders
+    );
+
+    let mut query_builder = sqlx::query(&query);
+    query_builder = query_builder.bind(&time_filter);
+    for upstream in &top_upstreams {
+        query_builder = query_builder.bind(upstream);
+    }
+
+    let rows = query_builder.fetch_all(&state.db).await?;
+
+    // Transform to grouped format — use BTreeMap to keep time slots sorted
+    let mut by_time: BTreeMap<String, HashMap<String, i64>> = BTreeMap::new();
+
+    for row in rows {
+        let time: String = row.get("time");
+        let upstream: String = row.get("upstream");
+        let count: i64 = row.get("count");
+        by_time.entry(time).or_default().insert(upstream, count);
+    }
+
+    // BTreeMap iterates in ascending key order, so time slots are chronological
+    let data: Vec<Value> = by_time
+        .into_iter()
+        .map(|(time, upstreams)| {
+            json!({
+                "time": time,
+                "upstreams": upstreams
+            })
+        })
+        .collect();
+
+    Ok(Json(json!({
+        "data": data,
+        "total_upstreams": top_upstreams.len()
+    })))
+}
+
+/// Get upstream distribution (count and percentage) for the time window
+pub async fn get_upstream_distribution(
+    State(state): State<Arc<AppState>>,
+    _auth: AuthUser,
+    Query(params): Query<TrendParams>,
+) -> AppResult<Json<Value>> {
+    let hours = params.hours.unwrap_or(24).clamp(1, 720);
+    let time_filter = format!("-{} hours", hours);
+
+    // Get total count for percentage calculation
+    let (total_count,): (i64,) = sqlx::query_as(
+        "SELECT COUNT(*) FROM query_log
+         WHERE time >= datetime('now', ?) AND upstream IS NOT NULL",
+    )
+    .bind(&time_filter)
+    .fetch_one(&state.db)
+    .await?;
+
+    if total_count == 0 {
+        return Ok(Json(json!([])));
+    }
+
+    // Get upstream counts ordered by count DESC
+    let rows: Vec<(String, i64)> = sqlx::query_as(
+        "SELECT upstream, COUNT(*) as cnt FROM query_log
+         WHERE time >= datetime('now', ?) AND upstream IS NOT NULL
+         GROUP BY upstream ORDER BY cnt DESC",
+    )
+    .bind(&time_filter)
+    .fetch_all(&state.db)
+    .await?;
+
+    let data: Vec<Value> = rows
+        .into_iter()
+        .map(|(upstream, count)| {
+            let percentage = (count as f64 / total_count as f64 * 100.0 * 10.0).round() / 10.0;
+            json!({
+                "upstream": upstream,
+                "count": count,
+                "percentage": percentage
             })
         })
         .collect();
