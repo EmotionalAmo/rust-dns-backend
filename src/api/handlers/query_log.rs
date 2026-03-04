@@ -23,6 +23,8 @@ pub struct QueryLogParams {
     client: Option<String>,
     domain: Option<String>,
     upstream: Option<String>,
+    qtype: Option<String>,
+    time_range: Option<String>,
 }
 
 fn default_limit() -> i64 {
@@ -89,6 +91,21 @@ pub async fn list(
     if params.upstream.is_some() {
         conditions.push("upstream = ?".to_string());
     }
+    if params.qtype.is_some() {
+        conditions.push("qtype = ?".to_string());
+    }
+    if let Some(ref tr) = params.time_range {
+        let sqlite_modifier = match tr.as_str() {
+            "1h" => Some("-1 hours"),
+            "6h" => Some("-6 hours"),
+            "24h" => Some("-24 hours"),
+            "7d" => Some("-7 days"),
+            _ => None,
+        };
+        if let Some(modifier) = sqlite_modifier {
+            conditions.push(format!("time >= datetime('now', '{}')", modifier));
+        }
+    }
 
     let where_clause = if conditions.is_empty() {
         String::new()
@@ -133,6 +150,9 @@ pub async fn list(
         if let Some(ref u) = params.upstream {
             q = q.bind(u);
         }
+        if let Some(ref qt) = params.qtype {
+            q = q.bind(qt);
+        }
         q.bind(limit)
             .bind(params.offset)
             .fetch_all(&state.db)
@@ -152,6 +172,9 @@ pub async fn list(
         }
         if let Some(ref u) = params.upstream {
             q = q.bind(u);
+        }
+        if let Some(ref qt) = params.qtype {
+            q = q.bind(qt);
         }
         q.fetch_one(&state.db).await?
     };
