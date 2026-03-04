@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.6.0] - 2026-03-04
+
+### Added
+
+- **Query log `qtype` filter** — `GET /api/query-logs` 新增 `qtype` 查询参数，支持按 DNS 记录类型（A、AAAA、CNAME、MX 等）过滤日志。
+- **Query log `time_range` filter** — 新增 `time_range` 查询参数，支持按时间范围快速过滤（如 `1h`、`24h`、`7d`），无需手动指定起止时间戳。
+
 ## [1.5.0] - 2026-03-04
 
 ### Fixed
