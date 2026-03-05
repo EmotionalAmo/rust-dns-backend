@@ -12,7 +12,7 @@
 #![allow(dead_code)]
 
 use ahash::AHashSet;
-use regex::Regex;
+use regex::RegexSet;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MatchResult {
@@ -30,10 +30,14 @@ pub struct RuleSet {
     blocked: AHashSet<Box<str>>,
     /// Domains in allow list. Allow overrides block.
     allowed: AHashSet<Box<str>>,
-    /// Wildcard block patterns (intra-label `*`), e.g. `||ad-*.example.com^`.
-    wildcard_blocked: Vec<Regex>,
-    /// Wildcard allow patterns.
-    wildcard_allowed: Vec<Regex>,
+    /// Raw regex patterns for wildcard block rules, accumulated during build phase.
+    wildcard_blocked_patterns: Vec<String>,
+    /// Raw regex patterns for wildcard allow rules, accumulated during build phase.
+    wildcard_allowed_patterns: Vec<String>,
+    /// Compiled RegexSet for wildcard block matching (built by `build()`).
+    wildcard_blocked_set: Option<RegexSet>,
+    /// Compiled RegexSet for wildcard allow matching (built by `build()`).
+    wildcard_allowed_set: Option<RegexSet>,
 }
 
 impl Default for RuleSet {
@@ -47,8 +51,10 @@ impl RuleSet {
         Self {
             blocked: AHashSet::new(),
             allowed: AHashSet::new(),
-            wildcard_blocked: Vec::new(),
-            wildcard_allowed: Vec::new(),
+            wildcard_blocked_patterns: Vec::new(),
+            wildcard_allowed_patterns: Vec::new(),
+            wildcard_blocked_set: None,
+            wildcard_allowed_set: None,
         }
     }
 
@@ -56,9 +62,29 @@ impl RuleSet {
         Self {
             blocked: AHashSet::with_capacity(n),
             allowed: AHashSet::with_capacity(n / 10 + 8),
-            wildcard_blocked: Vec::new(),
-            wildcard_allowed: Vec::new(),
+            wildcard_blocked_patterns: Vec::new(),
+            wildcard_allowed_patterns: Vec::new(),
+            wildcard_blocked_set: None,
+            wildcard_allowed_set: None,
         }
+    }
+
+    /// Compile all accumulated wildcard patterns into `RegexSet`s for fast matching.
+    ///
+    /// Call this once after all `add_rule()` calls are complete (before storing in ArcSwap).
+    /// Subsequent `add_rule()` calls after `build()` will clear the compiled sets;
+    /// call `build()` again to recompile.
+    pub fn build(&mut self) {
+        self.wildcard_blocked_set = if self.wildcard_blocked_patterns.is_empty() {
+            None
+        } else {
+            RegexSet::new(&self.wildcard_blocked_patterns).ok()
+        };
+        self.wildcard_allowed_set = if self.wildcard_allowed_patterns.is_empty() {
+            None
+        } else {
+            RegexSet::new(&self.wildcard_allowed_patterns).ok()
+        };
     }
 
     /// Parse a single rule line and add it to the set.
@@ -83,8 +109,9 @@ impl RuleSet {
                 return true;
             }
             // Try wildcard allowlist
-            if let Some(re) = parse_adguard_wildcard_domain(rest) {
-                self.wildcard_allowed.push(re);
+            if let Some(pattern) = parse_adguard_wildcard_pattern(rest) {
+                self.wildcard_allowed_patterns.push(pattern);
+                self.wildcard_allowed_set = None; // invalidate compiled set
                 return true;
             }
             return false;
@@ -97,8 +124,9 @@ impl RuleSet {
         }
 
         // AdGuard wildcard format: ||ad-*.example.com^
-        if let Some(re) = parse_adguard_wildcard_domain(line) {
-            self.wildcard_blocked.push(re);
+        if let Some(pattern) = parse_adguard_wildcard_pattern(line) {
+            self.wildcard_blocked_patterns.push(pattern);
+            self.wildcard_blocked_set = None; // invalidate compiled set
             return true;
         }
 
@@ -158,7 +186,7 @@ impl RuleSet {
         if self.matches_set(&domain, &self.allowed) {
             return MatchResult::Allowed;
         }
-        if self.matches_wildcard(&domain, &self.wildcard_allowed) {
+        if self.matches_wildcard_set(&domain, &self.wildcard_allowed_set) {
             return MatchResult::Allowed;
         }
 
@@ -166,7 +194,7 @@ impl RuleSet {
         if self.matches_set(&domain, &self.blocked) {
             return MatchResult::Blocked;
         }
-        if self.matches_wildcard(&domain, &self.wildcard_blocked) {
+        if self.matches_wildcard_set(&domain, &self.wildcard_blocked_set) {
             return MatchResult::Blocked;
         }
 
@@ -194,17 +222,20 @@ impl RuleSet {
         }
     }
 
-    /// Returns true if `domain` or any of its parent domains matches a wildcard pattern.
-    fn matches_wildcard(&self, domain: &str, patterns: &[Regex]) -> bool {
-        if patterns.is_empty() {
-            return false;
-        }
+    /// Returns true if `domain` or any of its parent domains matches any pattern in `set`.
+    ///
+    /// Walks up the domain hierarchy (sub.example.com → example.com → com) until a match
+    /// is found or all components are exhausted. Uses `RegexSet::is_match()` which runs
+    /// all patterns in a single O(chars) pass — far faster than iterating `Vec<Regex>`.
+    fn matches_wildcard_set(&self, domain: &str, set: &Option<RegexSet>) -> bool {
+        let set = match set {
+            Some(s) if !s.is_empty() => s,
+            _ => return false,
+        };
         let mut current = domain;
         loop {
-            for pattern in patterns {
-                if pattern.is_match(current) {
-                    return true;
-                }
+            if set.is_match(current) {
+                return true;
             }
             match current.find('.') {
                 Some(pos) => current = &current[pos + 1..],
@@ -214,19 +245,19 @@ impl RuleSet {
     }
 
     pub fn blocked_count(&self) -> usize {
-        self.blocked.len() + self.wildcard_blocked.len()
+        self.blocked.len() + self.wildcard_blocked_patterns.len()
     }
 
     pub fn allowed_count(&self) -> usize {
-        self.allowed.len() + self.wildcard_allowed.len()
+        self.allowed.len() + self.wildcard_allowed_patterns.len()
     }
 
     pub fn wildcard_blocked_count(&self) -> usize {
-        self.wildcard_blocked.len()
+        self.wildcard_blocked_patterns.len()
     }
 
     pub fn wildcard_allowed_count(&self) -> usize {
-        self.wildcard_allowed.len()
+        self.wildcard_allowed_patterns.len()
     }
 }
 
@@ -258,8 +289,9 @@ fn parse_adguard_domain(rule: &str) -> Option<String> {
 }
 
 /// Parse `||ad-*.example.com^` style rules with intra-label wildcards.
-/// Returns a compiled Regex if the rule contains `*` and has a valid pattern.
-fn parse_adguard_wildcard_domain(rule: &str) -> Option<Regex> {
+/// Returns the raw regex pattern string if the rule is valid; the caller accumulates
+/// these into a `RegexSet` via `RuleSet::build()` for efficient batch matching.
+fn parse_adguard_wildcard_pattern(rule: &str) -> Option<String> {
     // Only handle `||` prefix for wildcard rules
     let rest = rule.strip_prefix("||")?;
 
@@ -282,8 +314,7 @@ fn parse_adguard_wildcard_domain(rule: &str) -> Option<Regex> {
         return None;
     }
 
-    let pattern = wildcard_to_regex(&domain_str);
-    Regex::new(&pattern).ok()
+    Some(wildcard_to_regex(&domain_str))
 }
 
 /// Convert a wildcard domain pattern to a regex string.
@@ -570,6 +601,7 @@ mod tests {
     fn test_wildcard_adguard_format() {
         let mut rs = RuleSet::new();
         rs.add_rule("||ad-*.aliyuncs.com^");
+        rs.build();
         assert!(rs.is_blocked("ad-foo.aliyuncs.com"));
         assert!(rs.is_blocked("ad-bar.aliyuncs.com"));
         assert!(rs.is_blocked("sub.ad-foo.aliyuncs.com")); // 子域名
@@ -582,6 +614,7 @@ mod tests {
         let mut rs = RuleSet::new();
         rs.add_rule("||*.ads.com^");
         rs.add_rule("@@||safe-*.ads.com^");
+        rs.build();
         assert!(rs.is_blocked("bad-ads.ads.com"));
         assert!(!rs.is_blocked("safe-cdn.ads.com")); // 白名单优先
     }
@@ -600,6 +633,7 @@ mod tests {
     fn test_wildcard_case_insensitive() {
         let mut rs = RuleSet::new();
         rs.add_rule("||AD-*.example.com^");
+        rs.build();
         assert!(rs.is_blocked("ad-foo.example.com"));
         assert!(rs.is_blocked("AD-FOO.example.com"));
     }
@@ -608,6 +642,7 @@ mod tests {
     fn test_wildcard_must_match_at_least_one_char() {
         let mut rs = RuleSet::new();
         rs.add_rule("||ad-*.example.com^");
+        rs.build();
         // `*` 必须匹配至少一个字符（[^.]+ 不匹配空串）
         // "ad-.example.com" 中 * 部分为空，不应匹配
         assert!(!rs.is_blocked("ad-.example.com"));

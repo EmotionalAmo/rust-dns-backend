@@ -496,6 +496,7 @@ mod tests {
 
         let mut rs = RuleSet::new();
         let added = rs.add_rule(&block[0]);
+        rs.build();
         assert!(added, "wildcard rule should be accepted by RuleSet");
         assert!(
             rs.is_blocked("ad-foo.example.com"),

@@ -161,6 +161,9 @@ impl FilterEngine {
 
         let rewrite_count = new_rewrites.len();
 
+        // Compile all accumulated wildcard patterns into a RegexSet for O(1) per-query matching.
+        new_rules.build();
+
         // 原子替换：读路径全程不阻塞，无需持锁
         self.rules.store(Arc::new(new_rules));
         self.rewrites.store(Arc::new(new_rewrites));
@@ -192,10 +195,11 @@ impl FilterEngine {
     /// 注意：此方法触发完整 reload 以保持 ArcSwap 语义一致性。
     /// 对于高频调用场景请改用 reload()。
     pub async fn add_rule_live(&self, rule: &str) {
-        // 克隆当前规则集，加入新规则，原子替换
+        // 克隆当前规则集，加入新规则，重新编译 wildcard RegexSet，原子替换
         let current = self.rules.load();
         let mut new_rules = (**current).clone();
         new_rules.add_rule(rule);
+        new_rules.build();
         self.rules.store(Arc::new(new_rules));
     }
 
