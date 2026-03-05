@@ -6,7 +6,7 @@ If Pi-hole v6 broke your setup — the 403 errors, the UI crashes, the config mi
 
 [![GitHub Stars](https://img.shields.io/github/stars/EmotionalAmo/rust-dns-backend?style=flat-square)](https://github.com/EmotionalAmo/rust-dns-backend)
 [![License: Apache-2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg?style=flat-square)](LICENSE)
-[![v1.0.1](https://img.shields.io/badge/version-v1.0.1-orange?style=flat-square)](https://github.com/EmotionalAmo/rust-dns-backend/releases)
+[![v1.7.1](https://img.shields.io/badge/version-v1.7.1-orange?style=flat-square)](https://github.com/EmotionalAmo/rust-dns-backend/releases)
 
 ---
 
@@ -18,11 +18,15 @@ If Pi-hole v6 broke your setup — the 403 errors, the UI crashes, the config mi
 | Memory usage | **4.6 MB** | ~50–100 MB | ~39 MB |
 | Deployment | Single binary | Multi-component | Single binary |
 | GC pauses | None | Yes | Yes |
-| v1.0 stability | Stable | Ongoing breakage | Stable |
+| Telemetry | None | None | Optional |
 
-Benchmarked on Docker (idle, with blocklists loaded). AdGuard Home measured at 39.2 MB under same conditions — rust-dns uses **8.5× less memory**.
+Benchmarked on Docker (idle, with blocklists loaded). AdGuard Home measured at 39.2 MB under same conditions — rust-dns uses **8.5x less memory**.
 
 Works great on a Raspberry Pi 4, a $4 VPS, or anything else you have sitting in the rack.
+
+### Coming from Pi-hole v6?
+
+Pi-hole v6 shipped with a rewritten core and broke a lot of setups: groups not migrating, the web UI returning 403s, systemd unit changes. If you spent a weekend debugging and just want something that works, rust-dns is a 5-minute Docker deploy with zero migration headaches. Your old blocklist URLs still work — paste them in and you're done.
 
 ---
 
@@ -61,9 +65,11 @@ Point your router (or Pi's `/etc/resolv.conf`) to this machine's IP on port 53. 
 
 - **DNS filtering** — block ads, trackers, and malware domains via blocklists
 - **DNS over HTTPS (DoH)** — encrypted upstream queries
+- **Bulk rule import** — upload a file or paste text directly; supports dual-tab for rules and allowlist
+- **Top queried domains** — see what's actually hitting your DNS, not just block counts
 - **REST API** — full management API, consumed by the web dashboard
 - **Caching** — in-memory cache, zero cold-start latency on warm queries
-- **Web UI** — clean dashboard for blocklist management and query logs
+- **Web UI** — clean dashboard with English and Chinese (i18n) support
 - **SQLite storage** — one file, easy to back up, no database server needed
 
 ---
@@ -120,7 +126,7 @@ sudo ./target/release/rust-dns
 
 ## Project Status
 
-v1.0.1 — actively developed. Core DNS filtering and API are stable.
+v1.7.1 — actively developed. Core DNS filtering and API are stable. Recent releases added bulk rule import, query analytics, and i18n support.
 
 Roadmap items and known issues are tracked in [GitHub Issues](https://github.com/EmotionalAmo/rust-dns-backend/issues).
 
@@ -142,4 +148,3 @@ PRs welcome. Check [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 ## License
 
 Apache 2.0 — use it, fork it, ship it.
-
