@@ -197,6 +197,18 @@ pub fn parse_adguard_rules(content: &str) -> (Vec<String>, Vec<String>) {
             continue;
         }
 
+        // AdGuard wildcard exception rules: @@||safe-*.example.com^
+        if line.starts_with("@@||") && line.contains('*') {
+            allow_rules.push(line.to_string());
+            continue;
+        }
+
+        // AdGuard wildcard block rules: ||ad-*.example.com^
+        if line.starts_with("||") && line.contains('*') {
+            block_rules.push(line.to_string());
+            continue;
+        }
+
         // Simple domain blocking (plain domain, optionally with trailing ^ or $)
         if !line.contains(['/', ':', '*', '|']) {
             let stripped = line.trim_end_matches(['^', '$']);
@@ -434,6 +446,68 @@ mod tests {
         assert!(
             block.contains(&"||vkcdnservice.appspot.com^".to_string()),
             "vkcdnservice.appspot.com should be blocked"
+        );
+    }
+
+    #[test]
+    fn test_parse_adguard_wildcard_block_rules() {
+        // ||ad-*.example.com^ 通配符 block 规则应被正确提取（原始字符串）
+        let content = "||ad-*.example.com^\n||tracker-*.net^\n||plain.com^";
+        let (block, allow) = parse_adguard_rules(content);
+        assert!(
+            block.contains(&"||ad-*.example.com^".to_string()),
+            "wildcard block rule should be preserved as-is"
+        );
+        assert!(
+            block.contains(&"||tracker-*.net^".to_string()),
+            "wildcard block rule tracker-*.net should be preserved"
+        );
+        // 普通规则仍然正常处理（格式化为 ||domain^）
+        assert!(
+            block.contains(&"||plain.com^".to_string()),
+            "plain rule should still work"
+        );
+        assert!(allow.is_empty(), "no allow rules expected");
+    }
+
+    #[test]
+    fn test_parse_adguard_wildcard_allow_rules() {
+        // @@||safe-*.example.com^ 通配符 allow 规则应被正确提取
+        let content = "@@||safe-*.example.com^\n||ad-*.example.com^";
+        let (block, allow) = parse_adguard_rules(content);
+        assert!(
+            allow.contains(&"@@||safe-*.example.com^".to_string()),
+            "wildcard allow rule should be preserved as-is"
+        );
+        assert!(
+            block.contains(&"||ad-*.example.com^".to_string()),
+            "wildcard block rule should be preserved"
+        );
+    }
+
+    #[test]
+    fn test_wildcard_rule_roundtrip_with_ruleset() {
+        // 验证通配符规则经 parse_adguard_rules 提取后，能被 RuleSet::add_rule 正确解析
+        use crate::dns::rules::RuleSet;
+
+        let content = "||ad-*.example.com^";
+        let (block, _allow) = parse_adguard_rules(content);
+        assert_eq!(block, vec!["||ad-*.example.com^"]);
+
+        let mut rs = RuleSet::new();
+        let added = rs.add_rule(&block[0]);
+        assert!(added, "wildcard rule should be accepted by RuleSet");
+        assert!(
+            rs.is_blocked("ad-foo.example.com"),
+            "ad-foo.example.com should be blocked"
+        );
+        assert!(
+            rs.is_blocked("ad-bar.example.com"),
+            "ad-bar.example.com should be blocked"
+        );
+        assert!(
+            !rs.is_blocked("foo.example.com"),
+            "non-matching domain should not be blocked"
         );
     }
 
