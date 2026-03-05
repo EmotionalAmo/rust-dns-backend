@@ -165,6 +165,29 @@ pub async fn get_top_clients(
     Ok(Json(json!(data)))
 }
 
+pub async fn get_top_queried_domains(
+    State(state): State<Arc<AppState>>,
+    _auth: AuthUser,
+    Query(params): Query<TrendParams>,
+) -> AppResult<Json<Value>> {
+    let hours = params.hours.unwrap_or(24).clamp(1, 720);
+    let rows: Vec<(String, i64)> = sqlx::query_as(
+        "SELECT question, COUNT(*) as cnt FROM query_log
+         WHERE time >= datetime('now', printf('-%d hours', ?))
+         GROUP BY question ORDER BY cnt DESC LIMIT 10",
+    )
+    .bind(hours)
+    .fetch_all(&state.db)
+    .await?;
+
+    let data: Vec<Value> = rows
+        .into_iter()
+        .map(|(domain, count)| json!({"domain": domain, "count": count}))
+        .collect();
+
+    Ok(Json(json!(data)))
+}
+
 pub async fn get_query_trend(
     State(state): State<Arc<AppState>>,
     _auth: AuthUser,

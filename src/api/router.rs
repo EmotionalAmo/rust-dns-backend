@@ -38,6 +38,10 @@ pub fn routes(state: Arc<AppState>) -> Router {
             get(handlers::dashboard::get_top_clients),
         )
         .route(
+            "/api/v1/dashboard/top-queried-domains",
+            get(handlers::dashboard::get_top_queried_domains),
+        )
+        .route(
             "/api/v1/dashboard/upstream-trend",
             get(handlers::dashboard::get_upstream_trend),
         )
