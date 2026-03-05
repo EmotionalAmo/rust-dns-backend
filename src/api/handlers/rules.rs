@@ -3,8 +3,8 @@ use crate::api::middleware::client_ip::ClientIp;
 use crate::api::AppState;
 use crate::error::{AppError, AppResult};
 use axum::{
-    extract::{Path, Query, State},
-    http::header,
+    extract::{Multipart, Path, Query, State},
+    http::{header, StatusCode},
     response::IntoResponse,
     Json,
 };
@@ -550,4 +550,283 @@ fn escape_csv_field(s: &str) -> String {
     } else {
         s.to_string()
     }
+}
+
+// Maximum allowed upload size: 5 MB
+const MAX_IMPORT_SIZE: usize = 5 * 1024 * 1024;
+
+pub async fn import_rules(
+    State(state): State<Arc<AppState>>,
+    ClientIp(ip): ClientIp,
+    auth: AuthUser,
+    mut multipart: Multipart,
+) -> impl IntoResponse {
+    // --- 1. Read file field from multipart ---
+    let mut file_bytes: Option<Vec<u8>> = None;
+    let mut content_type_hint: Option<String> = None;
+    let mut filename_hint: Option<String> = None;
+
+    loop {
+        match multipart.next_field().await {
+            Ok(Some(field)) => {
+                if field.name() != Some("file") {
+                    continue;
+                }
+                filename_hint = field.file_name().map(|s| s.to_lowercase());
+                content_type_hint = field
+                    .content_type()
+                    .map(|ct| ct.to_string());
+
+                match field.bytes().await {
+                    Ok(bytes) => {
+                        if bytes.len() > MAX_IMPORT_SIZE {
+                            return (
+                                StatusCode::PAYLOAD_TOO_LARGE,
+                                Json(json!({
+                                    "error": "File too large. Maximum allowed size is 5 MB."
+                                })),
+                            )
+                                .into_response();
+                        }
+                        file_bytes = Some(bytes.to_vec());
+                        break;
+                    }
+                    Err(e) => {
+                        return (
+                            StatusCode::BAD_REQUEST,
+                            Json(json!({ "error": format!("Failed to read file: {}", e) })),
+                        )
+                            .into_response();
+                    }
+                }
+            }
+            Ok(None) => break,
+            Err(e) => {
+                return (
+                    StatusCode::BAD_REQUEST,
+                    Json(json!({ "error": format!("Multipart error: {}", e) })),
+                )
+                    .into_response();
+            }
+        }
+    }
+
+    let bytes = match file_bytes {
+        Some(b) if !b.is_empty() => b,
+        _ => {
+            return (
+                StatusCode::BAD_REQUEST,
+                Json(json!({ "error": "No file uploaded or file is empty." })),
+            )
+                .into_response();
+        }
+    };
+
+    // --- 2. Detect format and parse rules ---
+    let content = match String::from_utf8(bytes) {
+        Ok(s) => s,
+        Err(_) => {
+            return (
+                StatusCode::BAD_REQUEST,
+                Json(json!({ "error": "File is not valid UTF-8 text." })),
+            )
+                .into_response();
+        }
+    };
+
+    let is_json = content_type_hint
+        .as_deref()
+        .map(|ct| ct.contains("application/json"))
+        .unwrap_or(false)
+        || filename_hint
+            .as_deref()
+            .map(|f| f.ends_with(".json"))
+            .unwrap_or(false)
+        || content.trim_start().starts_with('[')
+        || content.trim_start().starts_with('{');
+
+    struct RuleEntry {
+        rule: String,
+        comment: Option<String>,
+    }
+
+    let parsed: Result<Vec<RuleEntry>, String> = if is_json {
+        // Try to parse as JSON array of objects or strings
+        match serde_json::from_str::<Value>(content.trim()) {
+            Ok(Value::Array(arr)) => {
+                let mut entries = Vec::new();
+                for item in arr {
+                    match item {
+                        Value::String(s) => {
+                            let r = s.trim().to_string();
+                            if !r.is_empty() {
+                                entries.push(RuleEntry { rule: r, comment: None });
+                            }
+                        }
+                        Value::Object(obj) => {
+                            let rule = obj.get("rule")
+                                .and_then(|v| v.as_str())
+                                .map(|s| s.trim().to_string())
+                                .unwrap_or_default();
+                            if rule.is_empty() {
+                                continue;
+                            }
+                            let comment = obj.get("comment")
+                                .and_then(|v| v.as_str())
+                                .map(|s| s.to_string());
+                            entries.push(RuleEntry { rule, comment });
+                        }
+                        _ => {}
+                    }
+                }
+                Ok(entries)
+            }
+            Ok(_) => Err("JSON must be an array of strings or objects.".to_string()),
+            Err(e) => Err(format!("Invalid JSON: {}", e)),
+        }
+    } else {
+        // Plain text: one rule per line, skip empty lines and # comments
+        let entries = content
+            .lines()
+            .map(|line| line.trim())
+            .filter(|line| !line.is_empty() && !line.starts_with('#'))
+            .map(|line| RuleEntry {
+                rule: line.to_string(),
+                comment: None,
+            })
+            .collect();
+        Ok(entries)
+    };
+
+    let entries = match parsed {
+        Ok(e) => e,
+        Err(msg) => {
+            return (
+                StatusCode::BAD_REQUEST,
+                Json(json!({ "error": msg })),
+            )
+                .into_response();
+        }
+    };
+
+    let total = entries.len();
+
+    if total == 0 {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(json!({ "error": "No valid rules found in the uploaded file." })),
+        )
+            .into_response();
+    }
+
+    // --- 3. Dedup against existing rules and batch insert ---
+    let now = Utc::now().to_rfc3339();
+    let username = auth.0.username.clone();
+    let user_id = auth.0.sub.clone();
+
+    let mut imported: usize = 0;
+    let mut skipped: usize = 0;
+
+    // Use a transaction for the batch insert
+    let mut tx = match state.db.begin().await {
+        Ok(t) => t,
+        Err(e) => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({ "error": format!("Failed to begin transaction: {}", e) })),
+            )
+                .into_response();
+        }
+    };
+
+    for entry in entries {
+        let rule = entry.rule.trim().to_string();
+        if rule.is_empty() {
+            skipped += 1;
+            continue;
+        }
+
+        // Check for duplicate
+        let exists: Option<(String,)> =
+            match sqlx::query_as("SELECT id FROM custom_rules WHERE rule = ?")
+                .bind(&rule)
+                .fetch_optional(&mut *tx)
+                .await
+            {
+                Ok(r) => r,
+                Err(e) => {
+                    let _ = tx.rollback().await;
+                    return (
+                        StatusCode::INTERNAL_SERVER_ERROR,
+                        Json(json!({ "error": format!("Database error: {}", e) })),
+                    )
+                        .into_response();
+                }
+            };
+
+        if exists.is_some() {
+            skipped += 1;
+            continue;
+        }
+
+        let id = Uuid::new_v4().to_string();
+        if let Err(e) = sqlx::query(
+            "INSERT INTO custom_rules (id, rule, comment, is_enabled, created_by, created_at)
+             VALUES (?, ?, ?, 1, ?, ?)",
+        )
+        .bind(&id)
+        .bind(&rule)
+        .bind(&entry.comment)
+        .bind(&username)
+        .bind(&now)
+        .execute(&mut *tx)
+        .await
+        {
+            let _ = tx.rollback().await;
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({ "error": format!("Insert failed: {}", e) })),
+            )
+                .into_response();
+        }
+
+        imported += 1;
+    }
+
+    if let Err(e) = tx.commit().await {
+        return (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({ "error": format!("Failed to commit transaction: {}", e) })),
+        )
+            .into_response();
+    }
+
+    // --- 4. Reload filter if anything was imported ---
+    if imported > 0 {
+        if let Err(e) = state.filter.reload().await {
+            tracing::error!("Filter reload failed after import: {}", e);
+        }
+    }
+
+    // --- 5. Audit log ---
+    crate::db::audit::log_action(
+        state.db.clone(),
+        user_id,
+        username,
+        "import",
+        "rule",
+        None,
+        Some(format!("imported={}, skipped={}, total={}", imported, skipped, total)),
+        ip,
+    );
+
+    (
+        StatusCode::OK,
+        Json(json!({
+            "imported": imported,
+            "skipped": skipped,
+            "total": total,
+        })),
+    )
+        .into_response()
 }
