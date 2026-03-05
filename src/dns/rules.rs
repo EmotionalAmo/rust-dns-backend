@@ -7,10 +7,12 @@
 //!   `127.0.0.1 example.com`   — hosts-format redirect (treated as block for now)
 //!   `example.com`             — plain domain block (exact + subdomains)
 //!   `*.example.com`           — wildcard subdomain block
+//!   `||ad-*.example.com^`     — intra-label wildcard block (regex-backed)
 //!   `# comment` / `! comment` — ignored
 #![allow(dead_code)]
 
 use ahash::AHashSet;
+use regex::Regex;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MatchResult {
@@ -28,6 +30,10 @@ pub struct RuleSet {
     blocked: AHashSet<Box<str>>,
     /// Domains in allow list. Allow overrides block.
     allowed: AHashSet<Box<str>>,
+    /// Wildcard block patterns (intra-label `*`), e.g. `||ad-*.example.com^`.
+    wildcard_blocked: Vec<Regex>,
+    /// Wildcard allow patterns.
+    wildcard_allowed: Vec<Regex>,
 }
 
 impl Default for RuleSet {
@@ -41,6 +47,8 @@ impl RuleSet {
         Self {
             blocked: AHashSet::new(),
             allowed: AHashSet::new(),
+            wildcard_blocked: Vec::new(),
+            wildcard_allowed: Vec::new(),
         }
     }
 
@@ -48,6 +56,8 @@ impl RuleSet {
         Self {
             blocked: AHashSet::with_capacity(n),
             allowed: AHashSet::with_capacity(n / 10 + 8),
+            wildcard_blocked: Vec::new(),
+            wildcard_allowed: Vec::new(),
         }
     }
 
@@ -72,12 +82,23 @@ impl RuleSet {
                 self.allowed.insert(domain.into_boxed_str());
                 return true;
             }
+            // Try wildcard allowlist
+            if let Some(re) = parse_adguard_wildcard_domain(rest) {
+                self.wildcard_allowed.push(re);
+                return true;
+            }
             return false;
         }
 
         // AdGuard format: ||domain^  or ||domain^$options  or ||domain$options
         if let Some(domain) = parse_adguard_domain(line) {
             self.blocked.insert(domain.into_boxed_str());
+            return true;
+        }
+
+        // AdGuard wildcard format: ||ad-*.example.com^
+        if let Some(re) = parse_adguard_wildcard_domain(line) {
+            self.wildcard_blocked.push(re);
             return true;
         }
 
@@ -137,9 +158,15 @@ impl RuleSet {
         if self.matches_set(&domain, &self.allowed) {
             return MatchResult::Allowed;
         }
+        if self.matches_wildcard(&domain, &self.wildcard_allowed) {
+            return MatchResult::Allowed;
+        }
 
         // Check blocklist
         if self.matches_set(&domain, &self.blocked) {
+            return MatchResult::Blocked;
+        }
+        if self.matches_wildcard(&domain, &self.wildcard_blocked) {
             return MatchResult::Blocked;
         }
 
@@ -167,12 +194,39 @@ impl RuleSet {
         }
     }
 
+    /// Returns true if `domain` or any of its parent domains matches a wildcard pattern.
+    fn matches_wildcard(&self, domain: &str, patterns: &[Regex]) -> bool {
+        if patterns.is_empty() {
+            return false;
+        }
+        let mut current = domain;
+        loop {
+            for pattern in patterns {
+                if pattern.is_match(current) {
+                    return true;
+                }
+            }
+            match current.find('.') {
+                Some(pos) => current = &current[pos + 1..],
+                None => return false,
+            }
+        }
+    }
+
     pub fn blocked_count(&self) -> usize {
-        self.blocked.len()
+        self.blocked.len() + self.wildcard_blocked.len()
     }
 
     pub fn allowed_count(&self) -> usize {
-        self.allowed.len()
+        self.allowed.len() + self.wildcard_allowed.len()
+    }
+
+    pub fn wildcard_blocked_count(&self) -> usize {
+        self.wildcard_blocked.len()
+    }
+
+    pub fn wildcard_allowed_count(&self) -> usize {
+        self.wildcard_allowed.len()
     }
 }
 
@@ -201,6 +255,58 @@ fn parse_adguard_domain(rule: &str) -> Option<String> {
     } else {
         None
     }
+}
+
+/// Parse `||ad-*.example.com^` style rules with intra-label wildcards.
+/// Returns a compiled Regex if the rule contains `*` and has a valid pattern.
+fn parse_adguard_wildcard_domain(rule: &str) -> Option<Regex> {
+    // Only handle `||` prefix for wildcard rules
+    let rest = rule.strip_prefix("||")?;
+
+    // Strip trailing options (^, $options)
+    let after_caret = rest.split('^').next().unwrap_or(rest);
+    let domain_raw = after_caret.split('$').next().unwrap_or(after_caret);
+    let domain_str = domain_raw
+        .trim_end_matches('|')
+        .trim_end_matches('/')
+        .trim_end_matches('.')
+        .to_lowercase();
+
+    // Only handle rules that actually contain a wildcard
+    if !domain_str.contains('*') {
+        return None;
+    }
+
+    // Must contain at least one dot (not a bare TLD wildcard)
+    if !domain_str.contains('.') {
+        return None;
+    }
+
+    let pattern = wildcard_to_regex(&domain_str);
+    Regex::new(&pattern).ok()
+}
+
+/// Convert a wildcard domain pattern to a regex string.
+/// `*` matches one or more non-dot characters (intra-label only).
+/// Example: `ad-*.aliyuncs.com` → `(?i)^ad\-[^.]+\.aliyuncs\.com$`
+fn wildcard_to_regex(pattern: &str) -> String {
+    let mut re = String::with_capacity(pattern.len() + 16);
+    re.push_str("(?i)^");
+    for ch in pattern.chars() {
+        match ch {
+            '*' => re.push_str("[^.]+"),
+            '.' => re.push_str("\\."),
+            // Alphanumeric and hyphen/underscore are safe as-is
+            c if c.is_alphanumeric() || c == '-' || c == '_' => re.push(c),
+            // Escape anything else
+            c => {
+                re.push('\\');
+                re.push(c);
+            }
+        }
+    }
+    re.push('$');
+    re
 }
 
 /// Parse hosts-format line: `0.0.0.0 domain` or `127.0.0.1 domain` or `::1 domain`
@@ -456,5 +562,55 @@ mod tests {
         let mut rs = RuleSet::new();
         rs.add_rule(".doublepimp.com");
         assert!(rs.is_blocked("doublepimp.com"));
+    }
+
+    // --- 通配符规则测试 ---
+
+    #[test]
+    fn test_wildcard_adguard_format() {
+        let mut rs = RuleSet::new();
+        rs.add_rule("||ad-*.aliyuncs.com^");
+        assert!(rs.is_blocked("ad-foo.aliyuncs.com"));
+        assert!(rs.is_blocked("ad-bar.aliyuncs.com"));
+        assert!(rs.is_blocked("sub.ad-foo.aliyuncs.com")); // 子域名
+        assert!(!rs.is_blocked("foo.aliyuncs.com")); // 不匹配
+        assert!(!rs.is_blocked("aliyuncs.com"));
+    }
+
+    #[test]
+    fn test_wildcard_allowlist() {
+        let mut rs = RuleSet::new();
+        rs.add_rule("||*.ads.com^");
+        rs.add_rule("@@||safe-*.ads.com^");
+        assert!(rs.is_blocked("bad-ads.ads.com"));
+        assert!(!rs.is_blocked("safe-cdn.ads.com")); // 白名单优先
+    }
+
+    #[test]
+    fn test_wildcard_blocked_count() {
+        let mut rs = RuleSet::new();
+        rs.add_rule("||ad-*.aliyuncs.com^");
+        rs.add_rule("||tracker-*.example.com^");
+        rs.add_rule("||plain.com^"); // 非通配符
+        assert_eq!(rs.wildcard_blocked_count(), 2);
+        assert_eq!(rs.blocked_count(), 3); // 2 wildcard + 1 plain
+    }
+
+    #[test]
+    fn test_wildcard_case_insensitive() {
+        let mut rs = RuleSet::new();
+        rs.add_rule("||AD-*.example.com^");
+        assert!(rs.is_blocked("ad-foo.example.com"));
+        assert!(rs.is_blocked("AD-FOO.example.com"));
+    }
+
+    #[test]
+    fn test_wildcard_must_match_at_least_one_char() {
+        let mut rs = RuleSet::new();
+        rs.add_rule("||ad-*.example.com^");
+        // `*` 必须匹配至少一个字符（[^.]+ 不匹配空串）
+        // "ad-.example.com" 中 * 部分为空，不应匹配
+        assert!(!rs.is_blocked("ad-.example.com"));
+        assert!(rs.is_blocked("ad-x.example.com"));
     }
 }
