@@ -82,8 +82,7 @@ impl RuleSet {
         }
 
         // .domain.com^ or .domain.com (AdGuard subdomain-only rule → DNS-level full block)
-        if line.starts_with('.') {
-            let inner = &line[1..];
+        if let Some(inner) = line.strip_prefix('.') {
             let domain_str = inner
                 .split('^')
                 .next()
