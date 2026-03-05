@@ -93,6 +93,14 @@ pub async fn get_stats(
         0.0
     };
 
+    // Last 1 minute QPS
+    let (recent_count,): (i64,) = sqlx::query_as(
+        "SELECT COUNT(*) FROM query_log WHERE time >= datetime('now', '-1 minute')"
+    )
+    .fetch_one(&state.db)
+    .await?;
+    let qps = (recent_count as f64 / 60.0 * 10.0).round() / 10.0;
+
     Ok(Json(json!({
         "total_queries": total,
         "blocked_queries": blocked,
@@ -103,6 +111,7 @@ pub async fn get_stats(
         "filter_rules": filter_rules,
         "filter_lists": filter_lists,
         "clients": clients,
+        "qps": qps,
     })))
 }
 
