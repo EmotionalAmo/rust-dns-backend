@@ -82,14 +82,16 @@ fn is_private_ip(ip: IpAddr) -> bool {
 }
 
 /// AdGuard rule patterns
-/// Matches: ||domain^, ||domain^$options, ||domain^$third-party, etc.
+/// Matches: ||domain^, ||domain^$options, ||domain^$third-party, ||domain$important, etc.
+/// The `(?:[\^$].*)?$` handles both `^` and `$` as option separators (some rules omit `^`).
 static ADGUARD_DOMAIN_RULE: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"^\|\|([a-zA-Z0-9][a-zA-Z0-9_.-]*[a-zA-Z0-9])(?:\^.*)?$").expect("Invalid regex")
+    Regex::new(r"^\|\|([a-zA-Z0-9][a-zA-Z0-9_.-]*[a-zA-Z0-9])(?:[\^$].*)?$").expect("Invalid regex")
 });
 
-/// Matches: @@||domain^, @@||domain^$options, @@||domain^$important, etc.
+/// Matches: @@||domain^, @@||domain^$options, @@||domain^$important, @@||domain$important, etc.
 static ADGUARD_EXCEPTION: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"^@@\|\|([a-zA-Z0-9][a-zA-Z0-9_.-]*[a-zA-Z0-9])(?:\^.*)?$").expect("Invalid regex")
+    Regex::new(r"^@@\|\|([a-zA-Z0-9][a-zA-Z0-9_.-]*[a-zA-Z0-9])(?:[\^$].*)?$")
+        .expect("Invalid regex")
 });
 
 /// Fetch remote filter list content
@@ -161,16 +163,33 @@ pub fn parse_adguard_rules(content: &str) -> (Vec<String>, Vec<String>) {
             continue;
         }
 
-        // Parse exception rules (@@||domain^)
+        // Handle .domain.com^ (AdGuard subdomain-only block → treat as full domain block at DNS level)
+        if line.starts_with('.') && line.len() > 1 {
+            let inner = &line[1..]; // strip leading dot
+            let domain_str = inner
+                .split('^')
+                .next()
+                .unwrap_or(inner)
+                .split('$')
+                .next()
+                .unwrap_or(inner)
+                .trim_end_matches('.');
+            if domain_str.contains('.') && !domain_str.is_empty() {
+                block_rules.push(format!("||{}^", domain_str));
+            }
+            continue;
+        }
+
+        // Parse exception rules (@@||domain^ or @@||domain$option)
         if let Some(caps) = ADGUARD_EXCEPTION.captures(line) {
             if let Some(domain) = caps.get(1) {
-                // Bug fix: append `^` so the rule matches AdGuard syntax expected by RuleSet
+                // Append `^` so the rule matches AdGuard syntax expected by RuleSet
                 allow_rules.push(format!("@@||{}^", domain.as_str()));
             }
             continue;
         }
 
-        // Parse blocking rules (||domain^ or ||domain)
+        // Parse blocking rules (||domain^, ||domain^$options, or ||domain$options)
         if let Some(caps) = ADGUARD_DOMAIN_RULE.captures(line) {
             if let Some(domain) = caps.get(1) {
                 block_rules.push(format!("||{}^", domain.as_str()));
@@ -178,11 +197,15 @@ pub fn parse_adguard_rules(content: &str) -> (Vec<String>, Vec<String>) {
             continue;
         }
 
-        // Simple domain blocking (domain without special chars)
-        if !line.contains(['/', ':', '*', '^', '|']) {
-            // Check if it looks like a domain
-            if line.contains('.') && !line.starts_with('.') && !line.ends_with('.') {
-                block_rules.push(format!("||{}^", line));
+        // Simple domain blocking (plain domain, optionally with trailing ^ or $)
+        if !line.contains(['/', ':', '*', '|']) {
+            let stripped = line.trim_end_matches(['^', '$']);
+            if !stripped.contains('^')
+                && stripped.contains('.')
+                && !stripped.starts_with('.')
+                && !stripped.ends_with('.')
+            {
+                block_rules.push(format!("||{}^", stripped));
             }
         }
     }
@@ -367,6 +390,51 @@ mod tests {
         assert!(block.contains(&"||doubleclick.net^".to_string()));
         assert!(block.contains(&"||googlesyndication.com^".to_string()));
         assert!(allow.contains(&"@@||safe.net^".to_string()));
+    }
+
+    #[test]
+    fn test_parse_adguard_dollar_without_caret() {
+        // ||domain$important 格式（无 ^ 分隔符），过去会被完全丢弃
+        let content = "||deloton.com$important\n||oclasrv.com$important\n@@||safe.net$important";
+        let (block, allow) = parse_adguard_rules(content);
+        assert!(
+            block.contains(&"||deloton.com^".to_string()),
+            "deloton.com should be blocked"
+        );
+        assert!(
+            block.contains(&"||oclasrv.com^".to_string()),
+            "oclasrv.com should be blocked"
+        );
+        assert!(
+            allow.contains(&"@@||safe.net^".to_string()),
+            "safe.net should be allowed"
+        );
+    }
+
+    #[test]
+    fn test_parse_leading_dot_rules() {
+        // .domain.com^ 格式的 AdGuard 子域名规则
+        let content = ".bbelements.com^\n.doublepimp.com^";
+        let (block, _allow) = parse_adguard_rules(content);
+        assert!(
+            block.contains(&"||bbelements.com^".to_string()),
+            "bbelements.com should be blocked"
+        );
+        assert!(
+            block.contains(&"||doublepimp.com^".to_string()),
+            "doublepimp.com should be blocked"
+        );
+    }
+
+    #[test]
+    fn test_parse_plain_domain_with_caret() {
+        // domain.com^ 格式（无 || 前缀，有 ^ 后缀），过去会被 ^ 排除
+        let content = "vkcdnservice.appspot.com^";
+        let (block, _allow) = parse_adguard_rules(content);
+        assert!(
+            block.contains(&"||vkcdnservice.appspot.com^".to_string()),
+            "vkcdnservice.appspot.com should be blocked"
+        );
     }
 
     #[test]

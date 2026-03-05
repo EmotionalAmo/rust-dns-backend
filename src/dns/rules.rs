@@ -75,10 +75,29 @@ impl RuleSet {
             return false;
         }
 
-        // AdGuard format: ||domain^  or ||domain^$options
+        // AdGuard format: ||domain^  or ||domain^$options  or ||domain$options
         if let Some(domain) = parse_adguard_domain(line) {
             self.blocked.insert(domain.into_boxed_str());
             return true;
+        }
+
+        // .domain.com^ or .domain.com (AdGuard subdomain-only rule → DNS-level full block)
+        if line.starts_with('.') {
+            let inner = &line[1..];
+            let domain_str = inner
+                .split('^')
+                .next()
+                .unwrap_or(inner)
+                .split('$')
+                .next()
+                .unwrap_or(inner)
+                .trim_end_matches('.');
+            let domain = normalize_domain(domain_str);
+            if is_valid_domain(&domain) {
+                self.blocked.insert(domain.into_boxed_str());
+                return true;
+            }
+            return false;
         }
 
         // Hosts format: "0.0.0.0 domain" or "127.0.0.1 domain"
@@ -158,7 +177,7 @@ impl RuleSet {
     }
 }
 
-/// Parse `||domain^`, `||domain^$options`, `|domain|`, `||domain`
+/// Parse `||domain^`, `||domain^$options`, `||domain$options`, `|domain|`, `||domain`
 fn parse_adguard_domain(rule: &str) -> Option<String> {
     let rest = if let Some(s) = rule.strip_prefix("||") {
         s
@@ -168,11 +187,11 @@ fn parse_adguard_domain(rule: &str) -> Option<String> {
         return None;
     };
 
-    // Strip trailing `^`, `^$options`, `|`
-    let domain = rest
-        .split('^')
-        .next()
-        .unwrap_or(rest)
+    // Strip options: `^` is the canonical separator; `$` is used when `^` is absent
+    // e.g. ||domain^$third-party, ||domain$important, ||domain^
+    let after_caret = rest.split('^').next().unwrap_or(rest);
+    let domain_raw = after_caret.split('$').next().unwrap_or(after_caret);
+    let domain = domain_raw
         .trim_end_matches('|')
         .trim_end_matches('/')
         .trim_end_matches('.');
@@ -404,5 +423,39 @@ mod tests {
         rs.add_rule("||evil.com^");
         assert!(rs.is_blocked("a.b.c.d.evil.com"));
         assert!(!rs.is_blocked("notevil.com"));
+    }
+
+    #[test]
+    fn test_dollar_option_without_caret() {
+        // ||domain$important 格式（无 ^ 分隔符），应正常解析
+        let mut rs = RuleSet::new();
+        rs.add_rule("||deloton.com$important");
+        assert!(rs.is_blocked("deloton.com"));
+        assert!(rs.is_blocked("sub.deloton.com"));
+    }
+
+    #[test]
+    fn test_dollar_option_with_caret() {
+        // ||domain^$third-party 格式，应正常解析
+        let mut rs = RuleSet::new();
+        rs.add_rule("||tracker.net^$third-party");
+        assert!(rs.is_blocked("tracker.net"));
+    }
+
+    #[test]
+    fn test_leading_dot_rule() {
+        // .domain.com^ 格式（AdGuard 子域名规则），在 DNS 层当作全域名阻止
+        let mut rs = RuleSet::new();
+        rs.add_rule(".bbelements.com^");
+        assert!(rs.is_blocked("bbelements.com"));
+        assert!(rs.is_blocked("sub.bbelements.com"));
+    }
+
+    #[test]
+    fn test_leading_dot_rule_no_caret() {
+        // .domain.com 格式
+        let mut rs = RuleSet::new();
+        rs.add_rule(".doublepimp.com");
+        assert!(rs.is_blocked("doublepimp.com"));
     }
 }
