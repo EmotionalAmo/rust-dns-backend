@@ -82,12 +82,14 @@ fn is_private_ip(ip: IpAddr) -> bool {
 }
 
 /// AdGuard rule patterns
+/// Matches: ||domain^, ||domain^$options, ||domain^$third-party, etc.
 static ADGUARD_DOMAIN_RULE: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"^\|\|([a-zA-Z0-9][a-zA-Z0-9_.-]*[a-zA-Z0-9])\^?$").expect("Invalid regex")
+    Regex::new(r"^\|\|([a-zA-Z0-9][a-zA-Z0-9_.-]*[a-zA-Z0-9])(?:\^.*)?$").expect("Invalid regex")
 });
 
+/// Matches: @@||domain^, @@||domain^$options, @@||domain^$important, etc.
 static ADGUARD_EXCEPTION: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"^@@\|\|([a-zA-Z0-9][a-zA-Z0-9_.-]*[a-zA-Z0-9])\^?$").expect("Invalid regex")
+    Regex::new(r"^@@\|\|([a-zA-Z0-9][a-zA-Z0-9_.-]*[a-zA-Z0-9])(?:\^.*)?$").expect("Invalid regex")
 });
 
 /// Fetch remote filter list content
@@ -356,6 +358,15 @@ mod tests {
         assert!(block.contains(&"||example.com^".to_string()));
         assert!(block.contains(&"||ads.example.org^".to_string()));
         assert!(allow.contains(&"@@||allowed.example.com^".to_string()));
+    }
+
+    #[test]
+    fn test_parse_adguard_rules_with_options() {
+        let content = "||doubleclick.net^$third-party\n||googlesyndication.com^$important\n@@||safe.net^$important";
+        let (block, allow) = parse_adguard_rules(content);
+        assert!(block.contains(&"||doubleclick.net^".to_string()));
+        assert!(block.contains(&"||googlesyndication.com^".to_string()));
+        assert!(allow.contains(&"@@||safe.net^".to_string()));
     }
 
     #[test]
