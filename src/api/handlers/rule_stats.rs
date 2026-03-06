@@ -5,6 +5,7 @@ use axum::{
     extract::{Query, State},
     Json,
 };
+use regex::Regex;
 use serde::Deserialize;
 use serde_json::{json, Value};
 use std::collections::HashMap;
@@ -16,52 +17,67 @@ pub struct StatsParams {
     limit: Option<i64>,
 }
 
-/// 从规则字符串中提取主域名（用于匹配 blocked 域名）
-/// 返回 None 表示该规则不统计拦截命中（放行规则或含内嵌通配符）
-fn extract_domain_from_rule(rule: &str) -> Option<String> {
+/// 规则匹配方式：普通域名 或 通配符正则 或 跳过（放行/注释/无法统计）
+enum RuleMatcher {
+    Domain(String),
+    Wildcard(Regex),
+    Skip,
+}
+
+/// 解析规则字符串，返回对应的匹配器。
+/// - 放行规则 (@@...) / 注释 → Skip
+/// - ||ad-*.example.com^ 等含通配符 → Wildcard(Regex)
+/// - ||example.com^ / *.example.com / plain domain 等 → Domain(String)
+fn parse_rule_matcher(rule: &str) -> RuleMatcher {
     let r = rule.trim();
 
-    // 放行规则（@@||...）不统计拦截命中
-    if r.starts_with("@@") {
-        return None;
+    if r.is_empty() || r.starts_with('#') || r.starts_with('!') || r.starts_with("@@") {
+        return RuleMatcher::Skip;
     }
 
-    // AdGuard 格式：||example.com^ 或 ||example.com^$options
+    // AdGuard 格式：||domain^ 或 ||ad-*.example.com^
     if let Some(rest) = r.strip_prefix("||") {
-        // 截取到 ^ 之前
-        let domain = if let Some(pos) = rest.find('^') {
-            &rest[..pos]
-        } else {
-            rest
-        };
-        // 含内嵌通配符（如 ad-*.example.com）跳过
-        if domain.contains('*') {
-            return None;
+        let after_caret = rest.split('^').next().unwrap_or(rest);
+        let domain_raw = after_caret.split('$').next().unwrap_or(after_caret);
+        let domain_str = domain_raw
+            .trim_end_matches('|')
+            .trim_end_matches('/')
+            .trim_end_matches('.')
+            .to_lowercase();
+
+        if domain_str.is_empty() {
+            return RuleMatcher::Skip;
         }
-        let d = domain.trim().to_lowercase();
-        if d.is_empty() {
-            return None;
+
+        if domain_str.contains('*') {
+            // 含通配符 → 编译为 Regex
+            let pattern = wildcard_to_regex(&domain_str);
+            return match Regex::new(&pattern) {
+                Ok(re) => RuleMatcher::Wildcard(re),
+                Err(_) => RuleMatcher::Skip,
+            };
         }
-        return Some(d);
+
+        return RuleMatcher::Domain(domain_str);
     }
 
-    // 子域通配：*.example.com 或 .example.com
+    // 子域通配：*.example.com → 等价于 example.com 的域名规则
     if let Some(rest) = r.strip_prefix("*.") {
         let d = rest.trim().to_lowercase();
-        if d.is_empty() || d.contains('*') {
-            return None;
+        if !d.is_empty() && !d.contains('*') {
+            return RuleMatcher::Domain(d);
         }
-        return Some(d);
+        return RuleMatcher::Skip;
     }
     if let Some(rest) = r.strip_prefix('.') {
         let d = rest.trim().to_lowercase();
-        if d.is_empty() || d.contains('*') {
-            return None;
+        if !d.is_empty() && !d.contains('*') {
+            return RuleMatcher::Domain(d);
         }
-        return Some(d);
+        return RuleMatcher::Skip;
     }
 
-    // hosts 格式：0.0.0.0 example.com 或 127.0.0.1 example.com
+    // hosts 格式：0.0.0.0 example.com 等
     if r.starts_with("0.0.0.0 ")
         || r.starts_with("127.0.0.1 ")
         || r.starts_with("::1 ")
@@ -71,29 +87,50 @@ fn extract_domain_from_rule(rule: &str) -> Option<String> {
         if parts.len() == 2 {
             let d = parts[1].trim().to_lowercase();
             if !d.is_empty() && !d.contains('*') {
-                return Some(d);
+                return RuleMatcher::Domain(d);
             }
         }
-        return None;
+        return RuleMatcher::Skip;
     }
 
-    // 含内嵌通配符的裸规则跳过
+    // 含通配符的裸规则：暂不支持
     if r.contains('*') {
-        return None;
+        return RuleMatcher::Skip;
     }
 
-    // plain domain（不含 / 不含空格、不含 # 和 !）
-    if !r.starts_with('#') && !r.starts_with('!') && !r.contains('/') && !r.contains(' ') {
+    // plain domain
+    if !r.contains('/') && !r.contains(' ') {
         let d = r.to_lowercase();
         if !d.is_empty() {
-            return Some(d);
+            return RuleMatcher::Domain(d);
         }
     }
 
-    None
+    RuleMatcher::Skip
 }
 
-/// 判断一条 DNS 查询域名是否命中规则域名
+/// 将通配符域名模式转换为正则表达式字符串。
+/// `*` 匹配一个或多个非点字符（label 内通配）。
+/// 例：`ad-*.aliyuncs.com` → `(?i)^ad\-[^.]+\.aliyuncs\.com$`
+fn wildcard_to_regex(pattern: &str) -> String {
+    let mut re = String::with_capacity(pattern.len() + 16);
+    re.push_str("(?i)^");
+    for ch in pattern.chars() {
+        match ch {
+            '*' => re.push_str("[^.]+"),
+            '.' => re.push_str("\\."),
+            c if c.is_alphanumeric() || c == '-' || c == '_' => re.push(c),
+            c => {
+                re.push('\\');
+                re.push(c);
+            }
+        }
+    }
+    re.push('$');
+    re
+}
+
+/// 判断一条 DNS 查询域名是否命中规则域名（精确 + 子域）
 fn domain_matches(question: &str, rule_domain: &str) -> bool {
     let q = question.trim_end_matches('.').to_lowercase();
     q == rule_domain || q.ends_with(&format!(".{}", rule_domain))
@@ -108,7 +145,6 @@ pub async fn rule_hit_stats(
     let limit = params.limit.unwrap_or(100).max(1).min(1000);
 
     // Step 1: 从 query_log 获取过去 N 小时内所有 blocked 域名的命中次数
-    // 使用 datetime 函数限制扫描范围，避免全表扫描
     let blocked_rows: Vec<(String, i64, Option<String>)> = sqlx::query_as(
         "SELECT question, COUNT(*) as cnt, MAX(time) as last_seen
          FROM query_log
@@ -120,7 +156,6 @@ pub async fn rule_hit_stats(
     .fetch_all(&state.db)
     .await?;
 
-    // 构建 question -> (count, last_seen) 的 HashMap
     let mut question_counts: HashMap<String, (i64, Option<String>)> =
         HashMap::with_capacity(blocked_rows.len());
     for (question, cnt, last_seen) in blocked_rows {
@@ -139,25 +174,39 @@ pub async fn rule_hit_stats(
 
     let total_rules = rule_rows.len();
 
-    // Step 3: 内存中统计每条规则的命中次数
+    // Step 3: 内存中统计每条规则的命中次数（支持普通域名 + 通配符正则）
     let mut result: Vec<Value> = rule_rows
         .into_iter()
         .map(|(id, rule, comment, is_enabled, created_at)| {
             let mut hit_count: i64 = 0;
             let mut last_seen: Option<String> = None;
 
-            if let Some(rule_domain) = extract_domain_from_rule(&rule) {
-                for (question, (cnt, q_last_seen)) in &question_counts {
-                    if domain_matches(question, &rule_domain) {
-                        hit_count += cnt;
-                        // 取最新的 last_seen
-                        match (&last_seen, q_last_seen) {
-                            (None, Some(ls)) => last_seen = Some(ls.clone()),
-                            (Some(cur), Some(ls)) if ls > cur => last_seen = Some(ls.clone()),
-                            _ => {}
+            match parse_rule_matcher(&rule) {
+                RuleMatcher::Domain(rule_domain) => {
+                    for (question, (cnt, q_last_seen)) in &question_counts {
+                        if domain_matches(question, &rule_domain) {
+                            hit_count += cnt;
+                            match (&last_seen, q_last_seen) {
+                                (None, Some(ls)) => last_seen = Some(ls.clone()),
+                                (Some(cur), Some(ls)) if ls > cur => last_seen = Some(ls.clone()),
+                                _ => {}
+                            }
                         }
                     }
                 }
+                RuleMatcher::Wildcard(re) => {
+                    for (question, (cnt, q_last_seen)) in &question_counts {
+                        if re.is_match(question) {
+                            hit_count += cnt;
+                            match (&last_seen, q_last_seen) {
+                                (None, Some(ls)) => last_seen = Some(ls.clone()),
+                                (Some(cur), Some(ls)) if ls > cur => last_seen = Some(ls.clone()),
+                                _ => {}
+                            }
+                        }
+                    }
+                }
+                RuleMatcher::Skip => {}
             }
 
             json!({
