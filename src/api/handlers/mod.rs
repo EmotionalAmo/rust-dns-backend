@@ -17,6 +17,7 @@ pub mod query_log;
 pub mod query_log_advanced;
 pub mod query_log_templates;
 pub mod rewrites;
+pub mod rule_stats;
 pub mod rule_validation;
 pub mod rules;
 pub mod sandbox;
