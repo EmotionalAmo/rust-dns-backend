@@ -269,8 +269,7 @@ async fn main() -> Result<()> {
         let handler = dns_handler.clone();
         let mut shutdown_rx = shutdown_signal.subscribe();
         tokio::spawn(async move {
-            let mut ticker =
-                tokio::time::interval(tokio::time::Duration::from_secs(30));
+            let mut ticker = tokio::time::interval(tokio::time::Duration::from_secs(30));
             ticker.tick().await; // skip immediate first tick, let upstreams warm up
 
             loop {

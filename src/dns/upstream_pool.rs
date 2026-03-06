@@ -204,7 +204,8 @@ impl UpstreamPool {
             let is_healthy = matches!(
                 tokio::time::timeout(
                     std::time::Duration::from_millis(timeout_ms),
-                    node.resolver.resolve("example.com", RecordType::A, &test_req),
+                    node.resolver
+                        .resolve("example.com", RecordType::A, &test_req),
                 )
                 .await,
                 Ok(Ok(_))

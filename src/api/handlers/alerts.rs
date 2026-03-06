@@ -59,7 +59,8 @@ pub async fn list_alerts(
     let total: i64 = count_q.fetch_one(&state.db).await.unwrap_or(0);
 
     // Build data query with bound params
-    let mut data_q = sqlx::query_as::<_, (String, String, Option<String>, String, i32, String)>(&query);
+    let mut data_q =
+        sqlx::query_as::<_, (String, String, Option<String>, String, i32, String)>(&query);
     if let Some(is_read) = params.is_read {
         data_q = data_q.bind(if is_read { 1i32 } else { 0i32 });
     }

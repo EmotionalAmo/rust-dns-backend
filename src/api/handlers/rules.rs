@@ -573,9 +573,7 @@ pub async fn import_rules(
                     continue;
                 }
                 filename_hint = field.file_name().map(|s| s.to_lowercase());
-                content_type_hint = field
-                    .content_type()
-                    .map(|ct| ct.to_string());
+                content_type_hint = field.content_type().map(|ct| ct.to_string());
 
                 match field.bytes().await {
                     Ok(bytes) => {
@@ -660,18 +658,23 @@ pub async fn import_rules(
                         Value::String(s) => {
                             let r = s.trim().to_string();
                             if !r.is_empty() {
-                                entries.push(RuleEntry { rule: r, comment: None });
+                                entries.push(RuleEntry {
+                                    rule: r,
+                                    comment: None,
+                                });
                             }
                         }
                         Value::Object(obj) => {
-                            let rule = obj.get("rule")
+                            let rule = obj
+                                .get("rule")
                                 .and_then(|v| v.as_str())
                                 .map(|s| s.trim().to_string())
                                 .unwrap_or_default();
                             if rule.is_empty() {
                                 continue;
                             }
-                            let comment = obj.get("comment")
+                            let comment = obj
+                                .get("comment")
                                 .and_then(|v| v.as_str())
                                 .map(|s| s.to_string());
                             entries.push(RuleEntry { rule, comment });
@@ -701,11 +704,7 @@ pub async fn import_rules(
     let entries = match parsed {
         Ok(e) => e,
         Err(msg) => {
-            return (
-                StatusCode::BAD_REQUEST,
-                Json(json!({ "error": msg })),
-            )
-                .into_response();
+            return (StatusCode::BAD_REQUEST, Json(json!({ "error": msg }))).into_response();
         }
     };
 
@@ -816,7 +815,10 @@ pub async fn import_rules(
         "import",
         "rule",
         None,
-        Some(format!("imported={}, skipped={}, total={}", imported, skipped, total)),
+        Some(format!(
+            "imported={}, skipped={}, total={}",
+            imported, skipped, total
+        )),
         ip,
     );
 

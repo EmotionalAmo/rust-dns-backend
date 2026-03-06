@@ -108,7 +108,10 @@ pub fn routes(state: Arc<AppState>) -> Router {
             "/api/v1/rules",
             get(handlers::rules::list).post(handlers::rules::create),
         )
-        .route("/api/v1/rules/stats", get(handlers::rule_stats::rule_hit_stats))
+        .route(
+            "/api/v1/rules/stats",
+            get(handlers::rule_stats::rule_hit_stats),
+        )
         .route("/api/v1/rules/export", get(handlers::rules::export_rules))
         .route("/api/v1/rules/import", post(handlers::rules::import_rules))
         .route("/api/v1/rules/bulk", post(handlers::rules::bulk_action))
