@@ -216,6 +216,10 @@ pub fn routes(state: Arc<AppState>) -> Router {
             put(handlers::alerts::mark_all_alerts_read),
         )
         .route(
+            "/api/v1/alerts/{id}",
+            delete(handlers::alerts::delete_alert),
+        )
+        .route(
             "/api/v1/alerts/{id}/read",
             put(handlers::alerts::mark_alert_read),
         )

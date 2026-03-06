@@ -15,6 +15,7 @@ pub struct AlertFilterParams {
     pub page: Option<i64>,
     pub page_size: Option<i64>,
     pub is_read: Option<bool>,
+    pub alert_type: Option<String>,
 }
 
 /// Get paginated alerts
@@ -27,30 +28,45 @@ pub async fn list_alerts(
     let page_size = params.page_size.unwrap_or(50).min(100);
     let offset = (page - 1) * page_size;
 
-    let mut query =
-        "SELECT id, alert_type, client_id, message, is_read, created_at FROM alerts".to_string();
-    let mut count_query = "SELECT COUNT(*) FROM alerts".to_string();
-
     let mut where_clauses = Vec::new();
+    if params.is_read.is_some() {
+        where_clauses.push("is_read = ?");
+    }
+    if params.alert_type.is_some() {
+        where_clauses.push("alert_type = ?");
+    }
+
+    let where_sql = if where_clauses.is_empty() {
+        String::new()
+    } else {
+        format!(" WHERE {}", where_clauses.join(" AND "))
+    };
+
+    let query = format!(
+        "SELECT id, alert_type, client_id, message, is_read, created_at FROM alerts{} ORDER BY created_at DESC LIMIT ? OFFSET ?",
+        where_sql
+    );
+    let count_query = format!("SELECT COUNT(*) FROM alerts{}", where_sql);
+
+    // Build count query with bound params
+    let mut count_q = sqlx::query_scalar::<_, i64>(&count_query);
     if let Some(is_read) = params.is_read {
-        let val = if is_read { 1 } else { 0 };
-        where_clauses.push(format!("is_read = {}", val));
+        count_q = count_q.bind(if is_read { 1i32 } else { 0i32 });
     }
-
-    if !where_clauses.is_empty() {
-        let clause = format!(" WHERE {}", where_clauses.join(" AND "));
-        query.push_str(&clause);
-        count_query.push_str(&clause);
+    if let Some(ref alert_type) = params.alert_type {
+        count_q = count_q.bind(alert_type.clone());
     }
+    let total: i64 = count_q.fetch_one(&state.db).await.unwrap_or(0);
 
-    query.push_str(" ORDER BY created_at DESC LIMIT ? OFFSET ?");
-
-    let total: i64 = sqlx::query_scalar(&count_query)
-        .fetch_one(&state.db)
-        .await
-        .unwrap_or(0);
-
-    let rows: Vec<(String, String, Option<String>, String, i32, String)> = sqlx::query_as(&query)
+    // Build data query with bound params
+    let mut data_q = sqlx::query_as::<_, (String, String, Option<String>, String, i32, String)>(&query);
+    if let Some(is_read) = params.is_read {
+        data_q = data_q.bind(if is_read { 1i32 } else { 0i32 });
+    }
+    if let Some(ref alert_type) = params.alert_type {
+        data_q = data_q.bind(alert_type.clone());
+    }
+    let rows: Vec<(String, String, Option<String>, String, i32, String)> = data_q
         .bind(page_size)
         .bind(offset)
         .fetch_all(&state.db)
@@ -122,4 +138,22 @@ pub async fn clear_alerts(
         "message": "Alerts cleared",
         "deleted": result.rows_affected()
     })))
+}
+
+/// Delete a single alert by ID
+pub async fn delete_alert(
+    State(state): State<Arc<AppState>>,
+    _auth: AdminUser,
+    Path(id): Path<String>,
+) -> AppResult<Json<Value>> {
+    let result = sqlx::query("DELETE FROM alerts WHERE id = ?")
+        .bind(&id)
+        .execute(&state.db)
+        .await?;
+
+    if result.rows_affected() == 0 {
+        return Err(AppError::NotFound("Alert not found".into()));
+    }
+
+    Ok(Json(json!({ "message": "Alert deleted" })))
 }
