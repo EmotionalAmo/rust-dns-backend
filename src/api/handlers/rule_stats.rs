@@ -196,7 +196,8 @@ pub async fn rule_hit_stats(
                 }
                 RuleMatcher::Wildcard(re) => {
                     for (question, (cnt, q_last_seen)) in &question_counts {
-                        if re.is_match(question) {
+                        let q = question.trim_end_matches('.');
+                        if re.is_match(q) {
                             hit_count += cnt;
                             match (&last_seen, q_last_seen) {
                                 (None, Some(ls)) => last_seen = Some(ls.clone()),
