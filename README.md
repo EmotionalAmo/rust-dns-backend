@@ -126,7 +126,7 @@ sudo ./target/release/rust-dns
 
 ## Project Status
 
-v1.7.1 — actively developed. Core DNS filtering and API are stable. Recent releases added bulk rule import, query analytics, and i18n support.
+v1.9.1 — actively developed. Core DNS filtering and API are stable. Recent releases added bulk rule import, query analytics, and i18n support.
 
 Roadmap items and known issues are tracked in [GitHub Issues](https://github.com/EmotionalAmo/rust-dns-backend/issues).
 
@@ -134,14 +134,14 @@ Roadmap items and known issues are tracked in [GitHub Issues](https://github.com
 
 ## Contributing
 
+The codebase is small enough to read in an afternoon. If you want to add a feature or fix something, [browse the good first issues](https://github.com/EmotionalAmo/rust-dns-backend/issues?q=is%3Aopen+label%3A%22good+first+issue%22) — they're real missing features, not busywork. PRs welcome; no CLA required.
+
 ```bash
 # Fork, clone, then:
 cargo test
 cargo clippy -- -D warnings
 cargo fmt --check
 ```
-
-PRs welcome. Check [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
 ---
 
