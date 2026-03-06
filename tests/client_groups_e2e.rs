@@ -124,7 +124,11 @@ async fn build_test_state() -> Arc<AppState> {
         static_dir: "frontend/dist".to_string(),
         allow_default_password: test_cfg.auth.allow_default_password,
         upstream_health: DashMap::new(),
-        suggest_cache: Arc::new(MokaCache::<String, Vec<String>>::builder().max_capacity(100).build()),
+        suggest_cache: Arc::new(
+            MokaCache::<String, Vec<String>>::builder()
+                .max_capacity(100)
+                .build(),
+        ),
     })
 }
 
