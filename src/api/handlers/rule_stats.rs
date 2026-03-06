@@ -141,8 +141,8 @@ pub async fn rule_hit_stats(
     Query(params): Query<StatsParams>,
     _auth: AuthUser,
 ) -> AppResult<Json<Value>> {
-    let hours = params.hours.unwrap_or(24).max(1).min(720);
-    let limit = params.limit.unwrap_or(100).max(1).min(1000);
+    let hours = params.hours.unwrap_or(24).clamp(1, 720);
+    let limit = params.limit.unwrap_or(100).clamp(1, 1000);
 
     // Step 1: 从 query_log 获取过去 N 小时内所有 blocked 域名的命中次数
     let blocked_rows: Vec<(String, i64, Option<String>)> = sqlx::query_as(
