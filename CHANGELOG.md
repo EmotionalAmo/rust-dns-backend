@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.9.1] - 2026-03-06
+
+### Security
+
+- **Weak JWT secret detection** — startup now warns (stderr) when `jwt_secret` matches any known weak value (e.g. `CHANGE_ME`, `secret`, `password`, empty string). Server continues to start so existing deployments are not broken, but the warning is unmissable in logs.
+- **HTTP security headers** — added `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`, `X-XSS-Protection: 0`, and `Referrer-Policy: strict-origin-when-cross-origin` to all API responses via `tower-http` `SetResponseHeaderLayer`.
+
 ## [1.6.0] - 2026-03-04
 
 ### Added

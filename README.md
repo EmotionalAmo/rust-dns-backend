@@ -6,7 +6,7 @@ If Pi-hole v6 broke your setup — the 403 errors, the UI crashes, the config mi
 
 [![GitHub Stars](https://img.shields.io/github/stars/EmotionalAmo/rust-dns-backend?style=flat-square)](https://github.com/EmotionalAmo/rust-dns-backend)
 [![License: Apache-2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg?style=flat-square)](LICENSE)
-[![v1.7.1](https://img.shields.io/badge/version-v1.7.1-orange?style=flat-square)](https://github.com/EmotionalAmo/rust-dns-backend/releases)
+[![v1.9.1](https://img.shields.io/badge/version-v1.9.1-orange?style=flat-square)](https://github.com/EmotionalAmo/rust-dns-backend/releases)
 
 ---
 
