@@ -196,12 +196,13 @@ pub async fn get_query_trend(
     let hours = params.hours.unwrap_or(24).clamp(1, 720);
 
     // Aggregate query_log by hour over the requested window
-    let rows: Vec<(String, i64, i64, i64)> = sqlx::query_as(
+    let rows: Vec<(String, i64, i64, i64, i64)> = sqlx::query_as(
         "SELECT
             strftime('%Y-%m-%dT%H:00:00Z', time) as hour,
             COUNT(*) as total,
             SUM(CASE WHEN status = 'blocked' THEN 1 ELSE 0 END) as blocked,
-            SUM(CASE WHEN status = 'allowed' THEN 1 ELSE 0 END) as allowed
+            SUM(CASE WHEN status = 'allowed' THEN 1 ELSE 0 END) as allowed,
+            SUM(CASE WHEN status = 'cached' THEN 1 ELSE 0 END) as cached
          FROM query_log
          WHERE time >= datetime('now', printf('-%d hours', ?))
          GROUP BY strftime('%Y-%m-%d %H', time)
@@ -213,12 +214,13 @@ pub async fn get_query_trend(
 
     let data: Vec<Value> = rows
         .into_iter()
-        .map(|(hour, total, blocked, allowed)| {
+        .map(|(hour, total, blocked, allowed, cached)| {
             json!({
                 "time": hour,
                 "total": total,
                 "blocked": blocked,
                 "allowed": allowed,
+                "cached": cached,
             })
         })
         .collect();
