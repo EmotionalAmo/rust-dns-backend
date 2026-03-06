@@ -53,6 +53,8 @@ pub struct AppState {
     pub allow_default_password: bool,
     /// Upstream health check results (H-7)
     pub upstream_health: DashMap<String, UpstreamHealthResult>,
+    /// Suggest query cache: "field:prefix:limit" → Vec<String>, 60s TTL
+    pub suggest_cache: Arc<Cache<String, Vec<String>>>,
 }
 
 /// Start the API server.
@@ -86,6 +88,14 @@ pub async fn serve(
             .build(),
     );
 
+    // Suggest query cache: 1000 entries, 60 seconds TTL
+    let suggest_cache: Arc<Cache<String, Vec<String>>> = Arc::new(
+        Cache::builder()
+            .max_capacity(1000)
+            .time_to_live(std::time::Duration::from_secs(60))
+            .build(),
+    );
+
     let db_for_task = db.clone();
     let state = Arc::new(AppState {
         db,
@@ -102,6 +112,7 @@ pub async fn serve(
         static_dir: cfg.api.static_dir.clone(),
         allow_default_password: cfg.auth.allow_default_password,
         upstream_health: DashMap::new(),
+        suggest_cache,
     });
     let cors = build_cors_layer(&cfg.api.cors_allowed_origins);
     let app = build_app(state.clone(), cors);

@@ -216,13 +216,13 @@ impl DnsHandler {
                     crate::dns::rules::MatchResult::None => {
                         // Fallback to global FilterEngine if group rules didn't explicitly allow/block
                         // is_blocked() 是同步方法（arc-swap 无锁读），无需 .await
-                        self.filter.is_blocked(&domain)
+                        self.filter.is_blocked(domain_normalized)
                     }
                 }
             } else {
                 // No group rules — use global FilterEngine
                 // is_blocked() 是同步方法（arc-swap 无锁读），无需 .await
-                self.filter.is_blocked(&domain)
+                self.filter.is_blocked(domain_normalized)
             };
 
             if blocked {
@@ -726,6 +726,14 @@ impl DnsHandler {
         *pool = new_pool;
         tracing::info!("Upstream pool reloaded successfully");
         Ok(())
+    }
+
+    /// Run health checks against all upstreams that have health_check_enabled.
+    /// Delegates to UpstreamPool::health_check_all which has access to internal nodes.
+    /// Returns (upstream_id, latency_ms, is_healthy) per checked upstream.
+    pub async fn health_check_upstreams(&self) -> Vec<(String, i64, bool)> {
+        let pool = self.upstream_pool.read().await;
+        pool.health_check_all().await
     }
 
     /// Update the latency of a specific upstream dynamically via background health checks.

@@ -1,0 +1,518 @@
+Benchmark started: Wed Mar  4 12:20:55 +04 2026
+=== rust-dns (local) ===
+DNS Performance Testing Tool
+Version 2.15.0
+
+[Status] Command line: dnsperf -s 127.0.0.1 -p 5354 -d /Users/emotionalamo/Developer/DNS-Project/projects/rust-dns-backend/benchmark/datasets/top-10k-dnsperf.txt -l 30 -c 10 -Q 200
+[Status] Sending queries (to 127.0.0.1:5354)
+[Status] Started at: Wed Mar  4 12:20:55 2026
+[Status] Stopping after 30.000000 seconds
+[Timeout] Query timed out: msg id 1566
+Warning: received a response with an unexpected (maybe timed out) id: 1566
+[Timeout] Query timed out: msg id 3389
+Warning: received a response with an unexpected (maybe timed out) id: 3389
+[Timeout] Query timed out: msg id 4220
+Warning: received a response with an unexpected (maybe timed out) id: 4220
+[Timeout] Query timed out: msg id 4458
+Warning: received a response with an unexpected (maybe timed out) id: 4458
+[Timeout] Query timed out: msg id 4836
+Warning: received a response with an unexpected (maybe timed out) id: 4836
+[Timeout] Query timed out: msg id 5541
+[Status] Testing complete (time limit)
+
+Statistics:
+
+  Queries sent:         5571
+  Queries completed:    5565 (99.89%)
+  Queries lost:         6 (0.11%)
+  Unexpected IDs:       5 (0.09%)
+
+  Response codes:       NOERROR 5556 (99.84%), SERVFAIL 5 (0.09%), NXDOMAIN 4 (0.07%)
+  Average packet size:  request 29, response 57
+  Run time (s):         34.531359
+  Queries per second:   161.157862
+
+  Average Latency (s):  0.225180 (min 0.001298, max 4.774459)
+  Latency StdDev (s):   0.355395
+
+
+=== rust-dns Memory Usage ===
+PID: 24453, RSS: 31456 KB (30.7 MiB)
+PID: 28099, RSS: 1104 KB (1.1 MiB)
+
+=== Cloudflare DNS (1.1.1.1:53) ===
+DNS Performance Testing Tool
+Version 2.15.0
+
+[Status] Command line: dnsperf -s 1.1.1.1 -p 53 -d /Users/emotionalamo/Developer/DNS-Project/projects/rust-dns-backend/benchmark/datasets/top-10k-dnsperf.txt -l 30 -c 10 -Q 200
+[Status] Sending queries (to 1.1.1.1:53)
+[Status] Started at: Wed Mar  4 12:21:36 2026
+[Status] Stopping after 30.000000 seconds
+[Timeout] Query timed out: msg id 4902
+[Timeout] Query timed out: msg id 4903
+[Timeout] Query timed out: msg id 4904
+[Timeout] Query timed out: msg id 4905
+[Timeout] Query timed out: msg id 4906
+[Timeout] Query timed out: msg id 4907
+[Timeout] Query timed out: msg id 4908
+[Timeout] Query timed out: msg id 4909
+[Timeout] Query timed out: msg id 4910
+[Timeout] Query timed out: msg id 4911
+[Timeout] Query timed out: msg id 4912
+[Timeout] Query timed out: msg id 4913
+[Timeout] Query timed out: msg id 4914
+[Timeout] Query timed out: msg id 4915
+[Timeout] Query timed out: msg id 4916
+[Timeout] Query timed out: msg id 4917
+[Timeout] Query timed out: msg id 4918
+[Timeout] Query timed out: msg id 4919
+[Timeout] Query timed out: msg id 4920
+[Timeout] Query timed out: msg id 4921
+[Timeout] Query timed out: msg id 4922
+[Timeout] Query timed out: msg id 4923
+[Timeout] Query timed out: msg id 4924
+[Timeout] Query timed out: msg id 4925
+[Timeout] Query timed out: msg id 4926
+[Timeout] Query timed out: msg id 4927
+[Timeout] Query timed out: msg id 4928
+[Timeout] Query timed out: msg id 4929
+[Timeout] Query timed out: msg id 4930
+[Timeout] Query timed out: msg id 4931
+[Timeout] Query timed out: msg id 4932
+[Timeout] Query timed out: msg id 4933
+[Timeout] Query timed out: msg id 4934
+[Timeout] Query timed out: msg id 4935
+[Timeout] Query timed out: msg id 4936
+[Timeout] Query timed out: msg id 4937
+[Timeout] Query timed out: msg id 4938
+[Timeout] Query timed out: msg id 4939
+[Timeout] Query timed out: msg id 4940
+[Timeout] Query timed out: msg id 4941
+[Timeout] Query timed out: msg id 4942
+[Timeout] Query timed out: msg id 4943
+[Timeout] Query timed out: msg id 4944
+[Timeout] Query timed out: msg id 4945
+[Timeout] Query timed out: msg id 4946
+[Timeout] Query timed out: msg id 4947
+[Timeout] Query timed out: msg id 4948
+[Timeout] Query timed out: msg id 4949
+[Timeout] Query timed out: msg id 4950
+[Timeout] Query timed out: msg id 4951
+[Timeout] Query timed out: msg id 4952
+[Timeout] Query timed out: msg id 4953
+[Timeout] Query timed out: msg id 4954
+[Timeout] Query timed out: msg id 4955
+[Timeout] Query timed out: msg id 4956
+[Timeout] Query timed out: msg id 4957
+[Timeout] Query timed out: msg id 4958
+[Timeout] Query timed out: msg id 4959
+[Timeout] Query timed out: msg id 4960
+[Timeout] Query timed out: msg id 4961
+[Timeout] Query timed out: msg id 4962
+[Timeout] Query timed out: msg id 4963
+[Timeout] Query timed out: msg id 4964
+[Timeout] Query timed out: msg id 4965
+[Timeout] Query timed out: msg id 4966
+[Timeout] Query timed out: msg id 4967
+[Timeout] Query timed out: msg id 4968
+[Timeout] Query timed out: msg id 4969
+[Timeout] Query timed out: msg id 4970
+[Timeout] Query timed out: msg id 4971
+[Timeout] Query timed out: msg id 4972
+[Timeout] Query timed out: msg id 4973
+[Timeout] Query timed out: msg id 4974
+[Timeout] Query timed out: msg id 4975
+[Timeout] Query timed out: msg id 4976
+[Timeout] Query timed out: msg id 4977
+[Timeout] Query timed out: msg id 4978
+[Timeout] Query timed out: msg id 4979
+[Timeout] Query timed out: msg id 4980
+[Timeout] Query timed out: msg id 4981
+[Timeout] Query timed out: msg id 4982
+[Timeout] Query timed out: msg id 4983
+[Timeout] Query timed out: msg id 5536
+[Status] Testing complete (time limit)
+
+Statistics:
+
+  Queries sent:         5735
+  Queries completed:    5652 (98.55%)
+  Queries lost:         83 (1.45%)
+
+  Response codes:       NOERROR 5637 (99.73%), SERVFAIL 11 (0.19%), NXDOMAIN 4 (0.07%)
+  Average packet size:  request 29, response 69
+  Run time (s):         30.900352
+  Queries per second:   182.910538
+
+  Average Latency (s):  0.089961 (min 0.005398, max 4.472620)
+  Latency StdDev (s):   0.197238
+
+
+=== Google DNS (8.8.8.8:53) ===
+DNS Performance Testing Tool
+Version 2.15.0
+
+[Status] Command line: dnsperf -s 8.8.8.8 -p 53 -d /Users/emotionalamo/Developer/DNS-Project/projects/rust-dns-backend/benchmark/datasets/top-10k-dnsperf.txt -l 30 -c 10 -Q 200
+[Status] Sending queries (to 8.8.8.8:53)
+[Status] Started at: Wed Mar  4 12:22:15 2026
+[Status] Stopping after 30.000000 seconds
+[Timeout] Query timed out: msg id 445
+Warning: received a response with an unexpected (maybe timed out) id: 445
+[Timeout] Query timed out: msg id 1956
+Warning: received a response with an unexpected (maybe timed out) id: 1956
+[Timeout] Query timed out: msg id 4458
+Warning: received a response with an unexpected (maybe timed out) id: 4458
+[Timeout] Query timed out: msg id 5536
+[Status] Testing complete (time limit)
+
+Statistics:
+
+  Queries sent:         6000
+  Queries completed:    5996 (99.93%)
+  Queries lost:         4 (0.07%)
+  Unexpected IDs:       3 (0.05%)
+
+  Response codes:       NOERROR 5979 (99.72%), SERVFAIL 13 (0.22%), NXDOMAIN 4 (0.07%)
+  Average packet size:  request 29, response 69
+  Run time (s):         30.997811
+  Queries per second:   193.433014
+
+  Average Latency (s):  0.172142 (min 0.007091, max 4.699871)
+  Latency StdDev (s):   0.199704
+
+
+=== AdGuard Public DNS (94.140.14.14:53) ===
+DNS Performance Testing Tool
+Version 2.15.0
+
+[Status] Command line: dnsperf -s 94.140.14.14 -p 53 -d /Users/emotionalamo/Developer/DNS-Project/projects/rust-dns-backend/benchmark/datasets/top-10k-dnsperf.txt -l 30 -c 10 -Q 200
+[Status] Sending queries (to 94.140.14.14:53)
+[Status] Started at: Wed Mar  4 12:22:52 2026
+[Status] Stopping after 30.000000 seconds
+[Timeout] Query timed out: msg id 3499
+[Timeout] Query timed out: msg id 3500
+[Timeout] Query timed out: msg id 3501
+[Timeout] Query timed out: msg id 3502
+[Timeout] Query timed out: msg id 3503
+[Timeout] Query timed out: msg id 3504
+[Timeout] Query timed out: msg id 3505
+[Timeout] Query timed out: msg id 3506
+[Timeout] Query timed out: msg id 3507
+[Timeout] Query timed out: msg id 3508
+[Timeout] Query timed out: msg id 3509
+[Timeout] Query timed out: msg id 3510
+[Timeout] Query timed out: msg id 3511
+[Timeout] Query timed out: msg id 3512
+[Timeout] Query timed out: msg id 3513
+[Timeout] Query timed out: msg id 3514
+[Timeout] Query timed out: msg id 3515
+[Timeout] Query timed out: msg id 3516
+[Timeout] Query timed out: msg id 3517
+[Timeout] Query timed out: msg id 3518
+[Timeout] Query timed out: msg id 3519
+[Timeout] Query timed out: msg id 3520
+[Timeout] Query timed out: msg id 3521
+[Timeout] Query timed out: msg id 3522
+[Timeout] Query timed out: msg id 3523
+[Timeout] Query timed out: msg id 3524
+[Timeout] Query timed out: msg id 3525
+[Timeout] Query timed out: msg id 3526
+[Timeout] Query timed out: msg id 3527
+[Timeout] Query timed out: msg id 3528
+[Timeout] Query timed out: msg id 3529
+[Timeout] Query timed out: msg id 3530
+[Timeout] Query timed out: msg id 3531
+[Timeout] Query timed out: msg id 3532
+[Timeout] Query timed out: msg id 3533
+[Timeout] Query timed out: msg id 3534
+[Timeout] Query timed out: msg id 3535
+[Timeout] Query timed out: msg id 3536
+[Timeout] Query timed out: msg id 3537
+[Timeout] Query timed out: msg id 3538
+[Timeout] Query timed out: msg id 3539
+[Timeout] Query timed out: msg id 3540
+[Timeout] Query timed out: msg id 3541
+[Timeout] Query timed out: msg id 3542
+[Timeout] Query timed out: msg id 3543
+[Timeout] Query timed out: msg id 3544
+[Timeout] Query timed out: msg id 3545
+[Timeout] Query timed out: msg id 3546
+[Timeout] Query timed out: msg id 3547
+[Timeout] Query timed out: msg id 3548
+[Timeout] Query timed out: msg id 3549
+[Timeout] Query timed out: msg id 3550
+[Timeout] Query timed out: msg id 3551
+[Timeout] Query timed out: msg id 3552
+[Timeout] Query timed out: msg id 3553
+[Timeout] Query timed out: msg id 3554
+[Timeout] Query timed out: msg id 3555
+[Timeout] Query timed out: msg id 3556
+[Timeout] Query timed out: msg id 3557
+[Timeout] Query timed out: msg id 3558
+[Timeout] Query timed out: msg id 3559
+[Timeout] Query timed out: msg id 3560
+[Timeout] Query timed out: msg id 3561
+[Timeout] Query timed out: msg id 3562
+[Timeout] Query timed out: msg id 3563
+[Timeout] Query timed out: msg id 3564
+[Timeout] Query timed out: msg id 3565
+[Timeout] Query timed out: msg id 3566
+[Timeout] Query timed out: msg id 3567
+[Timeout] Query timed out: msg id 3568
+[Timeout] Query timed out: msg id 3569
+[Timeout] Query timed out: msg id 3570
+[Timeout] Query timed out: msg id 3571
+[Timeout] Query timed out: msg id 3572
+[Timeout] Query timed out: msg id 3573
+[Timeout] Query timed out: msg id 3574
+[Timeout] Query timed out: msg id 3575
+[Timeout] Query timed out: msg id 3576
+[Timeout] Query timed out: msg id 3577
+[Timeout] Query timed out: msg id 3578
+[Timeout] Query timed out: msg id 3579
+[Timeout] Query timed out: msg id 3580
+[Timeout] Query timed out: msg id 3581
+[Timeout] Query timed out: msg id 3582
+[Timeout] Query timed out: msg id 3583
+[Timeout] Query timed out: msg id 3584
+[Timeout] Query timed out: msg id 3585
+[Timeout] Query timed out: msg id 3586
+[Timeout] Query timed out: msg id 3587
+[Timeout] Query timed out: msg id 3588
+[Timeout] Query timed out: msg id 3589
+[Timeout] Query timed out: msg id 3590
+[Timeout] Query timed out: msg id 3591
+[Timeout] Query timed out: msg id 3592
+[Timeout] Query timed out: msg id 3593
+[Timeout] Query timed out: msg id 3594
+[Timeout] Query timed out: msg id 3595
+[Timeout] Query timed out: msg id 3596
+[Timeout] Query timed out: msg id 3597
+[Timeout] Query timed out: msg id 3598
+[Timeout] Query timed out: msg id 3599
+[Timeout] Query timed out: msg id 3600
+[Timeout] Query timed out: msg id 3601
+[Timeout] Query timed out: msg id 3602
+[Timeout] Query timed out: msg id 3603
+[Timeout] Query timed out: msg id 3604
+[Timeout] Query timed out: msg id 3605
+[Timeout] Query timed out: msg id 3606
+[Timeout] Query timed out: msg id 3607
+[Timeout] Query timed out: msg id 3608
+[Timeout] Query timed out: msg id 3609
+[Timeout] Query timed out: msg id 3610
+[Timeout] Query timed out: msg id 3611
+[Timeout] Query timed out: msg id 3612
+[Timeout] Query timed out: msg id 3613
+[Timeout] Query timed out: msg id 3614
+[Timeout] Query timed out: msg id 3615
+[Timeout] Query timed out: msg id 3616
+[Timeout] Query timed out: msg id 3617
+[Timeout] Query timed out: msg id 3618
+[Timeout] Query timed out: msg id 3619
+[Timeout] Query timed out: msg id 3620
+[Timeout] Query timed out: msg id 3621
+[Timeout] Query timed out: msg id 3622
+[Timeout] Query timed out: msg id 3623
+[Timeout] Query timed out: msg id 3624
+[Timeout] Query timed out: msg id 3625
+[Timeout] Query timed out: msg id 3626
+[Timeout] Query timed out: msg id 3627
+[Timeout] Query timed out: msg id 3628
+[Timeout] Query timed out: msg id 3629
+[Timeout] Query timed out: msg id 3630
+[Timeout] Query timed out: msg id 3631
+[Timeout] Query timed out: msg id 3632
+[Timeout] Query timed out: msg id 3633
+[Timeout] Query timed out: msg id 3634
+[Timeout] Query timed out: msg id 3635
+[Timeout] Query timed out: msg id 3636
+[Timeout] Query timed out: msg id 3637
+[Timeout] Query timed out: msg id 3638
+[Timeout] Query timed out: msg id 3639
+[Timeout] Query timed out: msg id 3640
+[Timeout] Query timed out: msg id 3641
+[Timeout] Query timed out: msg id 3642
+[Timeout] Query timed out: msg id 3643
+[Timeout] Query timed out: msg id 3644
+[Timeout] Query timed out: msg id 3645
+[Timeout] Query timed out: msg id 3646
+[Timeout] Query timed out: msg id 3647
+[Timeout] Query timed out: msg id 3648
+[Timeout] Query timed out: msg id 3649
+[Timeout] Query timed out: msg id 3650
+[Timeout] Query timed out: msg id 3651
+[Timeout] Query timed out: msg id 3652
+[Timeout] Query timed out: msg id 3653
+[Timeout] Query timed out: msg id 3654
+[Timeout] Query timed out: msg id 3655
+[Timeout] Query timed out: msg id 3656
+[Timeout] Query timed out: msg id 3657
+[Timeout] Query timed out: msg id 3658
+[Timeout] Query timed out: msg id 3659
+[Timeout] Query timed out: msg id 3660
+[Timeout] Query timed out: msg id 3661
+[Timeout] Query timed out: msg id 3662
+[Timeout] Query timed out: msg id 3663
+[Timeout] Query timed out: msg id 3664
+[Timeout] Query timed out: msg id 3665
+[Timeout] Query timed out: msg id 3666
+[Timeout] Query timed out: msg id 3667
+[Timeout] Query timed out: msg id 3668
+[Timeout] Query timed out: msg id 3669
+[Timeout] Query timed out: msg id 3670
+[Timeout] Query timed out: msg id 3671
+[Timeout] Query timed out: msg id 3672
+[Timeout] Query timed out: msg id 3673
+[Timeout] Query timed out: msg id 3674
+[Timeout] Query timed out: msg id 3675
+[Timeout] Query timed out: msg id 3676
+[Timeout] Query timed out: msg id 3677
+[Timeout] Query timed out: msg id 3678
+[Timeout] Query timed out: msg id 3679
+[Timeout] Query timed out: msg id 3680
+[Timeout] Query timed out: msg id 3681
+[Timeout] Query timed out: msg id 3682
+[Timeout] Query timed out: msg id 3683
+[Timeout] Query timed out: msg id 3684
+[Timeout] Query timed out: msg id 3685
+[Timeout] Query timed out: msg id 3686
+[Timeout] Query timed out: msg id 3687
+[Timeout] Query timed out: msg id 3688
+[Timeout] Query timed out: msg id 3689
+[Timeout] Query timed out: msg id 3690
+[Timeout] Query timed out: msg id 3691
+[Timeout] Query timed out: msg id 3692
+[Timeout] Query timed out: msg id 3693
+[Timeout] Query timed out: msg id 3694
+[Timeout] Query timed out: msg id 3695
+[Timeout] Query timed out: msg id 3696
+[Timeout] Query timed out: msg id 3697
+[Timeout] Query timed out: msg id 3698
+[Timeout] Query timed out: msg id 3699
+[Timeout] Query timed out: msg id 3700
+[Timeout] Query timed out: msg id 3701
+[Timeout] Query timed out: msg id 3702
+[Timeout] Query timed out: msg id 3703
+[Timeout] Query timed out: msg id 3704
+[Timeout] Query timed out: msg id 3705
+[Timeout] Query timed out: msg id 3706
+[Timeout] Query timed out: msg id 3707
+[Timeout] Query timed out: msg id 3708
+[Timeout] Query timed out: msg id 3709
+[Timeout] Query timed out: msg id 3710
+[Timeout] Query timed out: msg id 3711
+[Timeout] Query timed out: msg id 3712
+[Timeout] Query timed out: msg id 3713
+[Timeout] Query timed out: msg id 3714
+[Timeout] Query timed out: msg id 3715
+[Timeout] Query timed out: msg id 3716
+[Timeout] Query timed out: msg id 3717
+[Timeout] Query timed out: msg id 3718
+[Timeout] Query timed out: msg id 3719
+[Timeout] Query timed out: msg id 3720
+[Timeout] Query timed out: msg id 3721
+[Timeout] Query timed out: msg id 3722
+[Timeout] Query timed out: msg id 3723
+[Timeout] Query timed out: msg id 3724
+[Timeout] Query timed out: msg id 3725
+[Timeout] Query timed out: msg id 3726
+[Timeout] Query timed out: msg id 3727
+[Timeout] Query timed out: msg id 3728
+[Timeout] Query timed out: msg id 3729
+[Timeout] Query timed out: msg id 3730
+[Timeout] Query timed out: msg id 3731
+[Timeout] Query timed out: msg id 3732
+[Timeout] Query timed out: msg id 3733
+[Timeout] Query timed out: msg id 3734
+[Timeout] Query timed out: msg id 3735
+[Timeout] Query timed out: msg id 3736
+[Timeout] Query timed out: msg id 3737
+[Timeout] Query timed out: msg id 3738
+[Timeout] Query timed out: msg id 3739
+[Timeout] Query timed out: msg id 3740
+[Timeout] Query timed out: msg id 3741
+[Timeout] Query timed out: msg id 3742
+[Timeout] Query timed out: msg id 3743
+[Timeout] Query timed out: msg id 3744
+[Timeout] Query timed out: msg id 3745
+[Timeout] Query timed out: msg id 3746
+[Timeout] Query timed out: msg id 3747
+[Timeout] Query timed out: msg id 3748
+[Timeout] Query timed out: msg id 3749
+[Timeout] Query timed out: msg id 3750
+[Timeout] Query timed out: msg id 3751
+[Timeout] Query timed out: msg id 3752
+[Timeout] Query timed out: msg id 3753
+[Timeout] Query timed out: msg id 3754
+[Timeout] Query timed out: msg id 3755
+[Timeout] Query timed out: msg id 3756
+[Timeout] Query timed out: msg id 3757
+[Timeout] Query timed out: msg id 3758
+[Timeout] Query timed out: msg id 3759
+[Timeout] Query timed out: msg id 3760
+[Timeout] Query timed out: msg id 3761
+[Timeout] Query timed out: msg id 3762
+[Timeout] Query timed out: msg id 3763
+[Timeout] Query timed out: msg id 3764
+[Timeout] Query timed out: msg id 3765
+[Timeout] Query timed out: msg id 3766
+[Timeout] Query timed out: msg id 3767
+[Timeout] Query timed out: msg id 3768
+[Timeout] Query timed out: msg id 3769
+[Timeout] Query timed out: msg id 3770
+[Timeout] Query timed out: msg id 3771
+[Timeout] Query timed out: msg id 3772
+[Timeout] Query timed out: msg id 3773
+[Timeout] Query timed out: msg id 3774
+[Timeout] Query timed out: msg id 3775
+[Timeout] Query timed out: msg id 3776
+[Timeout] Query timed out: msg id 3777
+[Timeout] Query timed out: msg id 3778
+[Timeout] Query timed out: msg id 3779
+[Timeout] Query timed out: msg id 3780
+[Timeout] Query timed out: msg id 3781
+[Timeout] Query timed out: msg id 3782
+[Timeout] Query timed out: msg id 3783
+[Timeout] Query timed out: msg id 3784
+[Timeout] Query timed out: msg id 3785
+[Timeout] Query timed out: msg id 3786
+[Timeout] Query timed out: msg id 3787
+[Timeout] Query timed out: msg id 3788
+[Timeout] Query timed out: msg id 3789
+[Timeout] Query timed out: msg id 3790
+[Timeout] Query timed out: msg id 3791
+[Timeout] Query timed out: msg id 3792
+[Timeout] Query timed out: msg id 3793
+[Timeout] Query timed out: msg id 3794
+[Timeout] Query timed out: msg id 3795
+[Status] Testing complete (time limit)
+
+Statistics:
+
+  Queries sent:         3796
+  Queries completed:    3499 (92.18%)
+  Queries lost:         297 (7.82%)
+
+  Response codes:       NOERROR 3488 (99.69%), SERVFAIL 8 (0.23%), NXDOMAIN 3 (0.09%)
+  Average packet size:  request 29, response 67
+  Run time (s):         30.001036
+  Queries per second:   116.629306
+
+  Average Latency (s):  0.264709 (min 0.085223, max 3.224069)
+  Latency StdDev (s):   0.295593
+
+
+=== Summary ===
+Date: Wed Mar  4 12:23:39 +04 2026
+Tool: dnsperf v2.15.0 | Dataset: top-10k-dnsperf.txt | Duration: 30s | Concurrency: 10 | Max QPS: 200
+
+| Resolver             | QPS     | Avg Latency | Min Latency | Loss%  | Memory  |
+|----------------------|---------|-------------|-------------|--------|---------|
+| rust-dns (local)     | 161.2   | 225.2 ms    | 1.3 ms      | 0.11%  | 30.7 MiB|
+| Google (8.8.8.8)     | 193.4   | 172.1 ms    | 7.1 ms      | 0.07%  | -       |
+| Cloudflare (1.1.1.1) | 182.9   | 90.0 ms     | 5.4 ms      | 1.45%  | -       |
+| AdGuard (94.140.14.14)| 116.6  | 264.7 ms    | 85.2 ms     | 7.82%  | -       |
+
+Note: Public DNS benchmarks include real network round-trip time (UAE -> remote servers).
+rust-dns runs entirely locally, so latency reflects upstream resolver overhead only.

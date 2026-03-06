@@ -130,6 +130,11 @@ async fn run(
                 if !batch.is_empty() {
                     flush(&db, &mut batch).await;
                 }
+                // Prune stale anomaly tracking entries (防止 HashMap 无限增长)
+                let now = tokio::time::Instant::now();
+                block_counts.retain(|_, (_, first_time)| {
+                    now.duration_since(*first_time).as_secs() < 120
+                });
             }
         }
     }

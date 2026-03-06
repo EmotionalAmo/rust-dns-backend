@@ -601,6 +601,7 @@ pub async fn top(
 
 /// 智能提示（自动补全）
 /// 支持基于历史查询热度排序（最近 30 天内查询次数最多的排在前面）
+/// 结果缓存 60s，避免每次 LIKE + GROUP BY + COUNT 全表聚合
 pub async fn suggest(
     State(state): State<Arc<AppState>>,
     _auth: AuthUser,
@@ -616,28 +617,42 @@ pub async fn suggest(
         }
     };
 
-    // 使用 30 天窗口内的历史查询热度排序
-    let thirty_days_ago = Utc::now() - Duration::days(30);
+    let cache_key = format!("{}:{}:{}", field, params.prefix, params.limit);
+    let db = state.db.clone();
+    let prefix = params.prefix.clone();
+    let prefix_resp = prefix.clone();
+    let limit = params.limit;
+    let field_resp = field.clone();
 
-    let suggestions: Vec<String> = sqlx::query_scalar(&format!(
-        "SELECT DISTINCT {}
-             FROM query_log
-             WHERE {} LIKE ? AND time >= ?
-             GROUP BY {}
-             ORDER BY COUNT(*) DESC, {} ASC
-             LIMIT ?",
-        field, field, field, field
-    ))
-    .bind(format!("{}%", params.prefix))
-    .bind(thirty_days_ago.to_rfc3339())
-    .bind(params.limit)
-    .fetch_all(&state.db)
-    .await?;
+    let suggestions = state
+        .suggest_cache
+        .try_get_with(cache_key, async move {
+            // 使用 30 天窗口内的历史查询热度排序
+            let thirty_days_ago = Utc::now() - Duration::days(30);
+
+            sqlx::query_scalar::<_, String>(&format!(
+                "SELECT DISTINCT {}
+                 FROM query_log
+                 WHERE {} LIKE ? AND time >= ?
+                 GROUP BY {}
+                 ORDER BY COUNT(*) DESC, {} ASC
+                 LIMIT ?",
+                field, field, field, field
+            ))
+            .bind(format!("{}%", prefix))
+            .bind(thirty_days_ago.to_rfc3339())
+            .bind(limit)
+            .fetch_all(&db)
+            .await
+            .map_err(AppError::Database)
+        })
+        .await
+        .map_err(|e| AppError::Internal(e.to_string()))?;
 
     Ok(Json(json!({
         "suggestions": suggestions,
-        "field": field,
-        "prefix": params.prefix,
+        "field": field_resp,
+        "prefix": prefix_resp,
         "count": suggestions.len(),
     })))
 }

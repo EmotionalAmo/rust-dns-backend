@@ -263,6 +263,93 @@ async fn main() -> Result<()> {
     )
     .await?;
 
+    // Background: upstream health checks (每 30s 检测一次，更新延迟 + DB 状态)
+    {
+        let db = db_pool.clone();
+        let handler = dns_handler.clone();
+        let mut shutdown_rx = shutdown_signal.subscribe();
+        tokio::spawn(async move {
+            let mut ticker =
+                tokio::time::interval(tokio::time::Duration::from_secs(30));
+            ticker.tick().await; // skip immediate first tick, let upstreams warm up
+
+            loop {
+                tokio::select! {
+                    _ = ticker.tick() => {
+                        let results = handler.health_check_upstreams().await;
+                        if results.is_empty() {
+                            continue;
+                        }
+
+                        // Load current upstream status from DB for change detection
+                        let upstreams = match rust_dns::db::models::upstream::UpstreamRepository::list(&db).await {
+                            Ok(u) => u,
+                            Err(e) => {
+                                tracing::warn!("Health check: failed to load upstreams: {}", e);
+                                continue;
+                            }
+                        };
+
+                        let mut needs_reload = false;
+
+                        for (upstream_id, latency_ms, is_healthy) in results {
+                            let new_status = if is_healthy { "healthy" } else { "degraded" };
+
+                            tracing::debug!(
+                                "Upstream {} health: {}ms status={}",
+                                upstream_id, latency_ms, new_status
+                            );
+
+                            // Update DB timestamp + status
+                            if let Err(e) = rust_dns::db::models::upstream::UpstreamRepository::update_health_status(
+                                &db, &upstream_id, new_status,
+                            ).await {
+                                tracing::warn!("Health check: DB update failed for {}: {}", upstream_id, e);
+                                continue;
+                            }
+
+                            // Failover logic: if status changed and failover_enabled, reload pool
+                            if let Some(upstream) = upstreams.iter().find(|u| u.id == upstream_id) {
+                                if upstream.health_status != new_status && upstream.failover_enabled {
+                                    if !is_healthy {
+                                        warn!(
+                                            "Upstream {} degraded ({}ms), triggering failover",
+                                            upstream_id, latency_ms
+                                        );
+                                        let _ = rust_dns::db::models::upstream::UpstreamRepository::log_failover(
+                                            &db, &upstream_id, "failover",
+                                            Some("health check failed"),
+                                        ).await;
+                                    } else {
+                                        info!(
+                                            "Upstream {} recovered ({}ms)",
+                                            upstream_id, latency_ms
+                                        );
+                                        let _ = rust_dns::db::models::upstream::UpstreamRepository::log_failover(
+                                            &db, &upstream_id, "recover",
+                                            Some("health check passed"),
+                                        ).await;
+                                    }
+                                    needs_reload = true;
+                                }
+                            }
+                        }
+
+                        if needs_reload {
+                            if let Err(e) = handler.reload_upstreams().await {
+                                warn!("Health check: reload_upstreams failed: {}", e);
+                            }
+                        }
+                    }
+                    _ = shutdown_rx.recv() => {
+                        info!("Upstream health check task shutting down");
+                        break;
+                    }
+                }
+            }
+        });
+    }
+
     // Spawn DNS and API servers
     let dns_shutdown_signal = shutdown_signal.clone();
     let dns_handler_clone = dns_handler.clone();

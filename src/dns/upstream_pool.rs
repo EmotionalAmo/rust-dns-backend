@@ -172,5 +172,52 @@ impl UpstreamPool {
         Err(last_err)
     }
 
+    /// Run health checks on all upstreams with health_check_enabled.
+    /// Updates each node's in-memory latency atomically.
+    /// Returns (upstream_id, latency_ms, is_healthy) per checked upstream.
+    pub async fn health_check_all(&self) -> Vec<(String, i64, bool)> {
+        use hickory_proto::op::{Message, MessageType, OpCode};
+        use hickory_proto::rr::RecordType;
+        use std::sync::atomic::Ordering;
+
+        let mut results = Vec::new();
+
+        for node in &self.nodes {
+            if !node.model.health_check_enabled {
+                continue;
+            }
+
+            let start = std::time::Instant::now();
+
+            let mut test_req = Message::new();
+            test_req.set_id(1); // fixed ID is fine for health probes
+            test_req.set_message_type(MessageType::Query);
+            test_req.set_op_code(OpCode::Query);
+            test_req.set_recursion_desired(true);
+
+            let timeout_ms = if node.model.health_check_timeout > 0 {
+                node.model.health_check_timeout as u64
+            } else {
+                2000
+            };
+
+            let is_healthy = matches!(
+                tokio::time::timeout(
+                    std::time::Duration::from_millis(timeout_ms),
+                    node.resolver.resolve("example.com", RecordType::A, &test_req),
+                )
+                .await,
+                Ok(Ok(_))
+            );
+
+            let latency_ms = start.elapsed().as_millis() as i64;
+            node.last_latency_ms.store(latency_ms, Ordering::Relaxed);
+
+            results.push((node.model.id.clone(), latency_ms, is_healthy));
+        }
+
+        results
+    }
+
     // Removed unused select_upstream method
 }
