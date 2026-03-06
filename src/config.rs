@@ -156,23 +156,33 @@ fn default_log_console() -> bool {
     true
 }
 
-const DEFAULT_JWT_SECRET: &str = "change-me-in-production";
+/// Known insecure placeholder values that must trigger a warning.
+/// These include the built-in default and any placeholder that ships in config files.
+const INSECURE_JWT_SECRETS: &[&str] = &[
+    "change-me-in-production",
+    "CHANGE_ME_USE_A_RANDOM_64_CHAR_STRING",
+    "CHANGE_ME_use_openssl_rand_hex_32_output_here",
+    "very_long_secret_key_for_jwt_auth_12345",
+];
 
 pub fn validate(cfg: &Config) -> Result<()> {
-    // Security: Reject default JWT secret
-    if cfg.auth.jwt_secret == DEFAULT_JWT_SECRET {
-        anyhow::bail!(
-            "SECURITY ERROR: JWT secret must be changed from default value '{}'. \
-            Set RUST_DNS__AUTH__JWT_SECRET environment variable with a strong random value.",
-            DEFAULT_JWT_SECRET
+    // Security: Warn (but don't panic) if JWT secret is a known insecure placeholder.
+    // This allows dogfooding / local dev while still alerting operators.
+    let jwt_is_placeholder = INSECURE_JWT_SECRETS
+        .iter()
+        .any(|s| cfg.auth.jwt_secret == *s);
+
+    if jwt_is_placeholder || cfg.auth.jwt_secret.len() < 32 {
+        tracing::warn!(
+            "WARN: JWT secret is insecure! Change jwt_secret in config.toml before production use. \
+            Generate one with: openssl rand -hex 32"
         );
     }
 
-    // Security: JWT secret must be at least 32 characters
-    if cfg.auth.jwt_secret.len() < 32 {
-        anyhow::bail!(
-            "CONFIG ERROR: JWT secret must be at least 32 characters (current: {})",
-            cfg.auth.jwt_secret.len()
+    // Security: Warn if default password is allowed
+    if cfg.auth.allow_default_password {
+        tracing::warn!(
+            "WARN: Default admin password is enabled. Change password before production use."
         );
     }
 
@@ -222,7 +232,7 @@ pub fn load(config_path: Option<&str>) -> Result<Config> {
         .set_default("api.static_dir", "frontend/dist")?
         .set_default("database.path", "./rust-dns.db")?
         .set_default("database.query_log_retention_days", 7)?
-        .set_default("auth.jwt_secret", DEFAULT_JWT_SECRET)?
+        .set_default("auth.jwt_secret", "CHANGE_ME_USE_A_RANDOM_64_CHAR_STRING")?
         .set_default("auth.jwt_expiry_hours", 24)?
         .set_default("logging.level", "info")?
         .set_default("logging.rotation", "daily")?

@@ -16,6 +16,7 @@ use std::sync::Arc;
 use std::time::Instant;
 use tokio::sync::broadcast;
 use tower_http::cors::CorsLayer;
+use tower_http::set_header::SetResponseHeaderLayer;
 use tower_http::trace::TraceLayer;
 
 pub mod handlers;
@@ -400,4 +401,21 @@ pub fn build_app(state: Arc<AppState>, cors: CorsLayer) -> Router {
         ))
         .layer(TraceLayer::new_for_http())
         .layer(cors)
+        // Security headers — applied to every HTTP response
+        .layer(SetResponseHeaderLayer::if_not_present(
+            header::HeaderName::from_static("x-frame-options"),
+            HeaderValue::from_static("DENY"),
+        ))
+        .layer(SetResponseHeaderLayer::if_not_present(
+            header::HeaderName::from_static("x-content-type-options"),
+            HeaderValue::from_static("nosniff"),
+        ))
+        .layer(SetResponseHeaderLayer::if_not_present(
+            header::HeaderName::from_static("x-xss-protection"),
+            HeaderValue::from_static("1; mode=block"),
+        ))
+        .layer(SetResponseHeaderLayer::if_not_present(
+            header::HeaderName::from_static("referrer-policy"),
+            HeaderValue::from_static("strict-origin-when-cross-origin"),
+        ))
 }
