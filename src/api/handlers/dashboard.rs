@@ -309,6 +309,55 @@ pub async fn get_upstream_trend(
     })))
 }
 
+pub async fn get_latency_stats(
+    State(state): State<Arc<AppState>>,
+    _auth: AuthUser,
+    Query(params): Query<TrendParams>,
+) -> AppResult<Json<Value>> {
+    let hours = params.hours.unwrap_or(24).clamp(1, 720);
+    let time_filter = format!("-{} hours", hours);
+
+    let rows: Vec<(i64,)> = sqlx::query_as(
+        "SELECT elapsed_ns FROM query_log
+         WHERE upstream IS NOT NULL AND time >= datetime('now', ?)
+         ORDER BY id DESC LIMIT 5000",
+    )
+    .bind(&time_filter)
+    .fetch_all(&state.db)
+    .await?;
+
+    let sample_count = rows.len();
+
+    if sample_count == 0 {
+        return Ok(Json(json!({
+            "p50_ms": null,
+            "p95_ms": null,
+            "p99_ms": null,
+            "sample_count": 0
+        })));
+    }
+
+    let mut values: Vec<i64> = rows.into_iter().map(|(ns,)| ns).collect();
+    values.sort_unstable();
+
+    let percentile = |p: f64| -> f64 {
+        let idx = ((p / 100.0) * (sample_count as f64 - 1.0)).round() as usize;
+        let idx = idx.min(sample_count - 1);
+        (values[idx] as f64 / 1_000_000.0 * 10.0).round() / 10.0
+    };
+
+    let p50 = percentile(50.0);
+    let p95 = percentile(95.0);
+    let p99 = percentile(99.0);
+
+    Ok(Json(json!({
+        "p50_ms": p50,
+        "p95_ms": p95,
+        "p99_ms": p99,
+        "sample_count": sample_count
+    })))
+}
+
 /// Get upstream distribution (count and percentage) for the time window
 pub async fn get_upstream_distribution(
     State(state): State<Arc<AppState>>,

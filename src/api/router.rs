@@ -49,6 +49,10 @@ pub fn routes(state: Arc<AppState>) -> Router {
             "/api/v1/dashboard/upstream-distribution",
             get(handlers::dashboard::get_upstream_distribution),
         )
+        .route(
+            "/api/v1/dashboard/latency-stats",
+            get(handlers::dashboard::get_latency_stats),
+        )
         // Query log (protected)
         .route("/api/v1/query-log", get(handlers::query_log::list))
         .route("/api/v1/query-log/export", get(handlers::query_log::export))
