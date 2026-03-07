@@ -448,9 +448,7 @@ pub async fn get_upstream_health_history(
 
     let data: Vec<Value> = by_time
         .into_iter()
-        .map(|(time, upstream_map)| {
-            json!({ "time": time, "upstreams": upstream_map })
-        })
+        .map(|(time, upstream_map)| json!({ "time": time, "upstreams": upstream_map }))
         .collect();
 
     Ok(Json(json!({ "data": data, "upstreams": upstreams })))
