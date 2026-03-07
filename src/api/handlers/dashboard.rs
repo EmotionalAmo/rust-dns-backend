@@ -8,7 +8,7 @@ use axum::{
 use serde::Deserialize;
 use serde_json::{json, Value};
 use sqlx::Row;
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::sync::Arc;
 
 pub async fn get_stats(
@@ -403,4 +403,55 @@ pub async fn get_upstream_distribution(
         .collect();
 
     Ok(Json(json!(data)))
+}
+
+/// Get upstream availability history (success rate %) bucketed by hour for the time window.
+/// Returns { data: [{time, upstreams: {name: pct}}], upstreams: [name, ...] }
+pub async fn get_upstream_health_history(
+    State(state): State<Arc<AppState>>,
+    _auth: AuthUser,
+    Query(params): Query<TrendParams>,
+) -> AppResult<Json<Value>> {
+    let hours = params.hours.unwrap_or(24).clamp(1, 720);
+    let time_filter = format!("-{} hours", hours);
+
+    let rows: Vec<(String, String, f64)> = sqlx::query_as(
+        "SELECT u.name,
+                strftime('%Y-%m-%dT%H:00:00Z', l.checked_at) as bucket,
+                CAST(SUM(l.success) * 100.0 / COUNT(*) AS REAL) as availability
+         FROM upstream_latency_log l
+         JOIN dns_upstreams u ON u.id = l.upstream_id
+         WHERE l.checked_at >= datetime('now', ?)
+         GROUP BY u.name, strftime('%Y-%m-%d %H', l.checked_at)
+         ORDER BY bucket ASC",
+    )
+    .bind(&time_filter)
+    .fetch_all(&state.db)
+    .await?;
+
+    if rows.is_empty() {
+        return Ok(Json(json!({ "data": [], "upstreams": [] })));
+    }
+
+    let mut upstream_names: BTreeSet<String> = BTreeSet::new();
+    let mut by_time: BTreeMap<String, HashMap<String, f64>> = BTreeMap::new();
+
+    for (name, bucket, availability) in rows {
+        upstream_names.insert(name.clone());
+        by_time
+            .entry(bucket)
+            .or_default()
+            .insert(name, (availability * 10.0).round() / 10.0);
+    }
+
+    let upstreams: Vec<String> = upstream_names.into_iter().collect();
+
+    let data: Vec<Value> = by_time
+        .into_iter()
+        .map(|(time, upstream_map)| {
+            json!({ "time": time, "upstreams": upstream_map })
+        })
+        .collect();
+
+    Ok(Json(json!({ "data": data, "upstreams": upstreams })))
 }
