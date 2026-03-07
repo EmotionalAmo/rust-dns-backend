@@ -35,8 +35,8 @@ impl DnsResolver {
         opts.ip_strategy = ip_strategy;
         // Increase concurrent upstream connections for better burst handling
         opts.num_concurrent_reqs = 8;
-        // Longer timeout tolerance (upstream may be slow under load)
-        opts.timeout = std::time::Duration::from_secs(5);
+        // 2s per attempt keeps P99 bounded; hickory default attempts=2 means 4s max per upstream node
+        opts.timeout = std::time::Duration::from_secs(2);
 
         let resolver = TokioAsyncResolver::tokio(ResolverConfig::cloudflare(), opts);
 
@@ -71,7 +71,8 @@ impl DnsResolver {
         opts.use_hosts_file = false;
         opts.ip_strategy = ip_strategy;
         opts.num_concurrent_reqs = 8;
-        opts.timeout = std::time::Duration::from_secs(5);
+        // 2s per attempt keeps P99 bounded; hickory default attempts=2 means 4s max per upstream node
+        opts.timeout = std::time::Duration::from_secs(2);
 
         let mut config = ResolverConfig::new();
         let mut added = 0;

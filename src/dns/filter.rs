@@ -55,7 +55,7 @@ impl FilterEngine {
         }
 
         // Safety guard: warn if total rules is approaching memory limits
-        const MAX_CUSTOM_RULES: usize = 100_000;
+        const MAX_CUSTOM_RULES: usize = 500_000;
         if total > MAX_CUSTOM_RULES {
             tracing::warn!(
                 "FilterEngine: custom rule count ({}) exceeds MAX_CUSTOM_RULES ({}). \

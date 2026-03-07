@@ -582,10 +582,12 @@ pub async fn failover_log(
     #[allow(unused_variables)] ClientIp(ip): ClientIp,
     _auth: AuthUser,
 ) -> AppResult<Json<Value>> {
-    let rows: Vec<(String, String, String, Option<String>, String)> = sqlx::query_as(
-        "SELECT id, upstream_id, action, reason, timestamp
-         FROM upstream_failover_log
-         ORDER BY timestamp DESC
+    let rows: Vec<(String, String, String, String, Option<String>, String)> = sqlx::query_as(
+        "SELECT f.id, f.upstream_id, COALESCE(u.name, 'Unknown') AS upstream_name,
+                f.action, f.reason, f.timestamp
+         FROM upstream_failover_log f
+         LEFT JOIN dns_upstreams u ON u.id = f.upstream_id
+         ORDER BY f.timestamp DESC
          LIMIT 100",
     )
     .fetch_all(&state.db)
@@ -593,15 +595,18 @@ pub async fn failover_log(
 
     let data: Vec<Value> = rows
         .into_iter()
-        .map(|(id, upstream_id, action, reason, timestamp)| {
-            json!({
-                "id": id,
-                "upstream_id": upstream_id,
-                "action": action,
-                "reason": reason,
-                "timestamp": timestamp,
-            })
-        })
+        .map(
+            |(id, upstream_id, upstream_name, action, reason, timestamp)| {
+                json!({
+                    "id": id,
+                    "upstream_id": upstream_id,
+                    "upstream_name": upstream_name,
+                    "action": action,
+                    "reason": reason,
+                    "timestamp": timestamp,
+                })
+            },
+        )
         .collect();
 
     Ok(Json(json!({ "data": data, "total": data.len() })))

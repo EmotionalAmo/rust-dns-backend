@@ -133,8 +133,25 @@ impl UpstreamPool {
         // Build an ordered list of nodes to try
         let nodes_to_try: Vec<Arc<UpstreamNode>> = match self.strategy {
             UpstreamStrategy::Priority => {
-                // Try all nodes in priority order (sorted at construction)
-                self.nodes.clone()
+                // Nodes are sorted by priority at construction. Within each priority group,
+                // shuffle randomly so multiple nodes with the same priority are load-balanced
+                // rather than always trying the alphabetically-first one.
+                let mut rng = rand::thread_rng();
+                let mut nodes = self.nodes.clone();
+                let mut result = Vec::with_capacity(nodes.len());
+                let mut i = 0;
+                while i < nodes.len() {
+                    let current_priority = nodes[i].model.priority;
+                    let group_end = nodes[i..]
+                        .iter()
+                        .position(|n| n.model.priority != current_priority)
+                        .map(|pos| i + pos)
+                        .unwrap_or(nodes.len());
+                    nodes[i..group_end].shuffle(&mut rng);
+                    result.extend_from_slice(&nodes[i..group_end]);
+                    i = group_end;
+                }
+                result
             }
             UpstreamStrategy::LoadBalance => {
                 // Start from a random node, then try others
