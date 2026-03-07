@@ -54,6 +54,10 @@ pub fn routes(state: Arc<AppState>) -> Router {
             get(handlers::dashboard::get_latency_stats),
         )
         .route(
+            "/api/v1/dashboard/latency-trend",
+            get(handlers::dashboard::get_latency_trend),
+        )
+        .route(
             "/api/v1/dashboard/upstream-health-history",
             get(handlers::dashboard::get_upstream_health_history),
         )

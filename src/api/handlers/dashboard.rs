@@ -358,6 +358,85 @@ pub async fn get_latency_stats(
     })))
 }
 
+/// Get latency trend (P50/P95 per time bucket) for the time window.
+/// Bucket granularity: 1h for ≤24h, 6h for ≤168h, 24h for >168h.
+pub async fn get_latency_trend(
+    State(state): State<Arc<AppState>>,
+    _auth: AuthUser,
+    Query(params): Query<TrendParams>,
+) -> AppResult<Json<Value>> {
+    let hours = params.hours.unwrap_or(24).clamp(1, 720);
+    let time_filter = format!("-{} hours", hours);
+
+    // Fetch (hourly_bucket, elapsed_ns) pairs, capped at 30000 rows
+    let rows: Vec<(String, i64)> = sqlx::query_as(
+        "SELECT strftime('%Y-%m-%dT%H:00:00Z', time) as bucket, elapsed_ns
+         FROM query_log
+         WHERE upstream IS NOT NULL AND time >= datetime('now', ?)
+         ORDER BY bucket ASC
+         LIMIT 30000",
+    )
+    .bind(&time_filter)
+    .fetch_all(&state.db)
+    .await?;
+
+    if rows.is_empty() {
+        return Ok(Json(json!([])));
+    }
+
+    // Determine bucket granularity
+    let bucket_hours: u32 = if hours <= 24 {
+        1
+    } else if hours <= 168 {
+        6
+    } else {
+        24
+    };
+
+    // Group elapsed_ns values by merged bucket
+    let mut buckets: BTreeMap<String, Vec<i64>> = BTreeMap::new();
+    for (hourly_bucket, elapsed_ns) in rows {
+        let merged = if bucket_hours == 1 {
+            hourly_bucket
+        } else {
+            // Parse hour from "2026-03-07T14:00:00Z" (positions 11..13)
+            let hour: u32 = hourly_bucket
+                .get(11..13)
+                .and_then(|s| s.parse().ok())
+                .unwrap_or(0);
+            let rounded = (hour / bucket_hours) * bucket_hours;
+            format!("{}T{:02}:00:00Z", &hourly_bucket[..10], rounded)
+        };
+        buckets.entry(merged).or_default().push(elapsed_ns);
+    }
+
+    // Compute P50/P95 per bucket
+    let percentile = |sorted: &[i64], p: f64| -> f64 {
+        let n = sorted.len();
+        let idx = ((p / 100.0) * (n as f64 - 1.0)).round() as usize;
+        let idx = idx.min(n - 1);
+        (sorted[idx] as f64 / 1_000_000.0 * 10.0).round() / 10.0
+    };
+
+    let data: Vec<Value> = buckets
+        .into_iter()
+        .map(|(time, mut values)| {
+            values.sort_unstable();
+            let count = values.len();
+            let p50 = percentile(&values, 50.0);
+            let p95 = percentile(&values, 95.0);
+            json!({
+                "time": time,
+                "p50_ms": p50,
+                "p95_ms": p95,
+                "sample_count": count
+            })
+        })
+        .collect();
+
+    Ok(Json(json!(data)))
+}
+
 /// Get upstream distribution (count and percentage) for the time window
 pub async fn get_upstream_distribution(
     State(state): State<Arc<AppState>>,
