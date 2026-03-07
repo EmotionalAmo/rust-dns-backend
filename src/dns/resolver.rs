@@ -183,6 +183,31 @@ impl DnsResolver {
                         tracing::warn!("Invalid DoT upstream URL '{}': {}, skipping", upstream, e);
                     }
                 }
+            } else if upstream.starts_with("udp://") {
+                // --- Plain UDP upstream with explicit prefix (udp://ip or udp://ip:port) ---
+                let rest = upstream.strip_prefix("udp://").unwrap();
+                let addr: Option<SocketAddr> = if let Ok(a) = rest.parse::<SocketAddr>() {
+                    if prefer_ipv4 && a.is_ipv6() {
+                        tracing::debug!("Skipping IPv6 UDP upstream due to prefer_ipv4: {}", a);
+                        continue;
+                    }
+                    Some(a)
+                } else if let Ok(ip) = rest.parse::<IpAddr>() {
+                    if prefer_ipv4 && ip.is_ipv6() {
+                        tracing::debug!("Skipping IPv6 upstream due to prefer_ipv4: {}", ip);
+                        continue;
+                    }
+                    Some(SocketAddr::new(ip, 53))
+                } else {
+                    tracing::warn!("Invalid UDP upstream address, skipping: {}", upstream);
+                    None
+                };
+
+                if let Some(addr) = addr {
+                    config.add_name_server(NameServerConfig::new(addr, Protocol::Udp));
+                    added += 1;
+                    tracing::info!("Added UDP upstream {}", addr);
+                }
             } else if upstream.starts_with("tcp://") {
                 // --- TCP upstream (tcp://ip or tcp://ip:port) ---
                 let rest = upstream.strip_prefix("tcp://").unwrap();
