@@ -323,5 +323,41 @@ pub async fn get_anomalies(
         sb.partial_cmp(&sa).unwrap_or(std::cmp::Ordering::Equal)
     });
 
+    // 为每个异常设备自动创建 Alert（1小时冷却，避免重复告警）
+    for anomaly in &anomalies {
+        let ip = anomaly["client_ip"].as_str().unwrap_or("");
+        let current_count = anomaly["current_count"].as_i64().unwrap_or(0);
+        let mean = anomaly["mean"].as_f64().unwrap_or(0.0);
+        let sigma = anomaly["sigma"].as_f64().unwrap_or(0.0);
+
+        let existing: i64 = sqlx::query_scalar(
+            "SELECT COUNT(*) FROM alerts \
+             WHERE alert_type = 'anomaly_detection' \
+               AND client_id = ? \
+               AND created_at > datetime('now', '-1 hour')",
+        )
+        .bind(ip)
+        .fetch_one(&state.db)
+        .await
+        .unwrap_or(0);
+
+        if existing == 0 {
+            let alert_id = uuid::Uuid::new_v4().to_string();
+            let message = format!(
+                "设备 {} 请求量异常：当前 {} 次/小时，均值 {:.1}，偏差 {:.1}σ",
+                ip, current_count, mean, sigma
+            );
+            let _ = sqlx::query(
+                "INSERT INTO alerts (id, alert_type, client_id, message, is_read, created_at) \
+                 VALUES (?, 'anomaly_detection', ?, ?, 0, datetime('now'))",
+            )
+            .bind(&alert_id)
+            .bind(ip)
+            .bind(&message)
+            .execute(&state.db)
+            .await;
+        }
+    }
+
     Ok(Json(json!(anomalies)))
 }
