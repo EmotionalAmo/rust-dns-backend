@@ -241,3 +241,87 @@ pub async fn top_domains(
 
     Ok(Json(json!(data)))
 }
+
+pub async fn get_anomalies(
+    State(state): State<Arc<AppState>>,
+    _auth: AuthUser,
+) -> AppResult<Json<Value>> {
+    // 查询过去 7 天（不含当前小时）每个 client_ip 的每小时请求数
+    let history_rows = sqlx::query(
+        "SELECT client_ip, strftime('%Y-%m-%dT%H:00:00', time) as hour, COUNT(*) as cnt \
+         FROM query_log \
+         WHERE time >= datetime('now', '-7 days') \
+           AND time < strftime('%Y-%m-%dT%H:00:00', 'now') \
+         GROUP BY client_ip, hour",
+    )
+    .fetch_all(&state.db)
+    .await?;
+
+    // 在 Rust 中按 client_ip 分组，计算均值和标准差
+    use std::collections::HashMap;
+    let mut history: HashMap<String, Vec<f64>> = HashMap::new();
+    for row in &history_rows {
+        let ip: String = row.try_get("client_ip").unwrap_or_default();
+        let cnt: i64 = row.try_get("cnt").unwrap_or(0);
+        history.entry(ip).or_default().push(cnt as f64);
+    }
+
+    // 只保留至少有 24 个小时数据点的 client
+    let stats: HashMap<String, (f64, f64)> = history
+        .into_iter()
+        .filter(|(_, counts)| counts.len() >= 24)
+        .map(|(ip, counts)| {
+            let n = counts.len() as f64;
+            let sum: f64 = counts.iter().sum();
+            let sq_sum: f64 = counts.iter().map(|x| x * x).sum();
+            let mean = sum / n;
+            let variance = (sq_sum / n - mean * mean).max(0.0);
+            let stddev = variance.sqrt();
+            (ip, (mean, stddev))
+        })
+        .collect();
+
+    // 查询当前小时每个 client_ip 的请求数
+    let current_rows = sqlx::query(
+        "SELECT client_ip, COUNT(*) as cnt \
+         FROM query_log \
+         WHERE time >= strftime('%Y-%m-%dT%H:00:00', 'now') \
+         GROUP BY client_ip",
+    )
+    .fetch_all(&state.db)
+    .await?;
+
+    // 标记异常：current_count > mean + 2.0 * stddev
+    let mut anomalies: Vec<Value> = Vec::new();
+    for row in &current_rows {
+        let ip: String = row.try_get("client_ip").unwrap_or_default();
+        let current_count: i64 = row.try_get("cnt").unwrap_or(0);
+
+        if let Some((mean, stddev)) = stats.get(&ip) {
+            let threshold = mean + 2.0 * stddev;
+            if current_count as f64 > threshold {
+                let sigma = if *stddev > 0.0 {
+                    (current_count as f64 - mean) / stddev
+                } else {
+                    0.0
+                };
+                anomalies.push(json!({
+                    "client_ip": ip,
+                    "current_count": current_count,
+                    "mean": (mean * 100.0).round() / 100.0,
+                    "stddev": (stddev * 100.0).round() / 100.0,
+                    "sigma": (sigma * 100.0).round() / 100.0,
+                }));
+            }
+        }
+    }
+
+    // 按 sigma 降序排列
+    anomalies.sort_by(|a, b| {
+        let sa = a["sigma"].as_f64().unwrap_or(0.0);
+        let sb = b["sigma"].as_f64().unwrap_or(0.0);
+        sb.partial_cmp(&sa).unwrap_or(std::cmp::Ordering::Equal)
+    });
+
+    Ok(Json(json!(anomalies)))
+}

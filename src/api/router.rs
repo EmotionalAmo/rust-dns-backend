@@ -286,6 +286,10 @@ pub fn routes(state: Arc<AppState>) -> Router {
             "/api/v1/insights/domains/top",
             get(handlers::insights::top_domains),
         )
+        .route(
+            "/api/v1/insights/anomalies",
+            get(handlers::insights::get_anomalies),
+        )
         // Tools (protected)
         .route("/api/v1/tools/sandbox", post(handlers::sandbox::test_rule))
         .with_state(state)
