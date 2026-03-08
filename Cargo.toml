@@ -25,7 +25,7 @@ tower-http = { version = "0.6", features = ["cors", "trace", "compression-gzip",
 
 # DNS protocol
 hickory-proto = "0.24"
-hickory-resolver = { version = "0.24", features = ["tokio-runtime", "dns-over-https-rustls", "dns-over-tls", "dnssec-ring"] }
+hickory-resolver = { version = "0.24", features = ["tokio-runtime", "dns-over-https-rustls", "dns-over-tls", "dnssec-ring", "system-config"] }
 
 # Database
 sqlx = { version = "0.8", features = ["sqlite", "runtime-tokio-rustls", "migrate", "chrono", "uuid"] }

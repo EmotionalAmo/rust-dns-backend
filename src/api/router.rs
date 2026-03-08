@@ -155,6 +155,7 @@ pub fn routes(state: Arc<AppState>) -> Router {
             "/api/v1/clients",
             get(handlers::clients::list).post(handlers::clients::create),
         )
+        .route("/api/v1/clients/ptr", get(handlers::clients::ptr_lookup))
         .route(
             "/api/v1/clients/{id}/activity",
             get(handlers::clients::get_activity),

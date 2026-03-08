@@ -490,3 +490,47 @@ pub async fn get_activity(
         json!({ "data": data, "top_domains": top_domains_json }),
     ))
 }
+
+#[derive(Debug, Deserialize)]
+pub struct PtrQuery {
+    pub ip: String,
+}
+
+pub async fn ptr_lookup(
+    State(_state): State<Arc<AppState>>,
+    _auth: AuthUser,
+    Query(params): Query<PtrQuery>,
+) -> AppResult<Json<Value>> {
+    let ip: std::net::IpAddr = params
+        .ip
+        .parse()
+        .map_err(|_| AppError::Validation(format!("Invalid IP address: {}", params.ip)))?;
+
+    // Use system resolver so PTR queries route through the local network (router)
+    let (cfg, mut opts) = hickory_resolver::system_conf::read_system_conf().unwrap_or_else(|_| {
+        (
+            hickory_resolver::config::ResolverConfig::cloudflare(),
+            hickory_resolver::config::ResolverOpts::default(),
+        )
+    });
+    opts.timeout = std::time::Duration::from_secs(3);
+    opts.attempts = 1;
+
+    let resolver = hickory_resolver::TokioAsyncResolver::tokio(cfg, opts);
+
+    match tokio::time::timeout(
+        std::time::Duration::from_secs(4),
+        resolver.reverse_lookup(ip),
+    )
+    .await
+    {
+        Ok(Ok(lookup)) => {
+            let name = lookup
+                .iter()
+                .next()
+                .map(|n| n.to_string().trim_end_matches('.').to_string());
+            Ok(Json(serde_json::json!({ "ptr": name })))
+        }
+        _ => Ok(Json(serde_json::json!({ "ptr": null }))),
+    }
+}
