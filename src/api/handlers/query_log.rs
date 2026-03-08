@@ -19,6 +19,7 @@ pub struct QueryLogParams {
     limit: i64,
     #[serde(default)]
     offset: i64,
+    cursor: Option<i64>,
     status: Option<String>,
     client: Option<String>,
     domain: Option<String>,
@@ -107,12 +108,120 @@ pub async fn list(
         }
     }
 
+    // cursor 模式下追加 id < ? 条件
+    if params.cursor.is_some() {
+        conditions.push("id < ?".to_string());
+    }
+
     let where_clause = if conditions.is_empty() {
         String::new()
     } else {
         format!("WHERE {}", conditions.join(" AND "))
     };
 
+    // cursor 模式：用主键索引，不执行 COUNT(*)
+    if let Some(cursor) = params.cursor {
+        let fetch_limit = limit + 1;
+        let data_sql = format!(
+            "SELECT id, time, client_ip, client_name, question, qtype, answer, status, reason, elapsed_ns, upstream_ns, upstream
+             FROM query_log {where_clause} ORDER BY id DESC LIMIT ?"
+        );
+
+        let mut rows = {
+            let mut q = sqlx::query_as::<
+                _,
+                (
+                    i64,
+                    String,
+                    String,
+                    Option<String>,
+                    String,
+                    String,
+                    Option<String>,
+                    String,
+                    Option<String>,
+                    Option<i64>,
+                    Option<i64>,
+                    Option<String>,
+                ),
+            >(&data_sql);
+            if let Some(ref s) = params.status {
+                q = q.bind(s);
+            }
+            if let Some(ref c) = params.client {
+                q = q.bind(format!("%{c}%"));
+            }
+            if let Some(ref d) = params.domain {
+                q = q.bind(format!("%{d}%"));
+            }
+            if let Some(ref u) = params.upstream {
+                q = q.bind(u);
+            }
+            if let Some(ref qt) = params.qtype {
+                q = q.bind(qt);
+            }
+            q.bind(cursor)
+                .bind(fetch_limit)
+                .fetch_all(&state.db)
+                .await?
+        };
+
+        let has_more = rows.len() as i64 > limit;
+        if has_more {
+            rows.truncate(limit as usize);
+        }
+
+        let next_cursor: Option<i64> = if has_more {
+            rows.last().map(|r| r.0)
+        } else {
+            None
+        };
+
+        let data: Vec<Value> = rows
+            .into_iter()
+            .map(
+                |(
+                    id,
+                    time,
+                    client_ip,
+                    client_name,
+                    question,
+                    qtype,
+                    answer,
+                    status,
+                    reason,
+                    elapsed_ns,
+                    upstream_ns,
+                    upstream,
+                )| {
+                    json!({
+                        "id": id,
+                        "time": time,
+                        "client_ip": client_ip,
+                        "client_name": client_name,
+                        "question": question,
+                        "qtype": qtype,
+                        "answer": answer,
+                        "status": status,
+                        "reason": reason,
+                        "elapsed_ns": elapsed_ns,
+                        "upstream_ns": upstream_ns,
+                        "upstream": upstream,
+                    })
+                },
+            )
+            .collect();
+
+        let returned = data.len();
+        return Ok(Json(json!({
+            "data": data,
+            "has_more": has_more,
+            "next_cursor": next_cursor,
+            "returned": returned,
+        })));
+    }
+
+    // offset 模式：保持原有逻辑不变
     let data_sql = format!(
         "SELECT id, time, client_ip, client_name, question, qtype, answer, status, reason, elapsed_ns, upstream_ns, upstream
          FROM query_log {where_clause} ORDER BY time DESC LIMIT ? OFFSET ?"
