@@ -38,6 +38,8 @@ pub struct RuleSet {
     wildcard_blocked_set: Option<RegexSet>,
     /// Compiled RegexSet for wildcard allow matching (built by `build()`).
     wildcard_allowed_set: Option<RegexSet>,
+    /// If true, all domains are blocked unless explicitly allowed (`||*^` or `||*`).
+    block_all: bool,
 }
 
 impl Default for RuleSet {
@@ -55,6 +57,7 @@ impl RuleSet {
             wildcard_allowed_patterns: Vec::new(),
             wildcard_blocked_set: None,
             wildcard_allowed_set: None,
+            block_all: false,
         }
     }
 
@@ -66,6 +69,7 @@ impl RuleSet {
             wildcard_allowed_patterns: Vec::new(),
             wildcard_blocked_set: None,
             wildcard_allowed_set: None,
+            block_all: false,
         }
     }
 
@@ -100,6 +104,12 @@ impl RuleSet {
         // Regex rules — skip for now (too complex, rare in DNS context)
         if line.starts_with('/') && line.ends_with('/') {
             return false;
+        }
+
+        // Special case: ||*^ or ||* = block all domains
+        if line == "||*^" || line == "||*" {
+            self.block_all = true;
+            return true;
         }
 
         // Allowlist: @@||domain^ or @@domain
@@ -188,6 +198,11 @@ impl RuleSet {
         }
         if self.matches_wildcard_set(&domain, &self.wildcard_allowed_set) {
             return MatchResult::Allowed;
+        }
+
+        // block_all: every domain is blocked unless exempted by allowlist above
+        if self.block_all {
+            return MatchResult::Blocked;
         }
 
         // Check blocklist
@@ -647,5 +662,33 @@ mod tests {
         // "ad-.example.com" 中 * 部分为空，不应匹配
         assert!(!rs.is_blocked("ad-.example.com"));
         assert!(rs.is_blocked("ad-x.example.com"));
+    }
+
+    #[test]
+    fn test_block_all_rule() {
+        let mut rs = RuleSet::new();
+        rs.add_rule("||*^");
+        assert!(rs.is_blocked("example.com"));
+        assert!(rs.is_blocked("google.com"));
+        assert!(rs.is_blocked("a.b.c.d.example.com"));
+    }
+
+    #[test]
+    fn test_block_all_allowlist_override() {
+        // allowlist should still override block-all
+        let mut rs = RuleSet::new();
+        rs.add_rule("||*^");
+        rs.add_rule("@@||safe.com^");
+        assert!(rs.is_blocked("evil.com"));
+        assert!(!rs.is_blocked("safe.com"));
+        assert!(!rs.is_blocked("sub.safe.com"));
+    }
+
+    #[test]
+    fn test_block_all_bare_star() {
+        // ||* (without trailing ^) should also work
+        let mut rs = RuleSet::new();
+        rs.add_rule("||*");
+        assert!(rs.is_blocked("anything.com"));
     }
 }
