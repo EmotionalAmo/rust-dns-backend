@@ -463,6 +463,34 @@ fn build_filter_condition(
     }
 }
 
+#[derive(Deserialize)]
+pub struct BulkDeleteRequest {
+    ids: Vec<i64>,
+}
+
+pub async fn bulk_delete(
+    State(state): State<Arc<AppState>>,
+    _admin: AdminUser,
+    Json(payload): Json<BulkDeleteRequest>,
+) -> AppResult<Json<Value>> {
+    if payload.ids.is_empty() {
+        return Ok(Json(json!({ "deleted": 0 })));
+    }
+    let placeholders = payload
+        .ids
+        .iter()
+        .map(|_| "?")
+        .collect::<Vec<_>>()
+        .join(", ");
+    let sql = format!("DELETE FROM query_log WHERE id IN ({})", placeholders);
+    let mut q = sqlx::query(&sql);
+    for id in &payload.ids {
+        q = q.bind(id);
+    }
+    let result = q.execute(&state.db).await?;
+    Ok(Json(json!({ "deleted": result.rows_affected() })))
+}
+
 // Escape CSV field (handle quotes and commas)
 fn escape_csv_field(value: &str) -> String {
     if value.contains(',') || value.contains('"') || value.contains('\n') {
