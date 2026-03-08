@@ -1,5 +1,5 @@
 use axum::{
-    extract::{Path, State},
+    extract::{Path, Query, State},
     Json,
 };
 use chrono::Utc;
@@ -399,4 +399,94 @@ pub async fn delete(
     );
 
     Ok(Json(json!({"success": true})))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct ActivityQuery {
+    pub hours: Option<i64>,
+}
+
+pub async fn get_activity(
+    State(state): State<Arc<AppState>>,
+    _auth: AuthUser,
+    Path(id): Path<String>,
+    Query(params): Query<ActivityQuery>,
+) -> AppResult<Json<Value>> {
+    let hours = params.hours.unwrap_or(24).clamp(1, 168);
+    let time_filter = format!("-{} hours", hours);
+    let mac_re = regex::Regex::new(r"^([0-9a-fA-F]{2}[:-]){5}[0-9a-fA-F]{2}$").unwrap();
+
+    // Determine IPs for this client
+    let ips: Vec<String> = if let Some(ip) = id.strip_prefix("dynamic-") {
+        vec![ip.to_string()]
+    } else {
+        let row: Option<(String,)> = sqlx::query_as("SELECT identifiers FROM clients WHERE id = ?")
+            .bind(&id)
+            .fetch_optional(&state.db)
+            .await?;
+
+        match row {
+            None => return Err(AppError::NotFound(format!("Client {} not found", id))),
+            Some((identifiers,)) => {
+                let idents: Vec<String> = serde_json::from_str(&identifiers).unwrap_or_default();
+                idents.into_iter().filter(|i| !mac_re.is_match(i)).collect()
+            }
+        }
+    };
+
+    if ips.is_empty() {
+        return Ok(Json(json!({ "data": [], "top_domains": [] })));
+    }
+
+    let ips_json = serde_json::to_string(&ips).unwrap_or_else(|_| "[]".to_string());
+
+    // Hourly activity buckets
+    let activity_rows: Vec<(String, i64, i64)> = sqlx::query_as(
+        r#"
+        SELECT
+            strftime('%Y-%m-%dT%H:00:00', time) as hour,
+            COUNT(*) as total,
+            SUM(CASE WHEN status = 'blocked' THEN 1 ELSE 0 END) as blocked
+        FROM query_log
+        WHERE client_ip IN (SELECT value FROM json_each(?))
+          AND time >= datetime('now', ?)
+        GROUP BY hour
+        ORDER BY hour ASC
+        "#,
+    )
+    .bind(&ips_json)
+    .bind(&time_filter)
+    .fetch_all(&state.db)
+    .await?;
+
+    // Top queried domains
+    let top_domains: Vec<(String, i64)> = sqlx::query_as(
+        r#"
+        SELECT question, COUNT(*) as count
+        FROM query_log
+        WHERE client_ip IN (SELECT value FROM json_each(?))
+          AND time >= datetime('now', ?)
+        GROUP BY question
+        ORDER BY count DESC
+        LIMIT 10
+        "#,
+    )
+    .bind(&ips_json)
+    .bind(&time_filter)
+    .fetch_all(&state.db)
+    .await?;
+
+    let data: Vec<Value> = activity_rows
+        .into_iter()
+        .map(|(hour, total, blocked)| json!({ "hour": hour, "total": total, "blocked": blocked }))
+        .collect();
+
+    let top_domains_json: Vec<Value> = top_domains
+        .into_iter()
+        .map(|(domain, count)| json!({ "domain": domain, "count": count }))
+        .collect();
+
+    Ok(Json(
+        json!({ "data": data, "top_domains": top_domains_json }),
+    ))
 }

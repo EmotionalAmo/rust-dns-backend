@@ -152,6 +152,10 @@ pub fn routes(state: Arc<AppState>) -> Router {
             get(handlers::clients::list).post(handlers::clients::create),
         )
         .route(
+            "/api/v1/clients/{id}/activity",
+            get(handlers::clients::get_activity),
+        )
+        .route(
             "/api/v1/clients/{id}",
             put(handlers::clients::update).delete(handlers::clients::delete),
         )
