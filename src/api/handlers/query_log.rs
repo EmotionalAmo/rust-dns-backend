@@ -235,6 +235,8 @@ pub struct ExportParams {
     // Optional filter support (JSON-encoded filters from advanced filter)
     #[serde(default)]
     filters_json: Option<String>,
+    #[serde(default)]
+    time_range: Option<String>,
 }
 
 fn default_export_format() -> String {
@@ -308,6 +310,29 @@ pub async fn export(
         }
     } else {
         (String::new(), Vec::new())
+    };
+
+    // Append time_range condition if provided
+    let where_clause = if let Some(ref tr) = params.time_range {
+        let sqlite_modifier = match tr.as_str() {
+            "1h" => Some("-1 hours"),
+            "6h" => Some("-6 hours"),
+            "24h" => Some("-24 hours"),
+            "7d" => Some("-7 days"),
+            _ => None,
+        };
+        if let Some(modifier) = sqlite_modifier {
+            let time_cond = format!("time >= datetime('now', '{}')", modifier);
+            if where_clause.is_empty() {
+                format!("WHERE {}", time_cond)
+            } else {
+                format!("{} AND {}", where_clause, time_cond)
+            }
+        } else {
+            where_clause
+        }
+    } else {
+        where_clause
     };
 
     // Build and execute query
