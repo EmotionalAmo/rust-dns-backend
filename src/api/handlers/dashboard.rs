@@ -148,8 +148,10 @@ pub async fn get_top_clients(
     Query(params): Query<TrendParams>,
 ) -> AppResult<Json<Value>> {
     let hours = params.hours.unwrap_or(24).clamp(1, 720);
-    let rows: Vec<(String, i64)> = sqlx::query_as(
-        "SELECT client_ip, COUNT(*) as cnt FROM query_log
+    let rows: Vec<(String, i64, i64)> = sqlx::query_as(
+        "SELECT client_ip, COUNT(*) as cnt,
+                COUNT(CASE WHEN status = 'blocked' THEN 1 END) as blocked_cnt
+         FROM query_log
          WHERE time >= datetime('now', printf('-%d hours', ?))
          GROUP BY client_ip ORDER BY cnt DESC LIMIT 10",
     )
@@ -159,7 +161,19 @@ pub async fn get_top_clients(
 
     let data: Vec<Value> = rows
         .into_iter()
-        .map(|(client_ip, count)| json!({"client_ip": client_ip, "count": count}))
+        .map(|(client_ip, count, blocked_count)| {
+            let block_rate = if count > 0 {
+                (blocked_count as f64 / count as f64 * 100.0 * 10.0).round() / 10.0
+            } else {
+                0.0
+            };
+            json!({
+                "client_ip": client_ip,
+                "count": count,
+                "blocked_count": blocked_count,
+                "block_rate": block_rate,
+            })
+        })
         .collect();
 
     Ok(Json(json!(data)))
