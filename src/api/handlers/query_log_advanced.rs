@@ -14,6 +14,7 @@ use axum::{
 use chrono::{Duration, Utc};
 use serde::Deserialize;
 use serde_json::{json, Value};
+use sqlx::Row;
 use std::sync::Arc;
 
 // ============================================================================
@@ -568,13 +569,20 @@ pub async fn aggregate(
                 _ => {}
             }
         }
+        let group_fields_clone = params.group_by.clone();
         q.bind(params.limit)
             .fetch_all(&state.db)
             .await?
             .into_iter()
-            .map(|_| {
-                // Generic row handling (simplified)
-                json!({})
+            .map(|row| {
+                let mut obj = serde_json::Map::new();
+                for field in &group_fields_clone {
+                    let val: Option<String> = row.try_get(field.as_str()).unwrap_or(None);
+                    obj.insert(field.clone(), val.map(Value::String).unwrap_or(Value::Null));
+                }
+                let metric: i64 = row.try_get("metric").unwrap_or(0);
+                obj.insert("metric".to_string(), Value::Number(metric.into()));
+                Value::Object(obj)
             })
             .collect()
     };

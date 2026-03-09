@@ -71,7 +71,8 @@ pub fn routes(state: Arc<AppState>) -> Router {
         // Query log advanced filtering (protected)
         .route(
             "/api/v1/query-log/advanced",
-            get(handlers::query_log_advanced::list_advanced),
+            get(handlers::query_log_advanced::list_advanced)
+                .post(handlers::query_log_advanced::list_advanced_post),
         )
         .route(
             "/api/v1/query-log/aggregate",
