@@ -32,14 +32,16 @@ permissions:
 jobs:
   build-and-push:
     name: Build & Push (${{ matrix.platform }})
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.runner }}
 
     strategy:
       fail-fast: false
       matrix:
-        platform:
-          - linux/amd64
-          - linux/arm64
+        include:
+          - platform: linux/amd64
+            runner: ubuntu-24.04
+          - platform: linux/arm64
+            runner: ubuntu-24.04-arm
 
     outputs:
       # expose the image digest from the amd64 leg for the smoke test
@@ -56,9 +58,6 @@ jobs:
         id: slug
         run: |
           echo "value=$(echo ${{ matrix.platform }} | tr '/' '-')" >> "$GITHUB_OUTPUT"
-
-      - name: Set up QEMU (cross-platform emulation)
-        uses: docker/setup-qemu-action@v3
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
