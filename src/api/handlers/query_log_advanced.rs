@@ -549,8 +549,8 @@ pub async fn aggregate(
     // GROUP BY query
     let group_fields = params.group_by.join(", ");
     let metric_sql = match params.metric.as_str() {
-        "sum_elapsed_ms" => "COALESCE(SUM(elapsed_ms), 0) as metric",
-        "avg_elapsed_ms" => "COALESCE(AVG(elapsed_ms), 0) as metric",
+        "sum_elapsed_ms" => "COALESCE(SUM(elapsed_ns), 0) as metric",
+        "avg_elapsed_ms" => "COALESCE(AVG(elapsed_ns), 0) as metric",
         _ => "COUNT(*) as metric",
     };
 
