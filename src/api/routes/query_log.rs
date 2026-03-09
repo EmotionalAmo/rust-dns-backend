@@ -11,7 +11,7 @@ use std::sync::Arc;
 
 use crate::api::AppState;
 use crate::api::handlers::query_log::{list, export};
-use crate::api::handlers::query_log_advanced::{list_advanced, aggregate, top, suggest};
+use crate::api::handlers::query_log_advanced::{list_advanced, list_advanced_post, aggregate, top, suggest};
 use crate::api::handlers::query_log_templates::{list as list_templates, create as create_template, get as get_template, update as update_template, delete as delete_template};
 use crate::api::middleware::auth::AuthUser;
 use crate::api::middleware::rbac::AdminUser;
@@ -24,6 +24,7 @@ pub fn create_routes() -> Router<Arc<AppState>> {
 
         // ===== 高级过滤 =====
         .route("/query-log/advanced", get(list_advanced))
+        .route("/query-log/advanced", post(list_advanced_post))
         .route("/query-log/aggregate", get(aggregate))
         .route("/query-log/top", get(top))
         .route("/query-log/suggest", get(suggest))

@@ -39,6 +39,19 @@ pub struct AdvancedQueryParams {
     pub offset: i64,
 }
 
+/// POST body 版本的高级查询参数（与 AdvancedQueryParams 结构相同，但通过 JSON body 接收）
+#[derive(Debug, Deserialize)]
+pub struct AdvancedQueryBody {
+    #[serde(default)]
+    pub filters: Vec<Filter>,
+    #[serde(default = "default_logic")]
+    pub logic: String,
+    #[serde(default = "default_limit")]
+    pub limit: i64,
+    #[serde(default)]
+    pub offset: i64,
+}
+
 #[derive(Debug, Deserialize)]
 pub struct AggregateParams {
     #[serde(default)]
@@ -233,7 +246,7 @@ impl QueryBuilder {
                 let field_owned = field.to_string();
                 (format!("{} IN ({})", field_owned, placeholders), values)
             }
-            // 数值比较
+            // 数值比较（elapsed_ms 直接比较）
             ("elapsed_ms", op) if matches!(op, "gt" | "lt" | "gte" | "lte" | "eq") => {
                 let sql_op = match op {
                     "gt" => ">",
@@ -244,6 +257,22 @@ impl QueryBuilder {
                     _ => unreachable!(),
                 };
                 (format!("elapsed_ms {} ?", sql_op), vec![value])
+            }
+            // 数值比较（elapsed_ns 转换为 ms 后比较，ns / 1_000_000 = ms）
+            ("elapsed_ns", op) if matches!(op, "gt" | "lt" | "gte" | "lte" | "eq") => {
+                let sql_op = match op {
+                    "gt" => ">",
+                    "lt" => "<",
+                    "gte" => ">=",
+                    "lte" => "<=",
+                    "eq" => "=",
+                    _ => unreachable!(),
+                };
+                let ns_value = value.as_i64().ok_or_else(|| {
+                    AppError::Validation("elapsed_ns must be a number".to_string())
+                })?;
+                let ms_value = ns_value / 1_000_000;
+                (format!("elapsed_ms {} ?", sql_op), vec![json!(ms_value)])
             }
             // 原因字段
             ("reason", "eq" | "like") => {
@@ -654,5 +683,121 @@ pub async fn suggest(
         "field": field_resp,
         "prefix": prefix_resp,
         "count": suggestions.len(),
+    })))
+}
+
+/// 高级查询日志列表（POST 版本，filters 通过 JSON body 传递）
+pub async fn list_advanced_post(
+    State(state): State<Arc<AppState>>,
+    _auth: AuthUser,
+    Json(body): Json<AdvancedQueryBody>,
+) -> AppResult<Json<Value>> {
+    let limit = body.limit.clamp(1, 1000);
+
+    let mut builder = QueryBuilder::new();
+    for filter in &body.filters {
+        builder.add_filter(filter)?;
+    }
+
+    // Build a separate count query with the same WHERE conditions (no LIMIT/OFFSET)
+    let (count_sql, count_bindings) = {
+        let where_clause = if builder.conditions.is_empty() {
+            String::new()
+        } else {
+            let connector = if body.logic.to_uppercase() == "OR" {
+                " OR "
+            } else {
+                " AND "
+            };
+            format!("WHERE {}", builder.conditions.join(connector))
+        };
+        let sql = format!("SELECT COUNT(*) FROM query_log {}", where_clause);
+        (sql, builder.bindings.clone())
+    };
+
+    let (sql, bindings) = builder.build(&body.logic, limit, body.offset);
+
+    // Execute count query first to get total matching records
+    let total: i64 = {
+        let mut q = sqlx::query_scalar::<_, i64>(&count_sql);
+        for binding in &count_bindings {
+            match binding {
+                Value::String(s) => q = q.bind(s),
+                Value::Number(n) => q = q.bind(n.as_i64().unwrap_or(0)),
+                _ => {}
+            }
+        }
+        q.fetch_one(&state.db).await?
+    };
+
+    // Execute data query
+    let rows = {
+        let mut q = sqlx::query_as::<
+            _,
+            (
+                i64,
+                String,
+                String,
+                Option<String>,
+                String,
+                String,
+                Option<String>,
+                String,
+                Option<String>,
+                Option<String>,
+                Option<i64>,
+            ),
+        >(&sql);
+        for binding in &bindings {
+            match binding {
+                Value::String(s) => q = q.bind(s),
+                Value::Number(n) => q = q.bind(n.as_i64().unwrap_or(0)),
+                _ => {}
+            }
+        }
+        q.fetch_all(&state.db).await?
+    };
+
+    let data: Vec<Value> = rows
+        .into_iter()
+        .map(
+            |(
+                id,
+                time,
+                client_ip,
+                client_name,
+                question,
+                qtype,
+                answer,
+                status,
+                reason,
+                upstream,
+                elapsed_ms,
+            )| {
+                json!({
+                    "id": id,
+                    "time": time,
+                    "client_ip": client_ip,
+                    "client_name": client_name,
+                    "question": question,
+                    "qtype": qtype,
+                    "answer": answer,
+                    "status": status,
+                    "reason": reason,
+                    "upstream": upstream,
+                    "elapsed_ms": elapsed_ms,
+                })
+            },
+        )
+        .collect();
+
+    let returned = data.len();
+
+    Ok(Json(json!({
+        "data": data,
+        "total": total,
+        "returned": returned,
+        "offset": body.offset,
+        "limit": limit,
     })))
 }
