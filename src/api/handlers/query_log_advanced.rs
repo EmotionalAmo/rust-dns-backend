@@ -246,7 +246,7 @@ impl QueryBuilder {
                 let field_owned = field.to_string();
                 (format!("{} IN ({})", field_owned, placeholders), values)
             }
-            // 数值比较（elapsed_ms 直接比较）
+            // 数值比较（elapsed_ms：用户传毫秒，转换为纳秒后与 elapsed_ns 列比较）
             ("elapsed_ms", op) if matches!(op, "gt" | "lt" | "gte" | "lte" | "eq") => {
                 let sql_op = match op {
                     "gt" => ">",
@@ -256,9 +256,13 @@ impl QueryBuilder {
                     "eq" => "=",
                     _ => unreachable!(),
                 };
-                (format!("elapsed_ms {} ?", sql_op), vec![value])
+                let ms_value = value.as_i64().ok_or_else(|| {
+                    AppError::Validation("elapsed_ms must be a number".to_string())
+                })?;
+                let ns_value = ms_value * 1_000_000;
+                (format!("elapsed_ns {} ?", sql_op), vec![json!(ns_value)])
             }
-            // 数值比较（elapsed_ns 转换为 ms 后比较，ns / 1_000_000 = ms）
+            // 数值比较（elapsed_ns：直接与 elapsed_ns 列比较）
             ("elapsed_ns", op) if matches!(op, "gt" | "lt" | "gte" | "lte" | "eq") => {
                 let sql_op = match op {
                     "gt" => ">",
@@ -271,8 +275,7 @@ impl QueryBuilder {
                 let ns_value = value.as_i64().ok_or_else(|| {
                     AppError::Validation("elapsed_ns must be a number".to_string())
                 })?;
-                let ms_value = ns_value / 1_000_000;
-                (format!("elapsed_ms {} ?", sql_op), vec![json!(ms_value)])
+                (format!("elapsed_ns {} ?", sql_op), vec![json!(ns_value)])
             }
             // 原因字段
             ("reason", "eq" | "like") => {
@@ -308,7 +311,7 @@ impl QueryBuilder {
         };
 
         let sql = format!(
-            "SELECT id, time, client_ip, client_name, question, qtype, answer, status, reason, upstream, elapsed_ms
+            "SELECT id, time, client_ip, client_name, question, qtype, answer, status, reason, upstream, elapsed_ns
              FROM query_log {where_clause} ORDER BY time DESC LIMIT ? OFFSET ?"
         );
 
@@ -442,7 +445,7 @@ pub async fn list_advanced(
                 status,
                 reason,
                 upstream,
-                elapsed_ms,
+                elapsed_ns,
             )| {
                 json!({
                     "id": id,
@@ -455,7 +458,7 @@ pub async fn list_advanced(
                     "status": status,
                     "reason": reason,
                     "upstream": upstream,
-                    "elapsed_ms": elapsed_ms,
+                    "elapsed_ns": elapsed_ns,
                 })
             },
         )
@@ -496,8 +499,8 @@ pub async fn aggregate(
     // 如果没有 group_by，返回总体统计
     if params.group_by.is_empty() {
         let metric_sql = match params.metric.as_str() {
-            "sum_elapsed_ms" => "COALESCE(SUM(elapsed_ms), 0) as metric",
-            "avg_elapsed_ms" => "COALESCE(AVG(elapsed_ms), 0) as metric",
+            "sum_elapsed_ms" => "COALESCE(SUM(elapsed_ns), 0) as metric",
+            "avg_elapsed_ms" => "COALESCE(AVG(elapsed_ns), 0) as metric",
             _ => "COUNT(*) as metric",
         };
 
@@ -772,7 +775,7 @@ pub async fn list_advanced_post(
                 status,
                 reason,
                 upstream,
-                elapsed_ms,
+                elapsed_ns,
             )| {
                 json!({
                     "id": id,
@@ -785,7 +788,7 @@ pub async fn list_advanced_post(
                     "status": status,
                     "reason": reason,
                     "upstream": upstream,
-                    "elapsed_ms": elapsed_ms,
+                    "elapsed_ns": elapsed_ns,
                 })
             },
         )

@@ -15,7 +15,7 @@ pub struct QueryLogEntry {
     pub status: String,
     pub reason: Option<String>,
     pub upstream: Option<String>,
-    pub elapsed_ms: Option<i64>,
+    pub elapsed_ns: Option<i64>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
