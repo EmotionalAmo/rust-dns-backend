@@ -149,7 +149,7 @@ pub async fn rule_hit_stats(
         "SELECT question, COUNT(*) as cnt, MAX(time) as last_seen
          FROM query_log
          WHERE status = 'blocked'
-           AND time >= datetime('now', ? || ' hours')
+           AND time >= NOW() - ($1 * INTERVAL '1 hour')
          GROUP BY question",
     )
     .bind(format!("-{}", hours))

@@ -67,7 +67,7 @@ pub async fn create(
 
     let result = sqlx::query(
         "INSERT INTO dns_rewrites (id, domain, answer, created_by, created_at)
-         VALUES (?, ?, ?, ?, ?)",
+         VALUES ($1, $2, $3, $4, $5)",
     )
     .bind(&id)
     .bind(&domain)
@@ -106,7 +106,10 @@ pub async fn create(
             })))
         }
         Err(e) => {
-            if e.to_string().contains("UNIQUE constraint") {
+            if e.to_string().contains("UNIQUE constraint")
+                || e.to_string().contains("duplicate key value")
+                || e.to_string().contains("unique constraint")
+            {
                 Err(AppError::Validation(format!(
                     "Domain '{}' already has a rewrite rule",
                     domain
@@ -128,7 +131,7 @@ pub async fn update(
     // Check if rewrite exists
     let existing: Option<(String, String, String, String, String)> = sqlx::query_as(
         "SELECT id, domain, answer, created_by, created_at
-         FROM dns_rewrites WHERE id = ?",
+         FROM dns_rewrites WHERE id = $1",
     )
     .bind(&id)
     .fetch_optional(&state.db)
@@ -149,7 +152,7 @@ pub async fn update(
         ));
     }
 
-    let result = sqlx::query("UPDATE dns_rewrites SET domain = ?, answer = ? WHERE id = ?")
+    let result = sqlx::query("UPDATE dns_rewrites SET domain = $1, answer = $2 WHERE id = $3")
         .bind(&domain)
         .bind(&answer)
         .bind(&id)
@@ -185,7 +188,10 @@ pub async fn update(
             })))
         }
         Err(e) => {
-            if e.to_string().contains("UNIQUE constraint") {
+            if e.to_string().contains("UNIQUE constraint")
+                || e.to_string().contains("duplicate key value")
+                || e.to_string().contains("unique constraint")
+            {
                 Err(AppError::Validation(format!(
                     "Domain '{}' already has a rewrite rule",
                     domain
@@ -203,7 +209,7 @@ pub async fn delete(
     auth: AuthUser,
     Path(id): Path<String>,
 ) -> AppResult<Json<Value>> {
-    let result = sqlx::query("DELETE FROM dns_rewrites WHERE id = ?")
+    let result = sqlx::query("DELETE FROM dns_rewrites WHERE id = $1")
         .bind(&id)
         .execute(&state.db)
         .await?;

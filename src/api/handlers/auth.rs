@@ -49,8 +49,8 @@ pub async fn login(
         }
     }
 
-    let row: Option<(String, String, String, i64)> =
-        sqlx::query_as("SELECT id, password, role, is_active FROM users WHERE username = ?")
+    let row: Option<(String, String, String, i32)> =
+        sqlx::query_as("SELECT id, password, role, is_active FROM users WHERE username = $1")
             .bind(&req.username)
             .fetch_optional(&state.db)
             .await?;
@@ -187,8 +187,10 @@ pub async fn change_password(
         .map_err(|e| AppError::Internal(e.to_string()))?;
 
     // Update password
-    sqlx::query("UPDATE users SET password = ?, updated_at = datetime('now') WHERE id = ?")
+    let now_str = chrono::Utc::now().to_rfc3339();
+    sqlx::query("UPDATE users SET password = $1, updated_at = $2 WHERE id = $3")
         .bind(&new_password_hash)
+        .bind(&now_str)
         .bind(&user_id)
         .execute(&state.db)
         .await?;

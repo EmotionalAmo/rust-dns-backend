@@ -58,10 +58,10 @@ pub async fn list(
     State(state): State<Arc<AppState>>,
     auth: AuthUser,
 ) -> AppResult<Json<Vec<Template>>> {
-    let rows = sqlx::query_as::<_, (String, String, String, String, String, String, i64)>(
+    let rows = sqlx::query_as::<_, (String, String, String, String, String, String, bool)>(
         "SELECT id, name, filters, logic, created_by, created_at, is_public
          FROM query_log_templates
-         WHERE is_public = 1 OR created_by = ?
+         WHERE is_public = true OR created_by = $1
          ORDER BY created_at DESC",
     )
     .bind(&auth.0.username)
@@ -78,7 +78,7 @@ pub async fn list(
                 logic,
                 created_by,
                 created_at,
-                is_public: is_public != 0,
+                is_public,
             },
         )
         .collect();
@@ -101,7 +101,7 @@ pub async fn create(
 
     sqlx::query(
         "INSERT INTO query_log_templates (id, name, filters, logic, created_by, created_at, is_public)
-         VALUES (?, ?, ?, ?, ?, ?, ?)"
+         VALUES ($1, $2, $3, $4, $5, $6, $7)"
     )
     .bind(&id)
     .bind(&req.name)
@@ -109,7 +109,7 @@ pub async fn create(
     .bind(&logic)
     .bind(&auth.0.username)
     .bind(&now)
-    .bind(is_public as i64)
+    .bind(is_public)
     .execute(&state.db)
     .await?;
 
@@ -130,10 +130,10 @@ pub async fn get(
     auth: AuthUser,
     Path(id): Path<String>,
 ) -> AppResult<Json<Template>> {
-    let row = sqlx::query_as::<_, (String, String, String, String, String, String, i64)>(
+    let row = sqlx::query_as::<_, (String, String, String, String, String, String, bool)>(
         "SELECT id, name, filters, logic, created_by, created_at, is_public
          FROM query_log_templates
-         WHERE id = ? AND (is_public = 1 OR created_by = ?)",
+         WHERE id = $1 AND (is_public = true OR created_by = $2)",
     )
     .bind(&id)
     .bind(&auth.0.username)
@@ -149,7 +149,7 @@ pub async fn get(
         logic,
         created_by,
         created_at,
-        is_public: is_public != 0,
+        is_public,
     }))
 }
 
@@ -162,7 +162,7 @@ pub async fn update(
 ) -> AppResult<Json<Template>> {
     // 权限检查：必须是创建者
     let owner: Option<String> =
-        sqlx::query_scalar("SELECT created_by FROM query_log_templates WHERE id = ?")
+        sqlx::query_scalar("SELECT created_by FROM query_log_templates WHERE id = $1")
             .bind(&id)
             .fetch_optional(&state.db)
             .await?
@@ -175,24 +175,29 @@ pub async fn update(
     // 构建动态更新语句
     let mut updates = Vec::new();
     let mut bindings: Vec<String> = Vec::new();
+    let mut param_idx = 1;
 
     if let Some(name) = req.name {
-        updates.push("name = ?");
+        updates.push(format!("name = ${}", param_idx));
         bindings.push(name);
+        param_idx += 1;
     }
     if let Some(filters) = req.filters {
-        updates.push("filters = ?");
+        updates.push(format!("filters = ${}", param_idx));
         let filters_json = serde_json::to_string(&filters)
             .map_err(|e| anyhow::anyhow!("Invalid filters JSON: {}", e))?;
         bindings.push(filters_json);
+        param_idx += 1;
     }
     if let Some(logic) = req.logic {
-        updates.push("logic = ?");
+        updates.push(format!("logic = ${}", param_idx));
         bindings.push(logic);
+        param_idx += 1;
     }
     if let Some(is_public) = req.is_public {
-        updates.push("is_public = ?");
+        updates.push(format!("is_public = ${}", param_idx));
         bindings.push(is_public.to_string());
+        param_idx += 1;
     }
 
     if updates.is_empty() {
@@ -200,8 +205,9 @@ pub async fn update(
     }
 
     let sql = format!(
-        "UPDATE query_log_templates SET {} WHERE id = ?",
-        updates.join(", ")
+        "UPDATE query_log_templates SET {} WHERE id = ${}",
+        updates.join(", "),
+        param_idx
     );
 
     // Execute update
@@ -224,7 +230,7 @@ pub async fn delete(
     Path(id): Path<String>,
 ) -> AppResult<impl IntoResponse> {
     let owner: Option<String> =
-        sqlx::query_scalar("SELECT created_by FROM query_log_templates WHERE id = ?")
+        sqlx::query_scalar("SELECT created_by FROM query_log_templates WHERE id = $1")
             .bind(&id)
             .fetch_optional(&state.db)
             .await?
@@ -234,7 +240,7 @@ pub async fn delete(
         return Err(AppError::Unauthorized("you are not the owner".to_string()));
     }
 
-    sqlx::query("DELETE FROM query_log_templates WHERE id = ?")
+    sqlx::query("DELETE FROM query_log_templates WHERE id = $1")
         .bind(&id)
         .execute(&state.db)
         .await?;

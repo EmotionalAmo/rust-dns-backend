@@ -78,39 +78,50 @@ pub async fn list(
 
     let limit = params.limit.clamp(1, 1000);
 
-    // Build dynamic WHERE clause with SQL-level filtering (fixes fake-pagination bug)
+    // Build dynamic WHERE clause using $N positional parameters
     let mut conditions = Vec::<String>::new();
+    let mut param_idx = 1usize;
+
     if params.status.is_some() {
-        conditions.push("status = ?".to_string());
+        conditions.push(format!("status = ${}", param_idx));
+        param_idx += 1;
     }
     if params.client.is_some() {
-        conditions.push("client_ip LIKE ?".to_string());
+        conditions.push(format!("client_ip LIKE ${}", param_idx));
+        param_idx += 1;
     }
     if params.domain.is_some() {
-        conditions.push("question LIKE ?".to_string());
+        conditions.push(format!("question LIKE ${}", param_idx));
+        param_idx += 1;
     }
     if params.upstream.is_some() {
-        conditions.push("upstream = ?".to_string());
+        conditions.push(format!("upstream = ${}", param_idx));
+        param_idx += 1;
     }
     if params.qtype.is_some() {
-        conditions.push("qtype = ?".to_string());
+        conditions.push(format!("qtype = ${}", param_idx));
+        param_idx += 1;
     }
     if let Some(ref tr) = params.time_range {
-        let sqlite_modifier = match tr.as_str() {
-            "1h" => Some("-1 hours"),
-            "6h" => Some("-6 hours"),
-            "24h" => Some("-24 hours"),
-            "7d" => Some("-7 days"),
+        // time is stored as RFC3339 TEXT, use string comparison for time filtering
+        let cutoff = match tr.as_str() {
+            "1h" => Some(chrono::Utc::now() - chrono::Duration::hours(1)),
+            "6h" => Some(chrono::Utc::now() - chrono::Duration::hours(6)),
+            "24h" => Some(chrono::Utc::now() - chrono::Duration::hours(24)),
+            "7d" => Some(chrono::Utc::now() - chrono::Duration::days(7)),
             _ => None,
         };
-        if let Some(modifier) = sqlite_modifier {
-            conditions.push(format!("time >= datetime('now', '{}')", modifier));
+        if let Some(cutoff_dt) = cutoff {
+            // Use literal timestamp string embedded in SQL (safe since we generate it)
+            let cutoff_str = cutoff_dt.to_rfc3339();
+            conditions.push(format!("time >= '{}'", cutoff_str));
         }
     }
 
-    // cursor 模式下追加 id < ? 条件
+    // cursor mode: append id < $N condition
     if params.cursor.is_some() {
-        conditions.push("id < ?".to_string());
+        conditions.push(format!("id < ${}", param_idx));
+        param_idx += 1;
     }
 
     let where_clause = if conditions.is_empty() {
@@ -124,7 +135,8 @@ pub async fn list(
         let fetch_limit = limit + 1;
         let data_sql = format!(
             "SELECT id, time, client_ip, client_name, question, qtype, answer, status, reason, elapsed_ns, upstream_ns, upstream
-             FROM query_log {where_clause} ORDER BY id DESC LIMIT ?"
+             FROM query_log {where_clause} ORDER BY id DESC LIMIT ${}",
+            param_idx
         );
 
         let mut rows = {
@@ -140,8 +152,8 @@ pub async fn list(
                     Option<String>,
                     String,
                     Option<String>,
-                    Option<i64>,
-                    Option<i64>,
+                    Option<i32>,
+                    Option<i32>,
                     Option<String>,
                 ),
             >(&data_sql);
@@ -221,10 +233,11 @@ pub async fn list(
         })));
     }
 
-    // offset 模式：保持原有逻辑不变
+    // offset 模式
     let data_sql = format!(
         "SELECT id, time, client_ip, client_name, question, qtype, answer, status, reason, elapsed_ns, upstream_ns, upstream
-         FROM query_log {where_clause} ORDER BY time DESC LIMIT ? OFFSET ?"
+         FROM query_log {where_clause} ORDER BY time DESC LIMIT ${} OFFSET ${}",
+        param_idx, param_idx + 1
     );
     let count_sql = format!("SELECT COUNT(*) FROM query_log {where_clause}");
 
@@ -242,8 +255,8 @@ pub async fn list(
                 Option<String>,
                 String,
                 Option<String>,
-                Option<i64>,
-                Option<i64>,
+                Option<i32>,
+                Option<i32>,
                 Option<String>,
             ),
         >(&data_sql);
@@ -431,7 +444,7 @@ pub async fn export(
             _ => None,
         };
         if let Some(modifier) = sqlite_modifier {
-            let time_cond = format!("time >= datetime('now', '{}')", modifier);
+            let time_cond = format!("time >= NOW() + {}::interval", modifier);
             if where_clause.is_empty() {
                 format!("WHERE {}", time_cond)
             } else {
@@ -452,7 +465,7 @@ pub async fn export(
 
     // P0-3 fix：DB 错误不再被 unwrap_or_default() 静默吞掉
     // 失败时返回 HTTP 500，客户端可感知错误而非收到空数据
-    let rows: Vec<sqlx::sqlite::SqliteRow> = {
+    let rows: Vec<sqlx::postgres::PgRow> = {
         let mut q = sqlx::query(&sql);
         for binding in &where_bindings {
             match binding {

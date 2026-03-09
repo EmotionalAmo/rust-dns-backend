@@ -1,8 +1,6 @@
 use crate::config::Config;
 use anyhow::Result;
-use chrono::Utc;
-use sqlx::SqlitePool;
-use std::str::FromStr;
+use sqlx::PgPool;
 use uuid::Uuid;
 
 pub mod app_catalog_cache;
@@ -10,55 +8,19 @@ pub mod audit;
 pub mod models;
 pub mod query_log_writer;
 
-pub type DbPool = SqlitePool;
+pub type DbPool = PgPool;
 
 pub async fn init(cfg: &Config) -> Result<DbPool> {
-    let db_url = format!("sqlite://{}?mode=rwc", cfg.database.path);
-
-    // Configure connection pool for optimal performance
-    // Use PoolOptions to set connection pool size
-    let pool = sqlx::sqlite::SqlitePoolOptions::new()
-        .max_connections(20) // Explicit connection pool size
-        .connect_with(
-            sqlx::sqlite::SqliteConnectOptions::from_str(&db_url)?.create_if_missing(true),
-        )
+    // PostgreSQL connection pool
+    let pool = sqlx::postgres::PgPoolOptions::new()
+        .max_connections(20)
+        .connect(&cfg.database.url)
         .await?;
 
+    // Run migrations
     sqlx::migrate!("./src/db/migrations").run(&pool).await?;
 
-    // SQLite PRAGMA optimizations for write-heavy workloads
-    // These provide 30-50% write performance improvement
-    sqlx::query("PRAGMA journal_mode=WAL")
-        .execute(&pool)
-        .await?;
-
-    sqlx::query("PRAGMA synchronous=NORMAL")
-        .execute(&pool)
-        .await?;
-
-    sqlx::query("PRAGMA cache_size=-64000")
-        .execute(&pool)
-        .await?;
-
-    sqlx::query("PRAGMA mmap_size=268435456") // 256MB memory-mapped I/O
-        .execute(&pool)
-        .await?;
-
-    sqlx::query("PRAGMA wal_autocheckpoint=1000")
-        .execute(&pool)
-        .await?;
-
-    // busy_timeout: 让并发写入等待最多 5s 而非立即返回 SQLITE_BUSY
-    sqlx::query("PRAGMA busy_timeout = 5000")
-        .execute(&pool)
-        .await?;
-
-    // temp_store: 临时表/索引存放在内存中，减少磁盘 I/O
-    sqlx::query("PRAGMA temp_store = MEMORY")
-        .execute(&pool)
-        .await?;
-
-    tracing::info!("Database connected: {}", cfg.database.path);
+    tracing::info!("Database connected to PostgreSQL");
     Ok(pool)
 }
 
@@ -70,18 +32,15 @@ pub async fn seed_admin(pool: &DbPool, _cfg: &Config) -> Result<()> {
 
     if count.0 == 0 {
         let id = Uuid::new_v4().to_string();
-        let now = Utc::now().to_rfc3339();
         let password = crate::auth::password::hash("admin")?;
 
         sqlx::query(
             "INSERT INTO users (id, username, password, role, is_active, created_at, updated_at)
-             VALUES (?, ?, ?, 'super_admin', 1, ?, ?)",
+             VALUES ($1, $2, $3, 'super_admin', true, NOW(), NOW())",
         )
         .bind(&id)
         .bind("admin")
         .bind(&password)
-        .bind(&now)
-        .bind(&now)
         .execute(pool)
         .await?;
 

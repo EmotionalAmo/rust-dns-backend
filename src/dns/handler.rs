@@ -433,7 +433,7 @@ impl DnsHandler {
             JOIN client_groups cg ON cg.id = m.group_id
             JOIN client_group_rules cgr ON cgr.group_id = m.group_id
             JOIN dns_rewrites dr ON dr.id = cgr.rule_id
-            WHERE m.client_id = ?
+            WHERE m.client_id = $1
               AND cgr.rule_type = 'rewrite'
             ORDER BY cg.priority ASC
             "#,
@@ -480,7 +480,7 @@ impl DnsHandler {
             JOIN client_groups cg ON cg.id = m.group_id
             JOIN client_group_rules cgr ON cgr.group_id = m.group_id
             JOIN custom_rules cr ON cr.id = cgr.rule_id
-            WHERE m.client_id = ?
+            WHERE m.client_id = $1
               AND cgr.rule_type = 'custom_rule'
               AND cr.is_enabled = 1
             ORDER BY cg.priority ASC

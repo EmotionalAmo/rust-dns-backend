@@ -370,7 +370,7 @@ pub async fn get_group_members(
                 c.filter_enabled,
                 c.created_at,
                 COALESCE(
-                    (SELECT GROUP_CONCAT(g.name, ', ')
+                    (SELECT STRING_AGG(g.name, ', ')
                      FROM client_groups g
                      INNER JOIN client_group_memberships gm ON g.id = gm.group_id
                      WHERE gm.client_id = c.id),
@@ -662,7 +662,7 @@ pub async fn batch_move_clients(
 
             if group_exists.is_some() {
                 sqlx::query(
-                    "INSERT OR REPLACE INTO client_group_memberships (client_id, group_id, created_at) VALUES (?, ?, ?)",
+                    "INSERT INTO client_group_memberships (client_id, group_id, created_at) VALUES ($1, $2, $3) ON CONFLICT (client_id, group_id) DO UPDATE SET created_at = $3",
                 )
                 .bind(client_id)
                 .bind(to_group_id)

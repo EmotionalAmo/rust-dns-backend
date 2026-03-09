@@ -53,7 +53,7 @@ CREATE TABLE IF NOT EXISTS clients (
 
 -- Query log
 CREATE TABLE IF NOT EXISTS query_log (
-    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    id          BIGSERIAL PRIMARY KEY,
     time        TEXT NOT NULL,
     client_ip   TEXT NOT NULL,
     client_name TEXT,
@@ -72,7 +72,7 @@ CREATE INDEX IF NOT EXISTS idx_query_log_question ON query_log(question);
 
 -- Audit log (immutable)
 CREATE TABLE IF NOT EXISTS audit_log (
-    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    id          BIGSERIAL PRIMARY KEY,
     time        TEXT NOT NULL,
     user_id     TEXT NOT NULL,
     username    TEXT NOT NULL,
@@ -93,9 +93,10 @@ CREATE TABLE IF NOT EXISTS settings (
 );
 
 -- Insert defaults
-INSERT OR IGNORE INTO settings (key, value) VALUES
+INSERT INTO settings (key, value) VALUES
     ('dns_cache_ttl', '300'),
     ('query_log_retention_days', '30'),
     ('stats_retention_days', '90'),
     ('safe_search_enabled', 'false'),
-    ('parental_control_enabled', 'false');
+    ('parental_control_enabled', 'false')
+ON CONFLICT DO NOTHING;

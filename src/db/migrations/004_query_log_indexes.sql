@@ -52,8 +52,9 @@ CREATE INDEX IF NOT EXISTS idx_query_log_reason_time
     ON query_log(reason, time DESC);
 
 -- 10. 性能监控：在 settings 表中记录索引创建时间
-INSERT OR IGNORE INTO settings (key, value)
-VALUES ('query_log_indexes_created_at', '2026-02-20T00:00:00Z');
+INSERT INTO settings (key, value)
+VALUES ('query_log_indexes_created_at', '2026-02-20T00:00:00Z')
+ON CONFLICT DO NOTHING;
 
 -- 11. 查询优化建议（注释）
 -- - 对于 100 万条记录，这些索引应将查询时间从 500ms+ 降至 10-50ms

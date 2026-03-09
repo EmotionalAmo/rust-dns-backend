@@ -313,7 +313,7 @@ pub async fn sync_filter_list(pool: &DbPool, filter_id: &str, url: &str) -> Resu
             .collect::<Vec<_>>()
             .join(", ");
         let query_str = format!(
-            "INSERT OR IGNORE INTO custom_rules (id, rule, comment, is_enabled, created_by, created_at) VALUES {}",
+            "INSERT INTO custom_rules (id, rule, comment, is_enabled, created_by, created_at) VALUES {} ON CONFLICT (id) DO NOTHING",
             placeholders
         );
         let mut q = sqlx::query(&query_str);

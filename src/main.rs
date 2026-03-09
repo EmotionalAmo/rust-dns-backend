@@ -227,7 +227,7 @@ async fn main() -> Result<()> {
                 tokio::select! {
                     _ = ticker.tick() => {
                         match sqlx::query(
-                            "DELETE FROM query_log WHERE time < datetime('now', '-' || ? || ' days')",
+                            "DELETE FROM query_log WHERE time < NOW() - ($1 * INTERVAL '1 day')",
                         )
                         .bind(retention_days as i64)
                         .execute(&db)

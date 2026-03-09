@@ -131,7 +131,7 @@ impl FilterEngine {
 
                 // Load preset categories based on protection level
                 let category_rows: Vec<(String,)> = sqlx::query_as(
-                    "SELECT domains FROM parental_control_categories WHERE level = ?",
+                    "SELECT domains FROM parental_control_categories WHERE level = $1",
                 )
                 .bind(&protection_level)
                 .fetch_all(&self.db)

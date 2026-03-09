@@ -1,7 +1,7 @@
 use axum::http::StatusCode;
 use dashmap::DashMap;
 use serde_json::{json, Value};
-use sqlx::SqlitePool;
+use sqlx::PgPool;
 use std::sync::Arc;
 use tokio::sync::broadcast;
 
@@ -10,8 +10,12 @@ use rust_dns::api::AppState;
 use rust_dns::dns::filter::FilterEngine;
 use rust_dns::metrics::DnsMetrics;
 
-async fn setup_db() -> SqlitePool {
-    let pool = SqlitePool::connect(":memory:").await.unwrap();
+async fn setup_db() -> PgPool {
+    let database_url = std::env::var("TEST_DATABASE_URL").unwrap_or_else(|_| {
+        "postgres://postgres:postgres@localhost:5432/rust_dns_test".to_string()
+    });
+
+    let pool = PgPool::connect(&database_url).await.unwrap();
     sqlx::migrate!("./src/db/migrations")
         .run(&pool)
         .await
@@ -42,7 +46,7 @@ async fn build_test_state() -> Arc<AppState> {
             static_dir: "frontend/dist".to_string(),
         },
         database: rust_dns::config::DatabaseConfig {
-            path: ":memory:".to_string(),
+            url: "postgres://postgres:postgres@localhost:5432/rust_dns".to_string(),
             query_log_retention_days: 7,
         },
         auth: rust_dns::config::AuthConfig {
@@ -143,8 +147,17 @@ async fn test_alerts_api() {
         axum::serve(listener, app).await.unwrap();
     });
 
+    // Clean up all stale test alerts for isolation
+    let _ = sqlx::query("DELETE FROM alerts").execute(&state.db).await;
+
     // Insert alert into DB
-    sqlx::query("INSERT INTO alerts (id, alert_type, message, is_read, created_at) VALUES ('123', 'system', 'Test Alert', 0, datetime('now'))")
+    let now_str = chrono::Utc::now().to_rfc3339();
+    sqlx::query("INSERT INTO alerts (id, alert_type, message, is_read, created_at) VALUES ($1, $2, $3, $4, $5)")
+        .bind("123")
+        .bind("system")
+        .bind("Test Alert")
+        .bind(0i32)
+        .bind(&now_str)
         .execute(&state.db)
         .await
         .unwrap();

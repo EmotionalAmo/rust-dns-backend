@@ -107,7 +107,7 @@ pub async fn update_dns(
                 "cache_ttl must be between 0 and 86400 seconds".to_string(),
             ));
         }
-        sqlx::query("INSERT OR REPLACE INTO settings (key, value) VALUES ('dns_cache_ttl', ?)")
+        sqlx::query("INSERT INTO settings (key, value) VALUES ('dns_cache_ttl', $1) ON CONFLICT (key) DO UPDATE SET value = $1")
             .bind(cache_ttl.to_string())
             .execute(&state.db)
             .await?;
@@ -121,7 +121,7 @@ pub async fn update_dns(
             ));
         }
         sqlx::query(
-            "INSERT OR REPLACE INTO settings (key, value) VALUES ('query_log_retention_days', ?)",
+            "INSERT INTO settings (key, value) VALUES ('query_log_retention_days', $1) ON CONFLICT (key) DO UPDATE SET value = $1",
         )
         .bind(days.to_string())
         .execute(&state.db)
@@ -136,7 +136,7 @@ pub async fn update_dns(
             ));
         }
         sqlx::query(
-            "INSERT OR REPLACE INTO settings (key, value) VALUES ('stats_retention_days', ?)",
+            "INSERT INTO settings (key, value) VALUES ('stats_retention_days', $1) ON CONFLICT (key) DO UPDATE SET value = $1",
         )
         .bind(days.to_string())
         .execute(&state.db)
@@ -146,7 +146,7 @@ pub async fn update_dns(
     // Update safe_search_enabled if provided
     if let Some(enabled) = body.safe_search_enabled {
         sqlx::query(
-            "INSERT OR REPLACE INTO settings (key, value) VALUES ('safe_search_enabled', ?)",
+            "INSERT INTO settings (key, value) VALUES ('safe_search_enabled', $1) ON CONFLICT (key) DO UPDATE SET value = $1",
         )
         .bind(if enabled { "true" } else { "false" })
         .execute(&state.db)
@@ -163,7 +163,7 @@ pub async fn update_dns(
     // Update parental_control_enabled if provided
     if let Some(enabled) = body.parental_control_enabled {
         sqlx::query(
-            "INSERT OR REPLACE INTO settings (key, value) VALUES ('parental_control_enabled', ?)",
+            "INSERT INTO settings (key, value) VALUES ('parental_control_enabled', $1) ON CONFLICT (key) DO UPDATE SET value = $1",
         )
         .bind(if enabled { "true" } else { "false" })
         .execute(&state.db)
@@ -186,7 +186,7 @@ pub async fn update_dns(
             ));
         }
         sqlx::query(
-            "INSERT OR REPLACE INTO settings (key, value) VALUES ('parental_control_level', ?)",
+            "INSERT INTO settings (key, value) VALUES ('parental_control_level', $1) ON CONFLICT (key) DO UPDATE SET value = $1",
         )
         .bind(&level)
         .execute(&state.db)
@@ -214,7 +214,7 @@ pub async fn update_dns(
                 "upstream_strategy must be one of: priority, fastest, load_balance".to_string(),
             ));
         }
-        sqlx::query("INSERT OR REPLACE INTO settings (key, value) VALUES ('upstream_strategy', ?)")
+        sqlx::query("INSERT INTO settings (key, value) VALUES ('upstream_strategy', $1) ON CONFLICT (key) DO UPDATE SET value = $1")
             .bind(&strategy)
             .execute(&state.db)
             .await?;

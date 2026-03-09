@@ -56,7 +56,7 @@ type ClientRow = (
     String,
     String,
     Option<String>,
-    i64,
+    i32,
     Option<String>,
     String,
     String,
@@ -69,7 +69,7 @@ pub async fn list(State(state): State<Arc<AppState>>, _auth: AuthUser) -> AppRes
         "SELECT c.id, c.name, c.identifiers, c.upstreams, c.filter_enabled, c.tags, c.created_at, c.updated_at,
                 COALESCE(
                   (SELECT COUNT(*) FROM query_log ql
-                   WHERE ql.client_ip IN (SELECT value FROM json_each(c.identifiers))),
+                   WHERE ql.client_ip IN (SELECT value FROM json_array_elements_text(c.identifiers::json))),
                   0
                 ) AS query_count
          FROM clients c ORDER BY c.created_at DESC",
@@ -86,8 +86,8 @@ pub async fn list(State(state): State<Arc<AppState>>, _auth: AuthUser) -> AppRes
             MAX(ql.time) as last_seen
         FROM query_log ql
         WHERE NOT EXISTS (
-            SELECT 1 FROM clients c, json_each(c.identifiers) j
-            WHERE j.value = ql.client_ip
+            SELECT 1 FROM clients c
+            WHERE ql.client_ip IN (SELECT value FROM json_array_elements_text(c.identifiers::json))
         )
         GROUP BY ql.client_ip
         ORDER BY last_seen DESC
@@ -216,7 +216,7 @@ pub async fn create(
 
     sqlx::query(
         "INSERT INTO clients (id, name, identifiers, upstreams, filter_enabled, tags, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)"
     )
     .bind(&id)
     .bind(&name)
@@ -266,10 +266,10 @@ pub async fn update(
         "SELECT c.id, c.name, c.identifiers, c.upstreams, c.filter_enabled, c.tags, c.created_at, c.updated_at,
                 COALESCE(
                   (SELECT COUNT(*) FROM query_log ql
-                   WHERE ql.client_ip IN (SELECT value FROM json_each(c.identifiers))),
+                   WHERE ql.client_ip IN (SELECT value FROM json_array_elements_text(c.identifiers::json))),
                   0
                 ) AS query_count
-         FROM clients c WHERE c.id = ?",
+         FROM clients c WHERE c.id = $1",
     )
     .bind(&id)
     .fetch_optional(&state.db)
@@ -327,8 +327,8 @@ pub async fn update(
     let now = Utc::now().to_rfc3339();
 
     sqlx::query(
-        "UPDATE clients SET name = ?, identifiers = ?, upstreams = ?, filter_enabled = ?, tags = ?, updated_at = ?
-         WHERE id = ?"
+        "UPDATE clients SET name = $1, identifiers = $2, upstreams = $3, filter_enabled = $4, tags = $5, updated_at = $6
+         WHERE id = $7"
     )
     .bind(&name)
     .bind(&identifiers)
@@ -376,7 +376,7 @@ pub async fn delete(
     auth: AuthUser,
     Path(id): Path<String>,
 ) -> AppResult<Json<Value>> {
-    let result = sqlx::query("DELETE FROM clients WHERE id = ?")
+    let result = sqlx::query("DELETE FROM clients WHERE id = $1")
         .bind(&id)
         .execute(&state.db)
         .await?;
@@ -420,10 +420,11 @@ pub async fn get_activity(
     let ips: Vec<String> = if let Some(ip) = id.strip_prefix("dynamic-") {
         vec![ip.to_string()]
     } else {
-        let row: Option<(String,)> = sqlx::query_as("SELECT identifiers FROM clients WHERE id = ?")
-            .bind(&id)
-            .fetch_optional(&state.db)
-            .await?;
+        let row: Option<(String,)> =
+            sqlx::query_as("SELECT identifiers FROM clients WHERE id = $1")
+                .bind(&id)
+                .fetch_optional(&state.db)
+                .await?;
 
         match row {
             None => return Err(AppError::NotFound(format!("Client {} not found", id))),
@@ -444,12 +445,12 @@ pub async fn get_activity(
     let activity_rows: Vec<(String, i64, i64)> = sqlx::query_as(
         r#"
         SELECT
-            strftime('%Y-%m-%dT%H:00:00', time) as hour,
+            TO_CHAR(time, 'YYYY-MM-DD"T"HH24:00:00') as hour,
             COUNT(*) as total,
             SUM(CASE WHEN status = 'blocked' THEN 1 ELSE 0 END) as blocked
         FROM query_log
-        WHERE client_ip IN (SELECT value FROM json_each(?))
-          AND time >= datetime('now', ?)
+        WHERE client_ip IN (SELECT value FROM jsonb_array_elements_text($1::jsonb))
+          AND time >= NOW() + $2::interval
         GROUP BY hour
         ORDER BY hour ASC
         "#,
@@ -464,8 +465,8 @@ pub async fn get_activity(
         r#"
         SELECT question, COUNT(*) as count
         FROM query_log
-        WHERE client_ip IN (SELECT value FROM json_each(?))
-          AND time >= datetime('now', ?)
+        WHERE client_ip IN (SELECT value FROM jsonb_array_elements_text($1::jsonb))
+          AND time >= NOW() + $2::interval
         GROUP BY question
         ORDER BY count DESC
         LIMIT 10

@@ -46,10 +46,13 @@ impl axum::response::IntoResponse for AppError {
             AppError::Conflict(_) => (StatusCode::CONFLICT, self.to_string()),
             AppError::Validation(_) => (StatusCode::BAD_REQUEST, self.to_string()),
             AppError::TooManyRequests => (StatusCode::TOO_MANY_REQUESTS, self.to_string()),
-            _ => (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                "Internal server error".to_string(),
-            ),
+            _ => {
+                tracing::error!("Internal error: {:?}", self);
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    "Internal server error".to_string(),
+                )
+            }
         };
 
         (status, Json(json!({ "error": message }))).into_response()

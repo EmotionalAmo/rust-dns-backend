@@ -21,7 +21,7 @@ use dashmap::DashMap;
 use http_body_util::BodyExt;
 use moka::future::Cache as MokaCache;
 use serde_json::Value;
-use sqlx::SqlitePool;
+use sqlx::PgPool;
 use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::Instant;
@@ -35,31 +35,40 @@ use rust_dns::api::{build_app, AppState};
 use rust_dns::dns::filter::FilterEngine;
 use rust_dns::metrics::DnsMetrics;
 
-/// 构建测试专用 in-memory 数据库，运行所有 migration，并插入 admin 用户。
-async fn setup_db() -> SqlitePool {
-    let pool = SqlitePool::connect(":memory:")
-        .await
-        .expect("Failed to create in-memory SQLite pool");
+/// 构建测试专用 PostgreSQL 数据库，运行所有 migration，并插入 admin 用户
+async fn setup_db() -> PgPool {
+    let database_url = std::env::var("TEST_DATABASE_URL").unwrap_or_else(|_| {
+        "postgres://postgres:postgres@localhost:5432/rust_dns_test".to_string()
+    });
 
-    // 运行所有迁移脚本
+    let pool = PgPool::connect(&database_url)
+        .await
+        .expect("Failed to connect to PostgreSQL");
+
     sqlx::migrate!("./src/db/migrations")
         .run(&pool)
         .await
         .expect("Migration failed");
 
-    // 插入测试用 admin 用户（密码: admin）
+    // Clean up any existing test data to ensure fresh state
+    let _ = sqlx::query("DELETE FROM users WHERE username = 'admin'")
+        .execute(&pool)
+        .await
+        .ok(); // ignore if no rows deleted
+
+    // Insert test admin user (password: admin) or update password if already exists
     let password_hash = rust_dns::auth::password::hash("admin").expect("Failed to hash password");
     let id = uuid::Uuid::new_v4().to_string();
-    let now = chrono::Utc::now().to_rfc3339();
 
+    let now_str = chrono::Utc::now().to_rfc3339();
     sqlx::query(
         "INSERT INTO users (id, username, password, role, is_active, created_at, updated_at)
-         VALUES (?, 'admin', ?, 'super_admin', 1, ?, ?)",
+         VALUES ($1, 'admin', $2, 'super_admin', 1, $3, $3)
+         ON CONFLICT (username) DO UPDATE SET password = EXCLUDED.password",
     )
     .bind(&id)
     .bind(&password_hash)
-    .bind(&now)
-    .bind(&now)
+    .bind(&now_str)
     .execute(&pool)
     .await
     .expect("Failed to seed admin user");
@@ -128,7 +137,7 @@ async fn build_test_app() -> (axum::Router, Arc<AppState>) {
             static_dir: "frontend/dist".to_string(),
         },
         database: rust_dns::config::DatabaseConfig {
-            path: ":memory:".to_string(),
+            url: "postgres://postgres:postgres@localhost:5432/rust_dns".to_string(),
             query_log_retention_days: 7,
         },
         auth: rust_dns::config::AuthConfig {
@@ -525,6 +534,11 @@ async fn test_query_log_requires_auth() {
 async fn test_query_log_empty_result() {
     let (app, state) = build_test_app().await;
 
+    // Ensure clean state for this test
+    let _ = sqlx::query("DELETE FROM query_log")
+        .execute(&state.db)
+        .await;
+
     let token =
         rust_dns::auth::jwt::generate("test-user-id", "admin", "super_admin", &state.jwt_secret, 1)
             .expect("Should generate token");
@@ -550,11 +564,16 @@ async fn test_query_log_empty_result() {
 async fn test_query_log_with_status_filter() {
     let (app, state) = build_test_app().await;
 
+    // Ensure clean state for this test
+    let _ = sqlx::query("DELETE FROM query_log")
+        .execute(&state.db)
+        .await;
+
     // 插入测试日志数据
     let now = chrono::Utc::now().to_rfc3339();
     sqlx::query(
         "INSERT INTO query_log (time, client_ip, question, qtype, status, elapsed_ns)
-         VALUES (?, '192.168.1.1', 'blocked.example.com', 'A', 'blocked', 1000000)",
+         VALUES ($1, '192.168.1.1', 'blocked.example.com', 'A', 'blocked', 1000000)",
     )
     .bind(&now)
     .execute(&state.db)
@@ -563,7 +582,7 @@ async fn test_query_log_with_status_filter() {
 
     sqlx::query(
         "INSERT INTO query_log (time, client_ip, question, qtype, status, elapsed_ns)
-         VALUES (?, '192.168.1.1', 'allowed.example.com', 'A', 'allowed', 5000000)",
+         VALUES ($1, '192.168.1.1', 'allowed.example.com', 'A', 'allowed', 5000000)",
     )
     .bind(&now)
     .execute(&state.db)
@@ -597,12 +616,17 @@ async fn test_query_log_with_status_filter() {
 async fn test_query_log_pagination_limit() {
     let (app, state) = build_test_app().await;
 
+    // Ensure clean state for this test
+    let _ = sqlx::query("DELETE FROM query_log")
+        .execute(&state.db)
+        .await;
+
     // 插入 5 条日志
     let now = chrono::Utc::now().to_rfc3339();
     for i in 0..5 {
         sqlx::query(
             "INSERT INTO query_log (time, client_ip, question, qtype, status, elapsed_ns)
-             VALUES (?, '10.0.0.1', ?, 'A', 'allowed', 1000000)",
+             VALUES ($1, '10.0.0.1', $2, 'A', 'allowed', 1000000)",
         )
         .bind(&now)
         .bind(format!("domain{}.com", i))
@@ -677,6 +701,11 @@ fn admin_token(state: &AppState) -> String {
 async fn test_rewrite_create_and_list() {
     let (app, state) = build_test_app().await;
 
+    // Clean up stale test data
+    let _ = sqlx::query("DELETE FROM dns_rewrites WHERE domain = 'test.local'")
+        .execute(&state.db)
+        .await;
+
     let token = admin_token(&state);
 
     // 1. 创建 DNS 重写规则
@@ -719,6 +748,12 @@ async fn test_rewrite_create_and_list() {
 #[tokio::test]
 async fn test_rewrite_update_and_delete() {
     let (app, state) = build_test_app().await;
+
+    // Clean up stale test data
+    let _ = sqlx::query("DELETE FROM dns_rewrites WHERE domain IN ('update-test.local')")
+        .execute(&state.db)
+        .await;
+
     let token = admin_token(&state);
 
     // 1. 创建
@@ -779,6 +814,12 @@ async fn test_rewrite_update_and_delete() {
 #[tokio::test]
 async fn test_rewrite_duplicate_domain_rejected() {
     let (app, state) = build_test_app().await;
+
+    // Clean up stale test data
+    let _ = sqlx::query("DELETE FROM dns_rewrites WHERE domain = 'dup.local'")
+        .execute(&state.db)
+        .await;
+
     let token = admin_token(&state);
 
     // 创建第一条

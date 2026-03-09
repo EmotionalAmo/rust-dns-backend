@@ -1,9 +1,9 @@
 #![allow(dead_code)]
 
 use anyhow::Result;
-use chrono::Utc;
+use chrono::{DateTime, NaiveDateTime, Utc};
 use serde::{Deserialize, Serialize};
-use sqlx::{query_as, SqlitePool};
+use sqlx::{query_as, PgPool};
 use uuid::Uuid;
 
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
@@ -11,7 +11,7 @@ pub struct Upstream {
     pub id: String,
     pub name: String,
     pub addresses: String, // JSON array as string
-    pub priority: i32,
+    pub priority: i64,
     pub is_active: bool,
     pub health_check_enabled: bool,
     pub failover_enabled: bool,
@@ -19,10 +19,10 @@ pub struct Upstream {
     pub health_check_timeout: i64,
     pub failover_threshold: i64,
     pub health_status: String,
-    pub last_health_check_at: Option<String>,
-    pub last_failover_at: Option<String>,
-    pub created_at: String,
-    pub updated_at: String,
+    pub last_health_check_at: Option<NaiveDateTime>,
+    pub last_failover_at: Option<NaiveDateTime>,
+    pub created_at: NaiveDateTime,
+    pub updated_at: NaiveDateTime,
 }
 
 impl Upstream {
@@ -33,13 +33,31 @@ impl Upstream {
     pub fn from_addresses(addresses: &[String]) -> Result<String> {
         Ok(serde_json::to_string(addresses)?)
     }
+
+    pub fn created_at_str(&self) -> String {
+        self.created_at.format("%Y-%m-%dT%H:%M:%S%.3fZ").to_string()
+    }
+
+    pub fn updated_at_str(&self) -> String {
+        self.updated_at.format("%Y-%m-%dT%H:%M:%S%.3fZ").to_string()
+    }
+
+    pub fn last_health_check_at_str(&self) -> Option<String> {
+        self.last_health_check_at
+            .map(|t| t.format("%Y-%m-%dT%H:%M:%S%.3fZ").to_string())
+    }
+
+    pub fn last_failover_at_str(&self) -> Option<String> {
+        self.last_failover_at
+            .map(|t| t.format("%Y-%m-%dT%H:%M:%S%.3fZ").to_string())
+    }
 }
 
 #[derive(Debug, Deserialize)]
 pub struct CreateUpstream {
     pub name: String,
     pub addresses: Vec<String>,
-    pub priority: i32,
+    pub priority: i64,
     pub health_check_interval: i64,
     pub health_check_timeout: i64,
     pub failover_threshold: i64,
@@ -49,7 +67,7 @@ pub struct CreateUpstream {
 pub struct UpdateUpstream {
     pub name: Option<String>,
     pub addresses: Option<Vec<String>>,
-    pub priority: Option<i32>,
+    pub priority: Option<i64>,
     pub is_active: Option<bool>,
     pub health_check_enabled: Option<bool>,
     pub failover_enabled: Option<bool>,
@@ -64,13 +82,13 @@ pub struct FailoverLog {
     pub upstream_id: String,
     pub action: String,
     pub reason: Option<String>,
-    pub timestamp: String,
+    pub timestamp: DateTime<Utc>,
 }
 
 pub struct UpstreamRepository;
 
 impl UpstreamRepository {
-    pub async fn list(pool: &SqlitePool) -> Result<Vec<Upstream>> {
+    pub async fn list(pool: &PgPool) -> Result<Vec<Upstream>> {
         let rows =
             query_as::<_, Upstream>("SELECT * FROM dns_upstreams ORDER BY priority ASC, name ASC")
                 .fetch_all(pool)
@@ -78,25 +96,24 @@ impl UpstreamRepository {
         Ok(rows)
     }
 
-    pub async fn get(pool: &SqlitePool, id: &str) -> Result<Option<Upstream>> {
-        let row = query_as::<_, Upstream>("SELECT * FROM dns_upstreams WHERE id = ?")
+    pub async fn get(pool: &PgPool, id: &str) -> Result<Option<Upstream>> {
+        let row = query_as::<_, Upstream>("SELECT * FROM dns_upstreams WHERE id = $1")
             .bind(id)
             .fetch_optional(pool)
             .await?;
         Ok(row)
     }
 
-    pub async fn create(pool: &SqlitePool, req: CreateUpstream) -> Result<Upstream> {
+    pub async fn create(pool: &PgPool, req: CreateUpstream) -> Result<Upstream> {
         let id = Uuid::new_v4().to_string();
-        let now = Utc::now().to_rfc3339();
         let addresses = serde_json::to_string(&req.addresses)?;
 
         query_as::<_, Upstream>(
             "INSERT INTO dns_upstreams
                 (id, name, addresses, priority, is_active, health_check_enabled,
                  failover_enabled, health_check_interval, health_check_timeout,
-                 failover_threshold, health_status, created_at, updated_at)
-             VALUES (?, ?, ?, ?, 1, 1, 1, ?, ?, ?, 'unknown', ?, ?)
+                 failover_threshold, health_status)
+             VALUES ($1, $2, $3, $4, true, true, true, $5, $6, $7, 'unknown')
              RETURNING *",
         )
         .bind(&id)
@@ -106,55 +123,61 @@ impl UpstreamRepository {
         .bind(req.health_check_interval)
         .bind(req.health_check_timeout)
         .bind(req.failover_threshold)
-        .bind(&now)
-        .bind(&now)
         .fetch_one(pool)
         .await
         .map_err(|e| anyhow::anyhow!("Failed to create upstream: {}", e))
     }
 
-    pub async fn update(pool: &SqlitePool, id: &str, req: UpdateUpstream) -> Result<Upstream> {
-        let now = Utc::now().to_rfc3339();
+    pub async fn update(pool: &PgPool, id: &str, req: UpdateUpstream) -> Result<Upstream> {
+        let now = Utc::now().naive_utc();
+        let mut param_idx = 2usize; // $1 = updated_at
 
-        // Build dynamic query
-        let mut set_clauses = vec!["updated_at = ?"];
-        let _bind_count = 1;
+        let mut set_clauses = vec!["updated_at = $1".to_string()];
 
         if req.name.is_some() {
-            set_clauses.push("name = ?");
+            set_clauses.push(format!("name = ${}", param_idx));
+            param_idx += 1;
         }
         if req.addresses.is_some() {
-            set_clauses.push("addresses = ?");
+            set_clauses.push(format!("addresses = ${}", param_idx));
+            param_idx += 1;
         }
         if req.priority.is_some() {
-            set_clauses.push("priority = ?");
+            set_clauses.push(format!("priority = ${}", param_idx));
+            param_idx += 1;
         }
         if req.is_active.is_some() {
-            set_clauses.push("is_active = ?");
+            set_clauses.push(format!("is_active = ${}", param_idx));
+            param_idx += 1;
         }
         if req.health_check_enabled.is_some() {
-            set_clauses.push("health_check_enabled = ?");
+            set_clauses.push(format!("health_check_enabled = ${}", param_idx));
+            param_idx += 1;
         }
         if req.failover_enabled.is_some() {
-            set_clauses.push("failover_enabled = ?");
+            set_clauses.push(format!("failover_enabled = ${}", param_idx));
+            param_idx += 1;
         }
         if req.health_check_interval.is_some() {
-            set_clauses.push("health_check_interval = ?");
+            set_clauses.push(format!("health_check_interval = ${}", param_idx));
+            param_idx += 1;
         }
         if req.health_check_timeout.is_some() {
-            set_clauses.push("health_check_timeout = ?");
+            set_clauses.push(format!("health_check_timeout = ${}", param_idx));
+            param_idx += 1;
         }
         if req.failover_threshold.is_some() {
-            set_clauses.push("failover_threshold = ?");
+            set_clauses.push(format!("failover_threshold = ${}", param_idx));
+            param_idx += 1;
         }
 
         let set_clause = set_clauses.join(", ");
         let query = format!(
-            "UPDATE dns_upstreams SET {} WHERE id = ? RETURNING *",
-            set_clause
+            "UPDATE dns_upstreams SET {} WHERE id = ${} RETURNING *",
+            set_clause, param_idx
         );
 
-        let mut q = sqlx::query_as::<_, Upstream>(&query).bind(&now);
+        let mut q = sqlx::query_as::<_, Upstream>(&query).bind(now);
 
         if let Some(v) = req.name {
             q = q.bind(v);
@@ -190,18 +213,18 @@ impl UpstreamRepository {
             .map_err(|e| anyhow::anyhow!("Failed to update upstream: {}", e))
     }
 
-    pub async fn delete(pool: &SqlitePool, id: &str) -> Result<()> {
-        sqlx::query("DELETE FROM dns_upstreams WHERE id = ?")
+    pub async fn delete(pool: &PgPool, id: &str) -> Result<()> {
+        sqlx::query("DELETE FROM dns_upstreams WHERE id = $1")
             .bind(id)
             .execute(pool)
             .await?;
         Ok(())
     }
 
-    pub async fn get_active_upstreams(pool: &SqlitePool) -> Result<Vec<Upstream>> {
+    pub async fn get_active_upstreams(pool: &PgPool) -> Result<Vec<Upstream>> {
         let rows = query_as::<_, Upstream>(
             "SELECT * FROM dns_upstreams
-             WHERE is_active = 1
+             WHERE is_active = true
              ORDER BY priority ASC",
         )
         .fetch_all(pool)
@@ -209,32 +232,30 @@ impl UpstreamRepository {
         Ok(rows)
     }
 
-    pub async fn update_health_status(pool: &SqlitePool, id: &str, status: &str) -> Result<()> {
-        let now = Utc::now().to_rfc3339();
+    pub async fn update_health_status(pool: &PgPool, id: &str, status: &str) -> Result<()> {
+        let now = Utc::now().naive_utc();
         sqlx::query(
             "UPDATE dns_upstreams
-             SET health_status = ?, last_health_check_at = ?, updated_at = ?
-             WHERE id = ?",
+             SET health_status = $1, last_health_check_at = $2, updated_at = $2
+             WHERE id = $3",
         )
         .bind(status)
-        .bind(&now)
-        .bind(&now)
+        .bind(now)
         .bind(id)
         .execute(pool)
         .await?;
         Ok(())
     }
 
-    pub async fn update_failover_status(pool: &SqlitePool, id: &str, status: &str) -> Result<()> {
-        let now = Utc::now().to_rfc3339();
+    pub async fn update_failover_status(pool: &PgPool, id: &str, status: &str) -> Result<()> {
+        let now = Utc::now().naive_utc();
         sqlx::query(
             "UPDATE dns_upstreams
-             SET health_status = ?, last_failover_at = ?, updated_at = ?
-             WHERE id = ?",
+             SET health_status = $1, last_failover_at = $2, updated_at = $2
+             WHERE id = $3",
         )
         .bind(status)
-        .bind(&now)
-        .bind(&now)
+        .bind(now)
         .bind(id)
         .execute(pool)
         .await?;
@@ -242,32 +263,30 @@ impl UpstreamRepository {
     }
 
     pub async fn log_failover(
-        pool: &SqlitePool,
+        pool: &PgPool,
         upstream_id: &str,
         action: &str,
         reason: Option<&str>,
     ) -> Result<()> {
         let id = Uuid::new_v4().to_string();
-        let now = Utc::now().to_rfc3339();
         sqlx::query(
             "INSERT INTO upstream_failover_log (id, upstream_id, action, reason, timestamp)
-             VALUES (?, ?, ?, ?, ?)",
+             VALUES ($1, $2, $3, $4, NOW())",
         )
         .bind(&id)
         .bind(upstream_id)
         .bind(action)
         .bind(reason)
-        .bind(&now)
         .execute(pool)
         .await?;
         Ok(())
     }
 
-    pub async fn get_failover_log(pool: &SqlitePool, limit: i64) -> Result<Vec<FailoverLog>> {
+    pub async fn get_failover_log(pool: &PgPool, limit: i64) -> Result<Vec<FailoverLog>> {
         let rows = query_as::<_, FailoverLog>(
             "SELECT * FROM upstream_failover_log
              ORDER BY timestamp DESC
-             LIMIT ?",
+             LIMIT $1",
         )
         .bind(limit)
         .fetch_all(pool)

@@ -217,7 +217,7 @@ pub async fn serve(
                         }
 
                         let _ = sqlx::query(
-                            "DELETE FROM upstream_latency_log WHERE checked_at < datetime('now', '-1 day')",
+                            "DELETE FROM upstream_latency_log WHERE checked_at < NOW() - INTERVAL '1 day'",
                         )
                         .execute(&db)
                         .await;

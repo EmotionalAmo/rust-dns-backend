@@ -56,22 +56,29 @@ pub async fn list(
     let search_pattern = format!("%{}%", search);
 
     // 只显示用户手动创建的规则，过滤掉订阅列表导入的规则（created_by LIKE 'filter:%'）
-    let where_clause = if has_search {
-        "WHERE created_by NOT LIKE 'filter:%' AND (rule LIKE ? OR comment LIKE ?)"
+    let (where_clause, count_sql, data_sql) = if has_search {
+        let w = "WHERE created_by NOT LIKE 'filter:%' AND (rule LIKE $1 OR comment LIKE $1)";
+        let c = format!("SELECT COUNT(*) FROM custom_rules {}", w);
+        let d = format!(
+            "SELECT id, rule, comment, is_enabled, created_by, created_at \
+             FROM custom_rules {} ORDER BY created_at DESC LIMIT $2 OFFSET $3",
+            w
+        );
+        (w.to_string(), c, d)
     } else {
-        "WHERE created_by NOT LIKE 'filter:%'"
+        let w = "WHERE created_by NOT LIKE 'filter:%'";
+        let c = format!("SELECT COUNT(*) FROM custom_rules {}", w);
+        let d = format!(
+            "SELECT id, rule, comment, is_enabled, created_by, created_at \
+             FROM custom_rules {} ORDER BY created_at DESC LIMIT $1 OFFSET $2",
+            w
+        );
+        (w.to_string(), c, d)
     };
-
-    let count_sql = format!("SELECT COUNT(*) FROM custom_rules {}", where_clause);
-    let data_sql = format!(
-        "SELECT id, rule, comment, is_enabled, created_by, created_at \
-         FROM custom_rules {} ORDER BY created_at DESC LIMIT ? OFFSET ?",
-        where_clause
-    );
+    let _ = where_clause;
 
     let total: i64 = if has_search {
         sqlx::query_scalar(&count_sql)
-            .bind(&search_pattern)
             .bind(&search_pattern)
             .fetch_one(&state.db)
             .await?
@@ -79,9 +86,8 @@ pub async fn list(
         sqlx::query_scalar(&count_sql).fetch_one(&state.db).await?
     };
 
-    let rows: Vec<(String, String, Option<String>, i64, String, String)> = if has_search {
+    let rows: Vec<(String, String, Option<String>, i32, String, String)> = if has_search {
         sqlx::query_as(&data_sql)
-            .bind(&search_pattern)
             .bind(&search_pattern)
             .bind(per_page)
             .bind(offset)
@@ -133,7 +139,7 @@ pub async fn create(
 
     sqlx::query(
         "INSERT INTO custom_rules (id, rule, comment, is_enabled, created_by, created_at)
-         VALUES (?, ?, ?, 1, ?, ?)",
+         VALUES ($1, $2, $3, 1, $4, $5)",
     )
     .bind(&id)
     .bind(&rule)
@@ -176,7 +182,7 @@ pub async fn delete(
     auth: AuthUser,
     Path(id): Path<String>,
 ) -> AppResult<Json<Value>> {
-    let result = sqlx::query("DELETE FROM custom_rules WHERE id = ?")
+    let result = sqlx::query("DELETE FROM custom_rules WHERE id = $1")
         .bind(&id)
         .execute(&state.db)
         .await?;
@@ -292,8 +298,8 @@ pub async fn update(
     Json(body): Json<UpdateRuleRequest>,
 ) -> AppResult<Json<Value>> {
     // 获取现有规则
-    let row = sqlx::query_as::<_, (String, Option<String>, i64, String)>(
-        "SELECT rule, comment, is_enabled, created_by FROM custom_rules WHERE id = ?",
+    let row = sqlx::query_as::<_, (String, Option<String>, i32, String)>(
+        "SELECT rule, comment, is_enabled, created_by FROM custom_rules WHERE id = $1",
     )
     .bind(&id)
     .fetch_optional(&state.db)
@@ -371,8 +377,8 @@ pub async fn update(
     }
 
     // 返回更新后的规则
-    let updated = sqlx::query_as::<_, (String, String, Option<String>, i64, String, String)>(
-        "SELECT id, rule, comment, is_enabled, created_by, created_at FROM custom_rules WHERE id = ?"
+    let updated = sqlx::query_as::<_, (String, String, Option<String>, i32, String, String)>(
+        "SELECT id, rule, comment, is_enabled, created_by, created_at FROM custom_rules WHERE id = $1"
     )
     .bind(&id)
     .fetch_one(&state.db)
@@ -459,7 +465,7 @@ pub async fn export_rules(
     Query(params): Query<ExportParams>,
     _auth: AuthUser,
 ) -> impl IntoResponse {
-    let rows: Vec<(String, String, Option<String>, i64, String, String)> = match sqlx::query_as(
+    let rows: Vec<(String, String, Option<String>, i32, String, String)> = match sqlx::query_as(
         "SELECT id, rule, comment, is_enabled, created_by, created_at \
          FROM custom_rules \
          WHERE created_by NOT LIKE 'filter:%' \

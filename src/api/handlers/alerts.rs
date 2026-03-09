@@ -29,11 +29,15 @@ pub async fn list_alerts(
     let offset = (page - 1) * page_size;
 
     let mut where_clauses = Vec::new();
+    let mut param_idx = 1usize;
+
     if params.is_read.is_some() {
-        where_clauses.push("is_read = ?");
+        where_clauses.push(format!("is_read = ${}", param_idx));
+        param_idx += 1;
     }
     if params.alert_type.is_some() {
-        where_clauses.push("alert_type = ?");
+        where_clauses.push(format!("alert_type = ${}", param_idx));
+        param_idx += 1;
     }
 
     let where_sql = if where_clauses.is_empty() {
@@ -42,9 +46,12 @@ pub async fn list_alerts(
         format!(" WHERE {}", where_clauses.join(" AND "))
     };
 
+    let limit_idx = param_idx;
+    let offset_idx = param_idx + 1;
+
     let query = format!(
-        "SELECT id, alert_type, client_id, message, is_read, created_at FROM alerts{} ORDER BY created_at DESC LIMIT ? OFFSET ?",
-        where_sql
+        "SELECT id, alert_type, client_id, message, is_read, created_at FROM alerts{} ORDER BY created_at DESC LIMIT ${} OFFSET ${}",
+        where_sql, limit_idx, offset_idx
     );
     let count_query = format!("SELECT COUNT(*) FROM alerts{}", where_sql);
 
@@ -101,7 +108,7 @@ pub async fn mark_alert_read(
     _auth: AdminUser,
     Path(id): Path<String>,
 ) -> AppResult<Json<Value>> {
-    let result = sqlx::query("UPDATE alerts SET is_read = 1 WHERE id = ?")
+    let result = sqlx::query("UPDATE alerts SET is_read = 1 WHERE id = $1")
         .bind(&id)
         .execute(&state.db)
         .await?;
@@ -147,7 +154,7 @@ pub async fn delete_alert(
     _auth: AdminUser,
     Path(id): Path<String>,
 ) -> AppResult<Json<Value>> {
-    let result = sqlx::query("DELETE FROM alerts WHERE id = ?")
+    let result = sqlx::query("DELETE FROM alerts WHERE id = $1")
         .bind(&id)
         .execute(&state.db)
         .await?;

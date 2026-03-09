@@ -3,7 +3,7 @@
 -- Author: ui-duarte (Matías Duarte)
 -- Date: 2026-02-20
 
-INSERT OR IGNORE INTO query_log_templates (id, name, filters, logic, created_by, created_at, is_public)
+INSERT INTO query_log_templates (id, name, filters, logic, created_by, created_at, is_public)
 VALUES
   -- 1. 最近拦截
   (
@@ -12,7 +12,7 @@ VALUES
     '[{"field":"status","operator":"eq","value":"blocked"},{"field":"time","operator":"relative","value":"-24h"}]',
     'AND',
     'system',
-    datetime('now'),
+    NOW()::TEXT,
     1
   ),
 
@@ -23,7 +23,7 @@ VALUES
     '[{"field":"elapsed_ms","operator":"gt","value":100},{"field":"time","operator":"relative","value":"-24h"}]',
     'AND',
     'system',
-    datetime('now'),
+    NOW()::TEXT,
     1
   ),
 
@@ -34,7 +34,7 @@ VALUES
     '[{"field":"status","operator":"eq","value":"error"},{"field":"time","operator":"relative","value":"-24h"}]',
     'AND',
     'system',
-    datetime('now'),
+    NOW()::TEXT,
     1
   ),
 
@@ -45,7 +45,7 @@ VALUES
     '[{"field":"qtype","operator":"eq","value":"A"},{"field":"time","operator":"relative","value":"-1h"}]',
     'AND',
     'system',
-    datetime('now'),
+    NOW()::TEXT,
     1
   ),
 
@@ -56,7 +56,7 @@ VALUES
     '[{"field":"question","operator":"like","value":"ads"},{"field":"status","operator":"eq","value":"blocked"}]',
     'AND',
     'system',
-    datetime('now'),
+    NOW()::TEXT,
     1
   ),
 
@@ -67,6 +67,7 @@ VALUES
     '[{"field":"client_ip","operator":"like","value":"192.168.1."},{"field":"elapsed_ms","operator":"lt","value":50}]',
     'AND',
     'system',
-    datetime('now'),
+    NOW()::TEXT,
     1
-  );
+  )
+ON CONFLICT DO NOTHING;

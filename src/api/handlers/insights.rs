@@ -38,12 +38,12 @@ pub async fn top_apps(
          MAX(ql.time) AS last_seen \
          FROM query_log ql \
          JOIN app_catalog ac ON ql.app_id = ac.id \
-         WHERE ql.time >= datetime('now', printf('-%d hours', ?)) \
-           AND (? = '' OR ac.category = ?) \
-           AND (? = '' OR ql.status = ?) \
+         WHERE ql.time >= NOW() - ($1 * INTERVAL '1 hour') \
+           AND ($2 = '' OR ac.category = $3) \
+           AND ($4 = '' OR ql.status = $5) \
          GROUP BY ac.id \
          ORDER BY total_queries DESC \
-         LIMIT ?",
+         LIMIT $6",
     )
     .bind(hours)
     .bind(&category)
@@ -100,11 +100,11 @@ pub async fn app_trend(
 
     // 直接用预计算的 app_id 列过滤，无需 LIKE JOIN。
     let rows = sqlx::query(
-        "SELECT strftime('%Y-%m-%dT%H:00:00Z', ql.time) AS hour, \
+        "SELECT TO_CHAR(ql.time, 'YYYY-MM-DD\"T\"HH24:00:00Z') AS hour, \
          COUNT(*) AS total_queries \
          FROM query_log ql \
-         WHERE ql.app_id = ? \
-           AND ql.time >= datetime('now', printf('-%d hours', ?)) \
+         WHERE ql.app_id = $1 \
+           AND ql.time >= NOW() - ($2 * INTERVAL '1 hour') \
          GROUP BY hour \
          ORDER BY hour",
     )
@@ -202,16 +202,16 @@ pub async fn top_domains(
          SUM(CASE WHEN status = 'blocked' THEN 1 ELSE 0 END) AS blocked_queries, \
          MAX(time) AS last_seen \
          FROM query_log \
-         WHERE time >= datetime('now', printf('-%d hours', ?)) \
+         WHERE time >= NOW() - ($1 * INTERVAL '1 hour') \
          GROUP BY question \
-         HAVING (? = '') \
-             OR (? = 'blocked' AND blocked_queries > 0) \
-             OR (? = 'allowed' AND total_queries > blocked_queries) \
+         HAVING ($2 = '') \
+             OR ($3 = 'blocked' AND blocked_queries > 0) \
+             OR ($4 = 'allowed' AND total_queries > blocked_queries) \
          ORDER BY \
-             CASE WHEN ? = 'allowed' THEN (total_queries - blocked_queries) \
-             WHEN ? = 'blocked' THEN blocked_queries \
+             CASE WHEN $5 = 'allowed' THEN (total_queries - blocked_queries) \
+             WHEN $6 = 'blocked' THEN blocked_queries \
              ELSE total_queries END DESC \
-         LIMIT ?",
+         LIMIT $7",
     )
     .bind(hours)
     .bind(&status)
@@ -248,10 +248,10 @@ pub async fn get_anomalies(
 ) -> AppResult<Json<Value>> {
     // 查询过去 7 天（不含当前小时）每个 client_ip 的每小时请求数
     let history_rows = sqlx::query(
-        "SELECT client_ip, strftime('%Y-%m-%dT%H:00:00', time) as hour, COUNT(*) as cnt \
+        "SELECT client_ip, TO_CHAR(time, 'YYYY-MM-DD\"T\"HH24:00:00') as hour, COUNT(*) as cnt \
          FROM query_log \
-         WHERE time >= datetime('now', '-7 days') \
-           AND time < strftime('%Y-%m-%dT%H:00:00', 'now') \
+         WHERE time >= NOW() - INTERVAL '7 days' \
+           AND time < date_trunc('hour', NOW()) \
          GROUP BY client_ip, hour",
     )
     .fetch_all(&state.db)
@@ -285,7 +285,7 @@ pub async fn get_anomalies(
     let current_rows = sqlx::query(
         "SELECT client_ip, COUNT(*) as cnt \
          FROM query_log \
-         WHERE time >= strftime('%Y-%m-%dT%H:00:00', 'now') \
+         WHERE time >= date_trunc('hour', NOW()) \
          GROUP BY client_ip",
     )
     .fetch_all(&state.db)
@@ -333,8 +333,8 @@ pub async fn get_anomalies(
         let existing: i64 = sqlx::query_scalar(
             "SELECT COUNT(*) FROM alerts \
              WHERE alert_type = 'anomaly_detection' \
-               AND client_id = ? \
-               AND created_at > datetime('now', '-1 hour')",
+               AND client_id = $1 \
+               AND created_at > NOW() - INTERVAL '1 hour'",
         )
         .bind(ip)
         .fetch_one(&state.db)
@@ -349,7 +349,7 @@ pub async fn get_anomalies(
             );
             let _ = sqlx::query(
                 "INSERT INTO alerts (id, alert_type, client_id, message, is_read, created_at) \
-                 VALUES (?, 'anomaly_detection', ?, ?, 0, datetime('now'))",
+                 VALUES ($1, 'anomaly_detection', $2, $3, 0, NOW())",
             )
             .bind(&alert_id)
             .bind(ip)

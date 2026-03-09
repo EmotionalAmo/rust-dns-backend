@@ -200,10 +200,14 @@ async fn test_filter_engine_performance(oisd_domains: &[String]) -> Result<()> {
     println!("\n\nTest 2: FilterEngine Integration");
     println!("--------------------------------");
 
-    // Create in-memory database
-    let pool = sqlx::sqlite::SqlitePoolOptions::new()
+    // Create PostgreSQL connection
+    let database_url = std::env::var("TEST_DATABASE_URL").unwrap_or_else(|_| {
+        "postgres://postgres:postgres@localhost:5432/rust_dns_test".to_string()
+    });
+
+    let pool = sqlx::postgres::PgPoolOptions::new()
         .max_connections(10)
-        .connect("sqlite::memory:")
+        .connect(&database_url)
         .await?;
 
     println!("Setting up database schema...");
@@ -211,11 +215,11 @@ async fn test_filter_engine_performance(oisd_domains: &[String]) -> Result<()> {
     // Run schema setup
     sqlx::query(
         r#"
-        CREATE TABLE custom_rules (
+        CREATE TABLE IF NOT EXISTS custom_rules (
             id TEXT PRIMARY KEY,
             rule TEXT NOT NULL,
             comment TEXT,
-            is_enabled INTEGER NOT NULL DEFAULT 1,
+            is_enabled BOOLEAN NOT NULL DEFAULT true,
             created_by TEXT NOT NULL,
             created_at TEXT NOT NULL
         )
@@ -226,11 +230,11 @@ async fn test_filter_engine_performance(oisd_domains: &[String]) -> Result<()> {
 
     sqlx::query(
         r#"
-        CREATE TABLE filter_lists (
+        CREATE TABLE IF NOT EXISTS filter_lists (
             id TEXT PRIMARY KEY,
             name TEXT NOT NULL,
             url TEXT,
-            is_enabled INTEGER NOT NULL DEFAULT 0,
+            is_enabled BOOLEAN NOT NULL DEFAULT false,
             rule_count INTEGER NOT NULL DEFAULT 0,
             last_updated TEXT,
             created_at TEXT NOT NULL
@@ -242,7 +246,7 @@ async fn test_filter_engine_performance(oisd_domains: &[String]) -> Result<()> {
 
     sqlx::query(
         r#"
-        CREATE TABLE dns_rewrites (
+        CREATE TABLE IF NOT EXISTS dns_rewrites (
             id TEXT PRIMARY KEY,
             domain TEXT NOT NULL UNIQUE,
             answer TEXT NOT NULL,
@@ -255,7 +259,7 @@ async fn test_filter_engine_performance(oisd_domains: &[String]) -> Result<()> {
 
     sqlx::query(
         r#"
-        CREATE TABLE settings (
+        CREATE TABLE IF NOT EXISTS settings (
             key TEXT PRIMARY KEY,
             value TEXT NOT NULL
         )
@@ -266,7 +270,7 @@ async fn test_filter_engine_performance(oisd_domains: &[String]) -> Result<()> {
 
     sqlx::query(
         r#"
-        CREATE TABLE parental_control_categories (
+        CREATE TABLE IF NOT EXISTS parental_control_categories (
             id TEXT PRIMARY KEY,
             name TEXT NOT NULL,
             description TEXT,
@@ -292,7 +296,12 @@ async fn test_filter_engine_performance(oisd_domains: &[String]) -> Result<()> {
     sqlx::query(
         r#"
         INSERT INTO parental_control_categories (id, name, description, level, domains, created_at)
-        VALUES (?, ?, ?, ?, ?, ?)
+        VALUES ($1, $2, $3, $4, $5, $6)
+        ON CONFLICT (id) DO UPDATE SET
+            name = EXCLUDED.name,
+            description = EXCLUDED.description,
+            level = EXCLUDED.level,
+            domains = EXCLUDED.domains
         "#,
     )
     .bind("oisd-phase1-test")
@@ -312,13 +321,13 @@ async fn test_filter_engine_performance(oisd_domains: &[String]) -> Result<()> {
     println!("Insert complete: {:?}", insert_duration);
 
     // Enable parental control
-    sqlx::query("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)")
+    sqlx::query("INSERT INTO settings (key, value) VALUES ($1, $2) ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value")
         .bind("parental_control_enabled")
         .bind("true")
         .execute(&pool)
         .await?;
 
-    sqlx::query("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)")
+    sqlx::query("INSERT INTO settings (key, value) VALUES ($1, $2) ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value")
         .bind("parental_control_level")
         .bind("basic")
         .execute(&pool)
@@ -332,7 +341,7 @@ async fn test_filter_engine_performance(oisd_domains: &[String]) -> Result<()> {
 
     // Load parental control domains (same as FilterEngine does)
     let category_rows: Vec<(String,)> =
-        sqlx::query_as("SELECT domains FROM parental_control_categories WHERE level = ?")
+        sqlx::query_as("SELECT domains FROM parental_control_categories WHERE level = $1")
             .bind("basic")
             .fetch_all(&pool)
             .await?;

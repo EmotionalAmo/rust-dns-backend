@@ -86,10 +86,10 @@ pub async fn list(State(state): State<Arc<AppState>>, _auth: AuthUser) -> AppRes
                  WHERE upstream_id = u.id ORDER BY id DESC LIMIT 1) AS last_latency_ms,
                 (SELECT CAST(AVG(latency_ms) AS INTEGER) FROM upstream_latency_log
                  WHERE upstream_id = u.id AND success = 1
-                   AND checked_at >= datetime('now', '-30 minutes')) AS avg_30m_ms,
+                   AND checked_at >= NOW() - INTERVAL '30 minutes') AS avg_30m_ms,
                 (SELECT CAST(AVG(latency_ms) AS INTEGER) FROM upstream_latency_log
                  WHERE upstream_id = u.id AND success = 1
-                   AND checked_at >= datetime('now', '-60 minutes')) AS avg_60m_ms
+                   AND checked_at >= NOW() - INTERVAL '60 minutes') AS avg_60m_ms
          FROM dns_upstreams u ORDER BY u.priority ASC, u.name ASC"
     )
     .fetch_all(&state.db)

@@ -12,7 +12,7 @@ use dashmap::DashMap;
 use hickory_proto::op::{Message, MessageType, OpCode, Query, ResponseCode};
 use hickory_proto::rr::{Name, RecordType};
 use moka::future::Cache as MokaCache;
-use sqlx::SqlitePool;
+use sqlx::PgPool;
 use std::str::FromStr;
 use std::sync::Arc;
 use tokio::sync::broadcast;
@@ -24,29 +24,33 @@ use rust_dns::metrics::DnsMetrics;
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-/// Build an in-memory SQLite pool with all migrations applied and admin user seeded.
-async fn setup_db() -> SqlitePool {
-    let pool = SqlitePool::connect(":memory:")
+/// Build a PostgreSQL pool with all migrations applied and admin user seeded.
+async fn setup_db() -> PgPool {
+    let database_url = std::env::var("TEST_DATABASE_URL").unwrap_or_else(|_| {
+        "postgres://postgres:postgres@localhost:5432/rust_dns_test".to_string()
+    });
+
+    let pool = PgPool::connect(&database_url)
         .await
-        .expect("Failed to create in-memory SQLite pool");
+        .expect("Failed to connect to PostgreSQL");
 
     sqlx::migrate!("./src/db/migrations")
         .run(&pool)
         .await
         .expect("Migration failed");
 
-    // Seed admin user (password: admin)
+    // Seed admin user (password: admin) - use ON CONFLICT to avoid duplicate key errors
     let password_hash = rust_dns::auth::password::hash("admin").expect("Failed to hash password");
     let id = uuid::Uuid::new_v4().to_string();
-    let now = chrono::Utc::now().to_rfc3339();
+    let now_str = chrono::Utc::now().to_rfc3339();
     sqlx::query(
         "INSERT INTO users (id, username, password, role, is_active, created_at, updated_at)
-         VALUES (?, 'admin', ?, 'super_admin', 1, ?, ?)",
+         VALUES ($1, 'admin', $2, 'super_admin', 1, $3, $3)
+         ON CONFLICT (username) DO UPDATE SET password = EXCLUDED.password",
     )
     .bind(&id)
     .bind(&password_hash)
-    .bind(&now)
-    .bind(&now)
+    .bind(&now_str)
     .execute(&pool)
     .await
     .expect("Failed to seed admin user");
@@ -82,7 +86,7 @@ async fn build_test_state() -> Arc<AppState> {
             static_dir: "frontend/dist".to_string(),
         },
         database: rust_dns::config::DatabaseConfig {
-            path: ":memory:".to_string(),
+            url: "postgres://postgres:postgres@localhost:5432/rust_dns".to_string(),
             query_log_retention_days: 7,
         },
         auth: rust_dns::config::AuthConfig {
@@ -170,17 +174,22 @@ fn decode_rcode(bytes: &[u8]) -> ResponseCode {
 async fn test_client_group_dns_blocking() {
     let state = build_test_state().await;
     let db = &state.db;
-    let now = chrono::Utc::now().to_rfc3339();
+
+    // Clean up stale test data
+    let _ = sqlx::query("DELETE FROM client_groups WHERE name = 'E2E Test Group'")
+        .execute(db)
+        .await;
+    let _ = sqlx::query("DELETE FROM clients WHERE name = 'E2E Group Client'")
+        .execute(db)
+        .await;
 
     // ── 1. Insert a managed client with a known IP ───────────────────────────
     let client_id = uuid::Uuid::new_v4().to_string();
     sqlx::query(
         "INSERT INTO clients (id, name, identifiers, filter_enabled, created_at, updated_at)
-         VALUES (?, 'E2E Group Client', '[\"192.168.100.1\"]', 1, ?, ?)",
+         VALUES ($1, 'E2E Group Client', '[\"192.168.100.1\"]', 1, NOW()::TEXT, NOW()::TEXT)",
     )
     .bind(&client_id)
-    .bind(&now)
-    .bind(&now)
     .execute(db)
     .await
     .expect("Insert client");
@@ -189,48 +198,41 @@ async fn test_client_group_dns_blocking() {
     let rule_id = uuid::Uuid::new_v4().to_string();
     sqlx::query(
         "INSERT INTO custom_rules (id, rule, comment, is_enabled, created_by, created_at)
-         VALUES (?, '||rust-dns-group-blocked.invalid^', 'E2E group rule', 1, 'test', ?)",
+         VALUES ($1, '||rust-dns-group-blocked.invalid^', 'E2E group rule', 1, 'test', NOW()::TEXT)",
     )
     .bind(&rule_id)
-    .bind(&now)
     .execute(db)
     .await
     .expect("Insert custom rule");
 
     // ── 3. Create a client group ──────────────────────────────────────────────
-    let group_insert = sqlx::query(
+    let group_id: i64 = sqlx::query_scalar(
         "INSERT INTO client_groups (name, priority, created_at, updated_at)
-         VALUES ('E2E Test Group', 10, ?, ?)",
+         VALUES ('E2E Test Group', 10, NOW()::TEXT, NOW()::TEXT)
+         RETURNING id",
     )
-    .bind(&now)
-    .bind(&now)
-    .execute(db)
+    .fetch_one(db)
     .await
     .expect("Insert client group");
-    let group_id = group_insert.last_insert_rowid();
 
     // ── 4. Add client to group ────────────────────────────────────────────────
     sqlx::query(
         "INSERT INTO client_group_memberships (client_id, group_id, created_at)
-         VALUES (?, ?, ?)",
+         VALUES ($1, $2, NOW()::TEXT)",
     )
     .bind(&client_id)
     .bind(group_id)
-    .bind(&now)
     .execute(db)
     .await
     .expect("Insert group membership");
 
     // ── 5. Bind the custom rule to the group ──────────────────────────────────
-    // Note: client_group_rules.rule_id is INTEGER but stores TEXT UUID
-    // (SQLite dynamic typing — the JOIN `cr.id = cgr.rule_id` works correctly)
     sqlx::query(
         "INSERT INTO client_group_rules (group_id, rule_id, rule_type, priority, created_at)
-         VALUES (?, ?, 'custom_rule', 0, ?)",
+         VALUES ($1, $2, 'custom_rule', 0, NOW()::TEXT)",
     )
     .bind(group_id)
     .bind(&rule_id)
-    .bind(&now)
     .execute(db)
     .await
     .expect("Insert group rule binding");
@@ -263,16 +265,20 @@ async fn test_client_group_dns_blocking() {
 async fn test_global_filter_blocks_non_group_clients() {
     let state = build_test_state().await;
     let db = &state.db;
-    let now = chrono::Utc::now().to_rfc3339();
+
+    // Clean up stale test data
+    let _ =
+        sqlx::query("DELETE FROM custom_rules WHERE rule = '||rust-dns-global-blocked.invalid^'")
+            .execute(db)
+            .await;
 
     // ── 1. Insert a global custom rule ───────────────────────────────────────
     let rule_id = uuid::Uuid::new_v4().to_string();
     sqlx::query(
         "INSERT INTO custom_rules (id, rule, comment, is_enabled, created_by, created_at)
-         VALUES (?, '||rust-dns-global-blocked.invalid^', 'E2E global rule', 1, 'test', ?)",
+         VALUES ($1, '||rust-dns-global-blocked.invalid^', 'E2E global rule', 1, 'test', NOW()::TEXT)",
     )
     .bind(&rule_id)
-    .bind(&now)
     .execute(db)
     .await
     .expect("Insert global rule");
@@ -310,16 +316,22 @@ async fn test_global_filter_blocks_non_group_clients() {
 async fn test_group_rules_layer_over_global_filter() {
     let state = build_test_state().await;
     let db = &state.db;
-    let now = chrono::Utc::now().to_rfc3339();
+
+    // Clean up stale test data
+    let _ = sqlx::query("DELETE FROM client_groups WHERE name = 'Layer Test Group'")
+        .execute(db)
+        .await;
+    let _ = sqlx::query("DELETE FROM clients WHERE name = 'Layered Group Client'")
+        .execute(db)
+        .await;
 
     // ── 1. Insert a global rule that blocks a domain ──────────────────────────
     let global_rule_id = uuid::Uuid::new_v4().to_string();
     sqlx::query(
         "INSERT INTO custom_rules (id, rule, comment, is_enabled, created_by, created_at)
-         VALUES (?, '||rust-dns-global-only.invalid^', 'Global-only rule', 1, 'test', ?)",
+         VALUES ($1, '||rust-dns-global-only.invalid^', 'Global-only rule', 1, 'test', NOW()::TEXT)",
     )
     .bind(&global_rule_id)
-    .bind(&now)
     .execute(db)
     .await
     .expect("Insert global rule");
@@ -331,11 +343,9 @@ async fn test_group_rules_layer_over_global_filter() {
     let client_id = uuid::Uuid::new_v4().to_string();
     sqlx::query(
         "INSERT INTO clients (id, name, identifiers, filter_enabled, created_at, updated_at)
-         VALUES (?, 'Layered Group Client', '[\"192.168.200.1\"]', 1, ?, ?)",
+         VALUES ($1, 'Layered Group Client', '[\"192.168.200.1\"]', 1, NOW()::TEXT, NOW()::TEXT)",
     )
     .bind(&client_id)
-    .bind(&now)
-    .bind(&now)
     .execute(db)
     .await
     .expect("Insert client");
@@ -343,10 +353,9 @@ async fn test_group_rules_layer_over_global_filter() {
     let group_rule_id = uuid::Uuid::new_v4().to_string();
     sqlx::query(
         "INSERT INTO custom_rules (id, rule, comment, is_enabled, created_by, created_at)
-         VALUES (?, '||rust-dns-group-specific.invalid^', 'Group-specific rule', 1, 'test', ?)",
+         VALUES ($1, '||rust-dns-group-specific.invalid^', 'Group-specific rule', 1, 'test', NOW()::TEXT)",
     )
     .bind(&group_rule_id)
-    .bind(&now)
     .execute(db)
     .await
     .expect("Insert group rule");
@@ -355,10 +364,9 @@ async fn test_group_rules_layer_over_global_filter() {
     let global_blocked_id = uuid::Uuid::new_v4().to_string();
     sqlx::query(
         "INSERT INTO custom_rules (id, rule, comment, is_enabled, created_by, created_at)
-         VALUES (?, '||global-blocked-but-allowed.invalid^', 'Globally blocked', 1, 'test', ?)",
+         VALUES ($1, '||global-blocked-but-allowed.invalid^', 'Globally blocked', 1, 'test', NOW()::TEXT)",
     )
     .bind(&global_blocked_id)
-    .bind(&now)
     .execute(db)
     .await
     .expect("Insert global blocked rule");
@@ -366,56 +374,50 @@ async fn test_group_rules_layer_over_global_filter() {
     let group_allow_rule_id = uuid::Uuid::new_v4().to_string();
     sqlx::query(
         "INSERT INTO custom_rules (id, rule, comment, is_enabled, created_by, created_at)
-         VALUES (?, '@@||global-blocked-but-allowed.invalid^', 'Group override allow', 1, 'test', ?)",
+         VALUES ($1, '@@||global-blocked-but-allowed.invalid^', 'Group override allow', 1, 'test', NOW()::TEXT)",
     )
     .bind(&group_allow_rule_id)
-    .bind(&now)
     .execute(db)
     .await
     .expect("Insert group allow rule");
 
     state.filter.reload().await.expect("FilterEngine::reload");
 
-    let group_insert = sqlx::query(
+    let group_id: i64 = sqlx::query_scalar(
         "INSERT INTO client_groups (name, priority, created_at, updated_at)
-         VALUES ('Layer Test Group', 5, ?, ?)",
+         VALUES ('Layer Test Group', 5, NOW()::TEXT, NOW()::TEXT)
+         RETURNING id",
     )
-    .bind(&now)
-    .bind(&now)
-    .execute(db)
+    .fetch_one(db)
     .await
     .expect("Insert group");
-    let group_id = group_insert.last_insert_rowid();
 
     sqlx::query(
         "INSERT INTO client_group_memberships (client_id, group_id, created_at)
-         VALUES (?, ?, ?)",
+         VALUES ($1, $2, NOW()::TEXT)",
     )
     .bind(&client_id)
     .bind(group_id)
-    .bind(&now)
     .execute(db)
     .await
     .expect("Insert membership");
 
     sqlx::query(
         "INSERT INTO client_group_rules (group_id, rule_id, rule_type, priority, created_at)
-         VALUES (?, ?, 'custom_rule', 0, ?)",
+         VALUES ($1, $2, 'custom_rule', 0, NOW()::TEXT)",
     )
     .bind(group_id)
     .bind(&group_rule_id)
-    .bind(&now)
     .execute(db)
     .await
     .expect("Insert group rule binding 1");
 
     sqlx::query(
         "INSERT INTO client_group_rules (group_id, rule_id, rule_type, priority, created_at)
-         VALUES (?, ?, 'custom_rule', 1, ?)",
+         VALUES ($1, $2, 'custom_rule', 1, NOW()::TEXT)",
     )
     .bind(group_id)
     .bind(&group_allow_rule_id)
-    .bind(&now)
     .execute(db)
     .await
     .expect("Insert group rule binding 2 (allowlist)");
@@ -474,40 +476,45 @@ async fn test_group_rules_layer_over_global_filter() {
 async fn test_group_rules_dns_rewrites() {
     let state = build_test_state().await;
     let db = &state.db;
-    let now = chrono::Utc::now().to_rfc3339();
+
+    // Clean up stale test data
+    let _ = sqlx::query("DELETE FROM client_groups WHERE name = 'Rewrite Test Group'")
+        .execute(db)
+        .await;
+    let _ = sqlx::query("DELETE FROM clients WHERE name = 'Rewrite Group Client'")
+        .execute(db)
+        .await;
+    let _ = sqlx::query("DELETE FROM dns_rewrites WHERE domain = 'router.local'")
+        .execute(db)
+        .await;
 
     // ── 1. Create a client group ──────────────────────────────────────────────
-    let group_insert = sqlx::query(
+    let group_id: i64 = sqlx::query_scalar(
         "INSERT INTO client_groups (name, priority, created_at, updated_at)
-         VALUES ('Rewrite Test Group', 5, ?, ?)",
+         VALUES ('Rewrite Test Group', 5, NOW()::TEXT, NOW()::TEXT)
+         RETURNING id",
     )
-    .bind(&now)
-    .bind(&now)
-    .execute(db)
+    .fetch_one(db)
     .await
     .expect("Insert group");
-    let group_id = group_insert.last_insert_rowid();
 
     // ── 2. Create a client and assign to group ────────────────────────────────
     let client_id = uuid::Uuid::new_v4().to_string();
     sqlx::query(
         "INSERT INTO clients (id, name, identifiers, filter_enabled, created_at, updated_at)
-         VALUES (?, 'Rewrite Group Client', '[\"192.168.10.1\"]', 1, ?, ?)",
+         VALUES ($1, 'Rewrite Group Client', '[\"192.168.10.1\"]', 1, NOW()::TEXT, NOW()::TEXT)",
     )
     .bind(&client_id)
-    .bind(&now)
-    .bind(&now)
     .execute(db)
     .await
     .expect("Insert client");
 
     sqlx::query(
         "INSERT INTO client_group_memberships (client_id, group_id, created_at)
-         VALUES (?, ?, ?)",
+         VALUES ($1, $2, NOW()::TEXT)",
     )
     .bind(&client_id)
     .bind(group_id)
-    .bind(&now)
     .execute(db)
     .await
     .expect("Insert membership");
@@ -516,10 +523,9 @@ async fn test_group_rules_dns_rewrites() {
     let rewrite_id = uuid::Uuid::new_v4().to_string();
     sqlx::query(
         "INSERT INTO dns_rewrites (id, domain, answer, created_by, created_at)
-         VALUES (?, 'router.local', '192.168.10.254', 'test', ?)",
+         VALUES ($1, 'router.local', '192.168.10.254', 'test', NOW()::TEXT)",
     )
     .bind(&rewrite_id)
-    .bind(&now)
     .execute(db)
     .await
     .expect("Insert rewrite rule");
@@ -527,11 +533,10 @@ async fn test_group_rules_dns_rewrites() {
     // ── 4. Bind the rewrite rule to the group ─────────────────────────────────
     sqlx::query(
         "INSERT INTO client_group_rules (group_id, rule_id, rule_type, priority, created_at)
-         VALUES (?, ?, 'rewrite', 0, ?)",
+         VALUES ($1, $2, 'rewrite', 0, NOW()::TEXT)",
     )
     .bind(group_id)
     .bind(&rewrite_id)
-    .bind(&now)
     .execute(db)
     .await
     .expect("Insert group rewrite binding");

@@ -20,7 +20,7 @@ CREATE INDEX IF NOT EXISTS idx_query_log_templates_is_public
     ON query_log_templates(is_public);
 
 -- 默认模板：常见查询场景
-INSERT OR IGNORE INTO query_log_templates (id, name, filters, logic, created_by, created_at, is_public) VALUES
+INSERT INTO query_log_templates (id, name, filters, logic, created_by, created_at, is_public) VALUES
     -- 最近拦截的广告查询
     ('tpl-blocked-ads-recent', '最近拦截的广告', '[{"field":"status","operator":"eq","value":"blocked"},{"field":"time","operator":"relative","value":"-24h"}]', 'AND', 'system', '2026-02-20T00:00:00Z', 1),
 
@@ -37,4 +37,5 @@ INSERT OR IGNORE INTO query_log_templates (id, name, filters, logic, created_by,
     ('tpl-client-specific', '特定客户端', '[{"field":"client_ip","operator":"eq","value":"192.168.1.100"},{"field":"time","operator":"relative","value":"-7d"}]', 'AND', 'system', '2026-02-20T00:00:00Z', 0),
 
     -- 缓存命中率分析
-    ('tpl-cache-analysis', '缓存分析', '[{"field":"time","operator":"relative","value":"-24h"}]', 'AND', 'system', '2026-02-20T00:00:00Z', 1);
+    ('tpl-cache-analysis', '缓存分析', '[{"field":"time","operator":"relative","value":"-24h"}]', 'AND', 'system', '2026-02-20T00:00:00Z', 1)
+ON CONFLICT DO NOTHING;

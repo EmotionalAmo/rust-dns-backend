@@ -6,13 +6,13 @@
 
 -- 1. Create client_groups table
 CREATE TABLE IF NOT EXISTS client_groups (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    id BIGSERIAL PRIMARY KEY,
     name TEXT NOT NULL UNIQUE,
     color TEXT NOT NULL DEFAULT '#6366f1',
     description TEXT,
     priority INTEGER NOT NULL DEFAULT 0,
-    created_at TEXT NOT NULL DEFAULT (datetime('now')),
-    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    created_at TEXT NOT NULL DEFAULT (NOW()::TEXT),
+    updated_at TEXT NOT NULL DEFAULT (NOW()::TEXT)
 );
 
 -- Indexes for client_groups
@@ -24,11 +24,11 @@ ON client_groups(name);
 
 -- 2. Create client_group_memberships table
 CREATE TABLE IF NOT EXISTS client_group_memberships (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    id BIGSERIAL PRIMARY KEY,
     client_id TEXT NOT NULL,
     group_id INTEGER NOT NULL,
-    created_at TEXT NOT NULL DEFAULT (datetime('now')),
-    UNIQUE(client_id, group_id) ON CONFLICT REPLACE
+    created_at TEXT NOT NULL DEFAULT (NOW()::TEXT),
+    UNIQUE(client_id, group_id)
 );
 
 -- Indexes for client_group_memberships
@@ -43,13 +43,13 @@ ON client_group_memberships(client_id, group_id);
 
 -- 3. Create client_group_rules table
 CREATE TABLE IF NOT EXISTS client_group_rules (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    id BIGSERIAL PRIMARY KEY,
     group_id INTEGER NOT NULL,
     rule_id INTEGER NOT NULL,
     rule_type TEXT NOT NULL,
     priority INTEGER NOT NULL DEFAULT 0,
-    created_at TEXT NOT NULL DEFAULT (datetime('now')),
-    UNIQUE(group_id, rule_id, rule_type) ON CONFLICT REPLACE
+    created_at TEXT NOT NULL DEFAULT (NOW()::TEXT),
+    UNIQUE(group_id, rule_id, rule_type)
 );
 
 -- Indexes for client_group_rules

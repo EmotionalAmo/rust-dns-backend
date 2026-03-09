@@ -16,12 +16,17 @@ UPDATE parental_control_categories
 SET domains = '["010a9a2fb8f0a48f0.com","010a9a2fb8f0a48f1.com","010a9a2fb8f0a48f2.com","010a9a2fb8f0a48f3.com","010a9a2fb8f0a48f4.com","010a9a2fb8f0a48f5.com","010a9a2fb8f0a48f6.com","010a9a2fb8f0a48f7.com","010a9a2fb8f0a48f8.com","010a9a2fb8f0a48f9.com","010a9a2fb8f0a48fa.com","010a9a2fb8f0a48fb.com","010a9a2fb8f0a48fc.com","010a9a2fb8f0a48fd.com","010a9a2fb8f0a48fe.com","010a9a2fb8f0a48ff.com","010a9a2fb8f0a49f0.com","010a9a2fb8f0a49f1.com","010a9a2fb8f0a49f2.com","010a9a2fb8f0a49f3.com","010a9a2fb8f0a49f4.com","010a9a2fb8f0a49f5.com","010a9a2fb8f0a49f6.com","010a9a2fb8f0a49f7.com","010a9a2fb8f0a49f8.com","010a9a2fb8f0a49f9.com","010a9a2fb8f0a49fa.com","010a9a2fb8f0a49fb.com","010a9a2fb8f0a49fc.com","010a9a2fb8f0a49fd.com","010a9a2fb8f0a49fe.com","010a9a2fb8f0a49ff.com","010a9a2fb8f0a4af0.com","010a9a2fb8f0a4af1.com","010a9a2fb8f0a4af2.com","010a9a2fb8f0a4af3.com","010a9a2fb8f0a4af4.com","010a9a2fb8f0a4af5.com","010a9a2fb8f0a4af6.com","010a9a2fb8f0a4af7.com","010a9a2fb8f0a4af8.com","010a9a2fb8f0a4af9.com","010a9a2fb8f0a4afa.com","010a9a2fb8f0a4afb.com","010a9a2fb8f0a4afc.com","010a9a2fb8f0a4afd.com","010a9a2fb8f0a4afe.com","010a9a2fb8f0a4aff.com","010a9a2fb8f0a4bf0.com","010a9a2fb8f0a4bf1.com","010a9a2fb8f0a4bf2.com","010a9a2fb8f0a4bf3.com","010a9a2fb8f0a4bf4.com","010a9a2fb8f0a4bf5.com","010a9a2fb8f0a4bf6.com","010a9a2fb8f0a4bf7.com","010a9a2fb8f0a4bf8.com","010a9a2fb8f0a4bf9.com","010a9a2fb8f0a4bfa.com","010a9a2fb8f0a4bfb.com","010a9a2fb8f0a4bfc.com","010a9a2fb8f0a4bfd.com","010a9a2fb8f0a4bfe.com","010a9a2fb8f0a4bff.com","010a9a2fb8f0a4cf0.com","010a9a2fb8f0a4cf1.com","010a9a2fb8f0a4cf2.com","010a9a2fb8f0a4cf3.com","010a9a2fb8f0a4cf4.com","010a9a2fb8f0a4cf5.com","010a9a2fb8f0a4cf6.com","010a9a2fb8f0a4cf7.com","010a9a2fb8f0a4cf8.com","010a9a2fb8f0a4cf9.com","010a9a2fb8f0a4cfa.com","010a9a2fb8f0a4cfb.com","010a9a2fb8f0a4cfc.com","010a9a2fb8f0a4cfd.com","010a9a2fb8f0a4cfe.com","010a9a2fb8f0a4cff.com","010a9a2fb8f0a4df0.com","010a9a2fb8f0a4df1.com","010a9a2fb8f0a4df2.com","010a9a2fb8f0a4df3.com","010a9a2fb8f0a4df4.com","010a9a2fb8f0a4df5.com","010a9a2fb8f0a4df6.com","010a9a2fb8f0a4df7.com","010a9a2fb8f0a4df8.com","010a9a2fb8f0a4df9.com","010a9a2fb8f0a4dfa.com","010a9a2fb8f0a4dfb.com","010a9a2fb8f0a4dfc.com","010a9a2fb8f0a4dfd.com","010a9a2fb8f0a4dfe.com","010a9a2fb8f0a4dff.com"]'
 WHERE id = 'basic-phishing';
 
-INSERT OR REPLACE INTO parental_control_categories (id, name, description, level, domains, created_at)
+INSERT INTO parental_control_categories (id, name, description, level, domains, created_at)
 VALUES (
     'oisd-small-general',
     'OISD General Blocklist',
     'OISD Small blocklist - Ads, trackers, and malware (10,000 of 56,412 domains loaded in phase 1)',
     'basic',
     '[]',
-    datetime('now')
-);
+    NOW()::TEXT
+)
+ON CONFLICT (id) DO UPDATE SET
+    name = EXCLUDED.name,
+    description = EXCLUDED.description,
+    level = EXCLUDED.level,
+    domains = EXCLUDED.domains;

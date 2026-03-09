@@ -91,8 +91,10 @@ pub struct ApiConfig {
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct DatabaseConfig {
-    #[serde(default = "default_db_path")]
-    pub path: String,
+    /// PostgreSQL connection URL
+    /// Example: postgres://user:password@localhost:5432/rustdns
+    #[serde(default = "default_db_url")]
+    pub url: String,
     #[serde(default = "default_query_log_retention_days")]
     pub query_log_retention_days: u32,
 }
@@ -121,8 +123,8 @@ fn default_bind() -> String {
 fn default_api_port() -> u16 {
     8080
 }
-fn default_db_path() -> String {
-    "./rust-dns.db".to_string()
+fn default_db_url() -> String {
+    "postgres://postgres:postgres@localhost:5432/rustdns".to_string()
 }
 fn default_jwt_expiry() -> u64 {
     24
@@ -186,14 +188,14 @@ pub fn validate(cfg: &Config) -> Result<()> {
         );
     }
 
-    // Validate database path directory exists or can be created
-    if let Some(parent) = std::path::Path::new(&cfg.database.path).parent() {
-        if !parent.exists() {
-            anyhow::bail!(
-                "CONFIG ERROR: Database directory does not exist: {}",
-                parent.display()
-            );
-        }
+    // Validate database URL format
+    if !cfg.database.url.starts_with("postgres://")
+        && !cfg.database.url.starts_with("postgresql://")
+    {
+        anyhow::bail!(
+            "CONFIG ERROR: Database URL must start with postgres:// or postgresql://, got: {}",
+            cfg.database.url
+        );
     }
 
     tracing::info!("Configuration validation passed");
@@ -230,7 +232,10 @@ pub fn load(config_path: Option<&str>) -> Result<Config> {
         .set_default("api.bind", "0.0.0.0")?
         .set_default("api.port", 8080)?
         .set_default("api.static_dir", "frontend/dist")?
-        .set_default("database.path", "./rust-dns.db")?
+        .set_default(
+            "database.url",
+            "postgres://postgres:postgres@localhost:5432/rustdns",
+        )?
         .set_default("database.query_log_retention_days", 7)?
         .set_default("auth.jwt_secret", "CHANGE_ME_USE_A_RANDOM_64_CHAR_STRING")?
         .set_default("auth.jwt_expiry_hours", 24)?

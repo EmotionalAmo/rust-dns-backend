@@ -99,8 +99,8 @@ impl UpstreamPool {
                 health_status: "healthy".to_string(),
                 last_health_check_at: None,
                 last_failover_at: None,
-                created_at: chrono::Utc::now().to_rfc3339(),
-                updated_at: chrono::Utc::now().to_rfc3339(),
+                created_at: chrono::Utc::now().naive_utc(),
+                updated_at: chrono::Utc::now().naive_utc(),
             };
             nodes.push(Arc::new(UpstreamNode {
                 model: fallback_model,

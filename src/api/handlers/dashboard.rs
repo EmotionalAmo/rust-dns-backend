@@ -22,20 +22,20 @@ pub async fn get_stats(
 
     // Counts over the requested time window
     let (total,): (i64,) =
-        sqlx::query_as("SELECT COUNT(*) FROM query_log WHERE time >= datetime('now', ?)")
+        sqlx::query_as("SELECT COUNT(*) FROM query_log WHERE time >= NOW() + $1::interval")
             .bind(&time_filter)
             .fetch_one(&state.db)
             .await?;
 
     let (blocked,): (i64,) = sqlx::query_as(
-        "SELECT COUNT(*) FROM query_log WHERE status = 'blocked' AND time >= datetime('now', ?)",
+        "SELECT COUNT(*) FROM query_log WHERE status = 'blocked' AND time >= NOW() + $1::interval",
     )
     .bind(&time_filter)
     .fetch_one(&state.db)
     .await?;
 
     let (cached,): (i64,) = sqlx::query_as(
-        "SELECT COUNT(*) FROM query_log WHERE status = 'cached' AND time >= datetime('now', ?)",
+        "SELECT COUNT(*) FROM query_log WHERE status = 'cached' AND time >= NOW() + $1::interval",
     )
     .bind(&time_filter)
     .fetch_one(&state.db)
@@ -60,7 +60,7 @@ pub async fn get_stats(
 
     // Count unique clients with queries in the requested time window
     let (clients,): (i64,) = sqlx::query_as(
-        "SELECT COUNT(DISTINCT client_ip) FROM query_log WHERE time >= datetime('now', ?)",
+        "SELECT COUNT(DISTINCT client_ip) FROM query_log WHERE time >= NOW() + $1::interval",
     )
     .bind(&time_filter)
     .fetch_one(&state.db)
@@ -72,7 +72,7 @@ pub async fn get_stats(
     let week_end_filter = format!("-{} days", offset_days);
 
     let (week_total,): (i64,) = sqlx::query_as(
-        "SELECT COUNT(*) FROM query_log WHERE time >= datetime('now', ?) AND time < datetime('now', ?)"
+        "SELECT COUNT(*) FROM query_log WHERE time >= NOW() + $1::interval AND time < NOW() + $2::interval"
     )
     .bind(&week_start_filter)
     .bind(&week_end_filter)
@@ -80,7 +80,7 @@ pub async fn get_stats(
             .await?;
 
     let (week_blocked,): (i64,) = sqlx::query_as(
-        "SELECT COUNT(*) FROM query_log WHERE status = 'blocked' AND time >= datetime('now', ?) AND time < datetime('now', ?)"
+        "SELECT COUNT(*) FROM query_log WHERE status = 'blocked' AND time >= NOW() + $1::interval AND time < NOW() + $2::interval"
     )
     .bind(&week_start_filter)
     .bind(&week_end_filter)
@@ -95,7 +95,7 @@ pub async fn get_stats(
 
     // Last 1 minute QPS
     let (recent_count,): (i64,) =
-        sqlx::query_as("SELECT COUNT(*) FROM query_log WHERE time >= datetime('now', '-1 minute')")
+        sqlx::query_as("SELECT COUNT(*) FROM query_log WHERE time >= NOW() - INTERVAL '1 minute'")
             .fetch_one(&state.db)
             .await?;
     let qps = (recent_count as f64 / 60.0 * 10.0).round() / 10.0;
@@ -127,7 +127,7 @@ pub async fn get_top_blocked_domains(
     let hours = params.hours.unwrap_or(24).clamp(1, 720);
     let rows: Vec<(String, i64)> = sqlx::query_as(
         "SELECT question, COUNT(*) as cnt FROM query_log
-         WHERE status = 'blocked' AND time >= datetime('now', printf('-%d hours', ?))
+         WHERE status = 'blocked' AND time >= NOW() - ($1 * INTERVAL '1 hour')
          GROUP BY question ORDER BY cnt DESC LIMIT 10",
     )
     .bind(hours)
@@ -152,7 +152,7 @@ pub async fn get_top_clients(
         "SELECT client_ip, COUNT(*) as cnt,
                 COUNT(CASE WHEN status = 'blocked' THEN 1 END) as blocked_cnt
          FROM query_log
-         WHERE time >= datetime('now', printf('-%d hours', ?))
+         WHERE time >= NOW() - ($1 * INTERVAL '1 hour')
          GROUP BY client_ip ORDER BY cnt DESC LIMIT 10",
     )
     .bind(hours)
@@ -187,7 +187,7 @@ pub async fn get_top_queried_domains(
     let hours = params.hours.unwrap_or(24).clamp(1, 720);
     let rows: Vec<(String, i64)> = sqlx::query_as(
         "SELECT question, COUNT(*) as cnt FROM query_log
-         WHERE time >= datetime('now', printf('-%d hours', ?))
+         WHERE time >= NOW() - ($1 * INTERVAL '1 hour')
          GROUP BY question ORDER BY cnt DESC LIMIT 10",
     )
     .bind(hours)
@@ -212,14 +212,14 @@ pub async fn get_query_trend(
     // Aggregate query_log by hour over the requested window
     let rows: Vec<(String, i64, i64, i64, i64)> = sqlx::query_as(
         "SELECT
-            strftime('%Y-%m-%dT%H:00:00Z', time) as hour,
+            TO_CHAR(time, 'YYYY-MM-DD\"T\"HH24:00:00Z') as hour,
             COUNT(*) as total,
             SUM(CASE WHEN status = 'blocked' THEN 1 ELSE 0 END) as blocked,
             SUM(CASE WHEN status = 'allowed' THEN 1 ELSE 0 END) as allowed,
             SUM(CASE WHEN status = 'cached' THEN 1 ELSE 0 END) as cached
          FROM query_log
-         WHERE time >= datetime('now', printf('-%d hours', ?))
-         GROUP BY strftime('%Y-%m-%d %H', time)
+         WHERE time >= NOW() - ($1 * INTERVAL '1 hour')
+         GROUP BY date_trunc('hour', time)
          ORDER BY time ASC",
     )
     .bind(hours)
@@ -260,8 +260,8 @@ pub async fn get_upstream_trend(
     // First, find top N upstreams in the time window
     let top_upstreams: Vec<String> = sqlx::query_scalar(
         "SELECT upstream FROM query_log
-         WHERE time >= datetime('now', ?) AND upstream IS NOT NULL
-         GROUP BY upstream ORDER BY COUNT(*) DESC LIMIT ?",
+         WHERE time >= NOW() + $1::interval AND upstream IS NOT NULL
+         GROUP BY upstream ORDER BY COUNT(*) DESC LIMIT $2",
     )
     .bind(&time_filter)
     .bind(limit)
@@ -278,12 +278,12 @@ pub async fn get_upstream_trend(
     // Get hourly aggregates for top upstreams
     let query = format!(
         "SELECT
-            strftime('%Y-%m-%dT%H:00:00Z', time) as time,
+            TO_CHAR(time, 'YYYY-MM-DD\"T\"HH24:00:00Z') as time,
             upstream,
             COUNT(*) as count
          FROM query_log
-         WHERE time >= datetime('now', ?) AND upstream IN ({})
-         GROUP BY strftime('%Y-%m-%d %H', time), upstream
+         WHERE time >= NOW() + $1::interval AND upstream IN ({})
+         GROUP BY date_trunc('hour', time), upstream
          ORDER BY time ASC",
         placeholders
     );
@@ -333,7 +333,7 @@ pub async fn get_latency_stats(
 
     let rows: Vec<(i64,)> = sqlx::query_as(
         "SELECT elapsed_ns FROM query_log
-         WHERE upstream IS NOT NULL AND time >= datetime('now', ?)
+         WHERE upstream IS NOT NULL AND time >= NOW() + $1::interval
          ORDER BY id DESC LIMIT 5000",
     )
     .bind(&time_filter)
@@ -384,9 +384,9 @@ pub async fn get_latency_trend(
 
     // Fetch (hourly_bucket, elapsed_ns) pairs, capped at 30000 rows
     let rows: Vec<(String, i64)> = sqlx::query_as(
-        "SELECT strftime('%Y-%m-%dT%H:00:00Z', time) as bucket, elapsed_ns
+        "SELECT TO_CHAR(time, 'YYYY-MM-DD\"T\"HH24:00:00Z') as bucket, elapsed_ns
          FROM query_log
-         WHERE upstream IS NOT NULL AND time >= datetime('now', ?)
+         WHERE upstream IS NOT NULL AND time >= NOW() + $1::interval
          ORDER BY bucket ASC
          LIMIT 30000",
     )
@@ -463,7 +463,7 @@ pub async fn get_upstream_distribution(
     // Get total count for percentage calculation
     let (total_count,): (i64,) = sqlx::query_as(
         "SELECT COUNT(*) FROM query_log
-         WHERE time >= datetime('now', ?) AND upstream IS NOT NULL",
+         WHERE time >= NOW() + $1::interval AND upstream IS NOT NULL",
     )
     .bind(&time_filter)
     .fetch_one(&state.db)
@@ -476,7 +476,7 @@ pub async fn get_upstream_distribution(
     // Get upstream counts ordered by count DESC
     let rows: Vec<(String, i64)> = sqlx::query_as(
         "SELECT upstream, COUNT(*) as cnt FROM query_log
-         WHERE time >= datetime('now', ?) AND upstream IS NOT NULL
+         WHERE time >= NOW() + $1::interval AND upstream IS NOT NULL
          GROUP BY upstream ORDER BY cnt DESC",
     )
     .bind(&time_filter)
@@ -510,12 +510,12 @@ pub async fn get_upstream_health_history(
 
     let rows: Vec<(String, String, f64)> = sqlx::query_as(
         "SELECT u.name,
-                strftime('%Y-%m-%dT%H:00:00Z', l.checked_at) as bucket,
-                CAST(SUM(l.success) * 100.0 / COUNT(*) AS REAL) as availability
+                TO_CHAR(l.checked_at, 'YYYY-MM-DD\"T\"HH24:00:00Z') as bucket,
+                CAST(SUM(l.success) * 100.0 / COUNT(*) AS NUMERIC) as availability
          FROM upstream_latency_log l
          JOIN dns_upstreams u ON u.id = l.upstream_id
-         WHERE l.checked_at >= datetime('now', ?)
-         GROUP BY u.name, strftime('%Y-%m-%d %H', l.checked_at)
+         WHERE l.checked_at >= NOW() + $1::interval
+         GROUP BY u.name, date_trunc('hour', l.checked_at)
          ORDER BY bucket ASC",
     )
     .bind(&time_filter)
