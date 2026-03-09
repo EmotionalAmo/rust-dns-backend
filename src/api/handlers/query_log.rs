@@ -521,7 +521,13 @@ pub async fn export(
         _ => {
             // CSV format
             let mut csv = String::new();
-            csv.push_str(&fields.join(","));
+            csv.push_str(
+                &fields
+                    .iter()
+                    .map(|f| field_to_label(f))
+                    .collect::<Vec<_>>()
+                    .join(","),
+            );
             csv.push('\n');
 
             for row in rows {
@@ -556,6 +562,24 @@ pub async fn export(
             )
                 .into_response()
         }
+    }
+}
+
+fn field_to_label(key: &str) -> &str {
+    match key {
+        "id" => "ID",
+        "time" => "时间",
+        "client_ip" => "客户端IP",
+        "client_name" => "客户端名称",
+        "question" => "域名",
+        "qtype" => "查询类型",
+        "answer" => "响应",
+        "status" => "状态",
+        "reason" => "原因",
+        "upstream" => "上游服务器",
+        "elapsed_ns" => "响应时间(ns)",
+        "upstream_ns" => "上游响应时间(ns)",
+        _ => key,
     }
 }
 
