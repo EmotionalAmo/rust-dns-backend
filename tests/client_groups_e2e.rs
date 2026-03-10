@@ -487,14 +487,14 @@ async fn test_group_rules_dns_rewrites() {
         "SELECT table_name, column_name, data_type
         FROM information_schema.columns
         WHERE table_name = 'client_group_rules'
-        ORDER BY ordinal_position"
+        ORDER BY ordinal_position",
     )
     .fetch_all(db)
     .await
     .expect("Debug: client_group_rules schema");
 
     for row in &debug_rows {
-    println!("DEBUG: {:?}", row);
+        println!("DEBUG: {:?}", row);
     }
 
     // Clean up stale test data - delete in correct order to handle foreign keys
