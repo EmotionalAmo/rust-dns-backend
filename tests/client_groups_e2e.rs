@@ -501,7 +501,7 @@ async fn test_group_rules_dns_rewrites() {
     let _ = sqlx::query("DELETE FROM client_group_rules WHERE rule_type = 'rewrite'")
         .execute(db)
         .await;
-    let _ = sqlx::query("DELETE FROM client_group_memberships WHERE client_id IN (SELECT id FROM clients WHERE name = 'Rewrite Group Client'")
+    let _ = sqlx::query("DELETE FROM client_group_memberships WHERE client_id IN (SELECT id FROM clients WHERE name = 'Rewrite Group Client')")
         .execute(db)
         .await;
     let _ = sqlx::query("DELETE FROM client_groups WHERE name = 'Rewrite Test Group'")
@@ -567,7 +567,59 @@ async fn test_group_rules_dns_rewrites() {
     .await
     .expect("Insert group rewrite binding");
 
-    // ── 5. Query the rewritten domain from the group client IP ────────────────
+    // ── 5. Debug: verify all data is inserted correctly ──────────────────────
+    println!(
+        "DEBUG IDs: client_id={} group_id={} rewrite_id={}",
+        client_id, group_id, rewrite_id
+    );
+
+    let verify_clients: Vec<(String, String)> =
+        sqlx::query_as("SELECT id, identifiers FROM clients WHERE name = 'Rewrite Group Client'")
+            .fetch_all(db)
+            .await
+            .expect("verify clients");
+    println!("DEBUG clients: {:?}", verify_clients);
+
+    let verify_membership: Vec<(String, i64)> = sqlx::query_as(
+        "SELECT client_id, group_id FROM client_group_memberships WHERE client_id = $1",
+    )
+    .bind(&client_id)
+    .fetch_all(db)
+    .await
+    .expect("verify membership");
+    println!("DEBUG membership: {:?}", verify_membership);
+
+    let verify_rule: Vec<(i64, String, String)> = sqlx::query_as(
+        "SELECT group_id, rule_id, rule_type FROM client_group_rules WHERE group_id = $1",
+    )
+    .bind(group_id)
+    .fetch_all(db)
+    .await
+    .expect("verify group rule");
+    println!("DEBUG group_rule: {:?}", verify_rule);
+
+    let verify_rewrite: Vec<(String, String, String)> =
+        sqlx::query_as("SELECT id, domain, answer FROM dns_rewrites WHERE domain = 'router.local'")
+            .fetch_all(db)
+            .await
+            .expect("verify rewrite");
+    println!("DEBUG dns_rewrite: {:?}", verify_rewrite);
+
+    let verify_join: Vec<(String, String)> = sqlx::query_as(
+        "SELECT dr.domain, dr.answer
+        FROM client_group_memberships m
+        JOIN client_groups cg ON cg.id = m.group_id
+        JOIN client_group_rules cgr ON cgr.group_id = m.group_id
+        JOIN dns_rewrites dr ON dr.id = cgr.rule_id
+        WHERE m.client_id = $1 AND cgr.rule_type = 'rewrite'",
+    )
+    .bind(&client_id)
+    .fetch_all(db)
+    .await
+    .expect("verify join query");
+    println!("DEBUG join_result: {:?}", verify_join);
+
+    // ── 6. Query the rewritten domain from the group client IP ────────────────
     let query_bytes = build_dns_query("router.local");
     let resp_bytes = state
         .dns_handler
