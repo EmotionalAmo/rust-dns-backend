@@ -23,10 +23,11 @@ CREATE INDEX IF NOT EXISTS idx_client_groups_name
 ON client_groups(name);
 
 -- 2. Create client_group_memberships table
+-- Note: group_id is BIGINT to match client_groups.id (BIGSERIAL)
 CREATE TABLE IF NOT EXISTS client_group_memberships (
     id BIGSERIAL PRIMARY KEY,
     client_id TEXT NOT NULL,
-    group_id INTEGER NOT NULL,
+    group_id BIGINT NOT NULL,
     created_at TEXT NOT NULL DEFAULT (NOW()::TEXT),
     UNIQUE(client_id, group_id)
 );
@@ -42,10 +43,11 @@ CREATE INDEX IF NOT EXISTS idx_memberships_client_group
 ON client_group_memberships(client_id, group_id);
 
 -- 3. Create client_group_rules table
+-- Note: rule_id is TEXT because it references custom_rules.id or dns_rewrites.id (both UUID/TEXT)
 CREATE TABLE IF NOT EXISTS client_group_rules (
     id BIGSERIAL PRIMARY KEY,
-    group_id INTEGER NOT NULL,
-    rule_id INTEGER NOT NULL,
+    group_id BIGINT NOT NULL,
+    rule_id TEXT NOT NULL,
     rule_type TEXT NOT NULL,
     priority INTEGER NOT NULL DEFAULT 0,
     created_at TEXT NOT NULL DEFAULT (NOW()::TEXT),
