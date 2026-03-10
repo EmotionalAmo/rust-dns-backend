@@ -482,11 +482,26 @@ async fn test_group_rules_dns_rewrites() {
     let state = build_test_state().await;
     let db = &state.db;
 
+    // Debug: Check client_group_rules table schema
+    let debug_rows: Vec<(String, String, String)> = sqlx::query_as(
+        "SELECT table_name, column_name, data_type
+        FROM information_schema.columns
+        WHERE table_name = 'client_group_rules'
+        ORDER BY ordinal_position"
+    )
+    .fetch_all(db)
+    .await
+    .expect("Debug: client_group_rules schema");
+
+    for row in &debug_rows {
+    println!("DEBUG: {:?}", row);
+    }
+
     // Clean up stale test data - delete in correct order to handle foreign keys
     let _ = sqlx::query("DELETE FROM client_group_rules WHERE rule_type = 'rewrite'")
         .execute(db)
         .await;
-    let _ = sqlx::query("DELETE FROM client_group_memberships WHERE client_id IN (SELECT id FROM clients WHERE name = 'Rewrite Group Client')")
+    let _ = sqlx::query("DELETE FROM client_group_memberships WHERE client_id IN (SELECT id FROM clients WHERE name = 'Rewrite Group Client'")
         .execute(db)
         .await;
     let _ = sqlx::query("DELETE FROM client_groups WHERE name = 'Rewrite Test Group'")
