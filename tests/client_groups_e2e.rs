@@ -477,7 +477,13 @@ async fn test_group_rules_dns_rewrites() {
     let state = build_test_state().await;
     let db = &state.db;
 
-    // Clean up stale test data
+    // Clean up stale test data - delete in correct order to handle foreign keys
+    let _ = sqlx::query("DELETE FROM client_group_rules WHERE rule_type = 'rewrite'")
+        .execute(db)
+        .await;
+    let _ = sqlx::query("DELETE FROM client_group_memberships WHERE client_id IN (SELECT id FROM clients WHERE name = 'Rewrite Group Client')")
+        .execute(db)
+        .await;
     let _ = sqlx::query("DELETE FROM client_groups WHERE name = 'Rewrite Test Group'")
         .execute(db)
         .await;
