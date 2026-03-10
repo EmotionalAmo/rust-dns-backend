@@ -170,6 +170,17 @@ impl DnsHandler {
         // Look up client-specific config (filter override + custom upstreams + group rules/rewrites)
         let config = self.get_client_config(client_ip).await;
 
+        // TEMP DEBUG
+        if domain_normalized == "router.local" {
+            println!(
+                "HANDLER_DEBUG: domain={} client_ip={} group_rewrites_present={} group_rewrites={:?}",
+                domain_normalized,
+                client_ip,
+                config.group_rewrites.is_some(),
+                config.group_rewrites.as_ref().map(|r| r.keys().cloned().collect::<Vec<_>>())
+            );
+        }
+
         // Check DNS rewrite (group-specific rewrites take precedence over global)
         // check_rewrite() 是同步方法（arc-swap 无锁读），无需 .await
         let rewrite_answer = if let Some(ref rewrites) = config.group_rewrites {
@@ -181,6 +192,11 @@ impl DnsHandler {
         } else {
             self.filter.check_rewrite(domain_normalized)
         };
+
+        // TEMP DEBUG
+        if domain_normalized == "router.local" {
+            println!("HANDLER_DEBUG: rewrite_answer={:?}", rewrite_answer);
+        }
 
         if let Some(answer) = rewrite_answer {
             tracing::debug!("Rewrite: {} -> {}", domain, answer);
@@ -360,13 +376,16 @@ impl DnsHandler {
     }
 
     async fn resolve_client_config(&self, client_ip: &str) -> ClientConfig {
-        let full_rows: Vec<(String, String, i64, Option<String>)> =
+        let full_rows: Vec<(String, String, i32, Option<String>)> =
             match sqlx::query_as("SELECT id, identifiers, filter_enabled, upstreams FROM clients")
                 .fetch_all(&self.db)
                 .await
             {
                 Ok(r) => r,
-                Err(_) => return ClientConfig::default(),
+                Err(e) => {
+                    tracing::warn!("Failed to load client config from DB: {}", e);
+                    return ClientConfig::default();
+                }
             };
 
         let mut matched_client_id: Option<String> = None;
