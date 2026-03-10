@@ -504,6 +504,7 @@ async fn test_group_rules_dns_rewrites() {
     let _ = sqlx::query("DELETE FROM client_group_memberships WHERE client_id IN (SELECT id FROM clients WHERE name = 'Rewrite Group Client')")
         .execute(db)
         .await;
+
     let _ = sqlx::query("DELETE FROM client_groups WHERE name = 'Rewrite Test Group'")
         .execute(db)
         .await;
@@ -567,105 +568,12 @@ async fn test_group_rules_dns_rewrites() {
     .await
     .expect("Insert group rewrite binding");
 
-    // ── 5. Debug: verify all data is inserted correctly ──────────────────────
     println!(
         "DEBUG IDs: client_id={} group_id={} rewrite_id={}",
         client_id, group_id, rewrite_id
     );
 
-    let verify_clients: Vec<(String, String)> =
-        sqlx::query_as("SELECT id, identifiers FROM clients WHERE name = 'Rewrite Group Client'")
-            .fetch_all(db)
-            .await
-            .expect("verify clients");
-    println!("DEBUG clients: {:?}", verify_clients);
-
-    let verify_membership: Vec<(String, i64)> = sqlx::query_as(
-        "SELECT client_id, group_id FROM client_group_memberships WHERE client_id = $1",
-    )
-    .bind(&client_id)
-    .fetch_all(db)
-    .await
-    .expect("verify membership");
-    println!("DEBUG membership: {:?}", verify_membership);
-
-    let verify_rule: Vec<(i64, String, String)> = sqlx::query_as(
-        "SELECT group_id, rule_id, rule_type FROM client_group_rules WHERE group_id = $1",
-    )
-    .bind(group_id)
-    .fetch_all(db)
-    .await
-    .expect("verify group rule");
-    println!("DEBUG group_rule: {:?}", verify_rule);
-
-    let verify_rewrite: Vec<(String, String, String)> =
-        sqlx::query_as("SELECT id, domain, answer FROM dns_rewrites WHERE domain = 'router.local'")
-            .fetch_all(db)
-            .await
-            .expect("verify rewrite");
-    println!("DEBUG dns_rewrite: {:?}", verify_rewrite);
-
-    let verify_join: Vec<(String, String)> = sqlx::query_as(
-        "SELECT dr.domain, dr.answer
-        FROM client_group_memberships m
-        JOIN client_groups cg ON cg.id = m.group_id
-        JOIN client_group_rules cgr ON cgr.group_id = m.group_id
-        JOIN dns_rewrites dr ON dr.id = cgr.rule_id
-        WHERE m.client_id = $1 AND cgr.rule_type = 'rewrite'",
-    )
-    .bind(&client_id)
-    .fetch_all(db)
-    .await
-    .expect("verify join query");
-    println!("DEBUG join_result: {:?}", verify_join);
-
-    // ── 5b. Simulate resolve_client_config to find which client_id handler will use
-    let all_clients: Vec<(String, String, i32, Option<String>)> =
-        sqlx::query_as("SELECT id, identifiers, filter_enabled, upstreams FROM clients")
-            .fetch_all(db)
-            .await
-            .expect("all clients");
-    println!("DEBUG all_clients count: {}", all_clients.len());
-    for (cid, idents, fe, _ups) in &all_clients {
-        println!(
-            "  client id={} identifiers={} filter_enabled={}",
-            cid, idents, fe
-        );
-    }
-
-    // Find which client_id the handler would resolve for 192.168.10.1
-    let handler_client_id = all_clients.iter().find_map(|(cid, idents, _, _)| {
-        if let Ok(ids) = serde_json::from_str::<Vec<serde_json::Value>>(idents) {
-            if ids.iter().any(|id| id.as_str() == Some("192.168.10.1")) {
-                return Some(cid.clone());
-            }
-        }
-        None
-    });
-    println!(
-        "DEBUG handler would resolve client_id: {:?}",
-        handler_client_id
-    );
-
-    // Run the group rewrite query with the handler's resolved client_id
-    if let Some(ref hcid) = handler_client_id {
-        let handler_join: Vec<(String, String)> = sqlx::query_as(
-            "SELECT dr.domain, dr.answer
-            FROM client_group_memberships m
-            JOIN client_groups cg ON cg.id = m.group_id
-            JOIN client_group_rules cgr ON cgr.group_id = m.group_id
-            JOIN dns_rewrites dr ON dr.id = cgr.rule_id
-            WHERE m.client_id = $1 AND cgr.rule_type = 'rewrite'
-            ORDER BY cg.priority ASC",
-        )
-        .bind(hcid)
-        .fetch_all(db)
-        .await
-        .expect("handler join");
-        println!("DEBUG handler_join_result: {:?}", handler_join);
-    }
-
-    // ── 6. Query the rewritten domain from the group client IP ────────────────
+    // ── 5. Query the rewritten domain from the group client IP ────────────────
     let query_bytes = build_dns_query("router.local");
     let resp_bytes = state
         .dns_handler
