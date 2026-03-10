@@ -12,6 +12,7 @@ use dashmap::DashMap;
 use hickory_proto::op::{Message, MessageType, OpCode, Query, ResponseCode};
 use hickory_proto::rr::{Name, RecordType};
 use moka::future::Cache as MokaCache;
+use serial_test::serial;
 use sqlx::PgPool;
 use std::str::FromStr;
 use std::sync::Arc;
@@ -171,6 +172,7 @@ fn decode_rcode(bytes: &[u8]) -> ResponseCode {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 #[tokio::test]
+#[serial]
 async fn test_client_group_dns_blocking() {
     let state = build_test_state().await;
     let db = &state.db;
@@ -262,6 +264,7 @@ async fn test_client_group_dns_blocking() {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 #[tokio::test]
+#[serial]
 async fn test_global_filter_blocks_non_group_clients() {
     let state = build_test_state().await;
     let db = &state.db;
@@ -313,6 +316,7 @@ async fn test_global_filter_blocks_non_group_clients() {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 #[tokio::test]
+#[serial]
 async fn test_group_rules_layer_over_global_filter() {
     let state = build_test_state().await;
     let db = &state.db;
@@ -473,6 +477,7 @@ async fn test_group_rules_layer_over_global_filter() {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 #[tokio::test]
+#[serial]
 async fn test_group_rules_dns_rewrites() {
     let state = build_test_state().await;
     let db = &state.db;
