@@ -2,7 +2,7 @@ use crate::api::middleware::auth::AuthUser;
 use crate::api::middleware::client_ip::ClientIp;
 use crate::api::AppState;
 use crate::error::{AppError, AppResult};
-use axum::{extract::State, Json};
+use axum::{extract::State, http::HeaderMap, Json};
 use serde::Deserialize;
 use serde_json::{json, Value};
 use std::sync::Arc;
@@ -138,10 +138,22 @@ fn record_login_failure(state: &AppState, ip: &str) {
     }
 }
 
-pub async fn logout(State(state): State<Arc<AppState>>, auth: AuthUser) -> AppResult<Json<Value>> {
-    // Blacklist this token's jti so it cannot be reused after logout.
-    state.token_blacklist.insert(auth.0.jti.clone(), ());
-    tracing::info!("User {} logged out (jti blacklisted)", auth.0.username);
+pub async fn logout(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+) -> AppResult<Json<Value>> {
+    // Logout always returns 200 — even without a token (client may already be logged out).
+    // If a valid token is present, blacklist its jti so it cannot be reused after logout.
+    if let Some(bearer) = headers
+        .get(axum::http::header::AUTHORIZATION)
+        .and_then(|v| v.to_str().ok())
+        .and_then(|v| v.strip_prefix("Bearer "))
+    {
+        if let Ok(claims) = crate::auth::jwt::verify(bearer, &state.jwt_secret) {
+            state.token_blacklist.insert(claims.jti.clone(), ());
+            tracing::info!("User {} logged out (jti blacklisted)", claims.username);
+        }
+    }
     Ok(Json(json!({"success": true})))
 }
 
