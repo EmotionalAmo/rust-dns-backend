@@ -14,6 +14,199 @@ use rust_dns::dns;
 use rust_dns::metrics;
 use rust_dns::shutdown;
 
+async fn run_filter_refresh_task(
+    db: sqlx::PgPool,
+    filter_engine: Arc<dns::filter::FilterEngine>,
+    mut shutdown_rx: broadcast::Receiver<()>,
+) {
+    let mut ticker = tokio::time::interval(tokio::time::Duration::from_secs(3600));
+    ticker.tick().await; // skip immediate first tick
+    loop {
+        tokio::select! {
+            _ = ticker.tick() => {
+                tracing::info!("Auto-refresh: checking filter lists...");
+
+                let lists: Vec<(String, String, Option<i64>, Option<String>)> =
+                    match sqlx::query_as(
+                        "SELECT id, url, update_interval_hours, last_updated
+                     FROM filter_lists WHERE is_enabled = 1 AND url != '' AND url IS NOT NULL",
+                    )
+                    .fetch_all(&db)
+                    .await
+                    {
+                        Ok(r) => r,
+                        Err(e) => {
+                            tracing::warn!("Auto-refresh DB error: {}", e);
+                            continue;
+                        }
+                    };
+
+                let mut refreshed = false;
+                for (id, url, interval_hours, last_updated) in lists {
+                    let interval_h = interval_hours.unwrap_or(0);
+                    // 0 = manual only, skip auto-refresh
+                    if interval_h <= 0 {
+                        continue;
+                    }
+                    let due = last_updated
+                        .and_then(|s| chrono::DateTime::parse_from_rfc3339(&s).ok())
+                        .map(|last| {
+                            let elapsed =
+                                Utc::now().signed_duration_since(last.with_timezone(&Utc));
+                            elapsed.num_hours() >= interval_h
+                        })
+                        .unwrap_or(true);
+
+                    if due {
+                        match dns::subscription::sync_filter_list(&db, &id, &url).await {
+                            Ok(n) => {
+                                tracing::info!("Auto-refreshed filter {}: {} rules", id, n);
+                                refreshed = true;
+                            }
+                            Err(e) => tracing::warn!("Auto-refresh filter {}: {}", id, e),
+                        }
+                    }
+                }
+
+                if refreshed {
+                    if let Err(e) = filter_engine.reload().await {
+                        tracing::warn!("Filter reload after auto-refresh: {}", e);
+                    }
+                }
+            }
+            _ = shutdown_rx.recv() => {
+                tracing::info!("Filter auto-refresh task shutting down");
+                break;
+            }
+        }
+    }
+}
+
+async fn run_query_log_rotation_task(
+    db: sqlx::PgPool,
+    retention_days: u32,
+    mut shutdown_rx: broadcast::Receiver<()>,
+) {
+    // Run daily at 3 AM (24h interval)
+    let mut ticker = tokio::time::interval(tokio::time::Duration::from_secs(86400));
+
+    tracing::info!(
+        "Query log rotation enabled: retaining {} days, running daily",
+        retention_days
+    );
+
+    ticker.tick().await; // skip immediate first tick
+    loop {
+        tokio::select! {
+            _ = ticker.tick() => {
+                match sqlx::query(
+                    "DELETE FROM query_log WHERE time < NOW() - ($1 * INTERVAL '1 day')",
+                )
+                .bind(retention_days as i64)
+                .execute(&db)
+                .await
+                {
+                    Ok(r) if r.rows_affected() > 0 => tracing::info!(
+                        "Query log rotation: deleted {} entries older than {} days",
+                        r.rows_affected(),
+                        retention_days
+                    ),
+                    Ok(_) => {}
+                    Err(e) => tracing::warn!("Query log rotation error: {}", e),
+                }
+            }
+            _ = shutdown_rx.recv() => {
+                tracing::info!("Query log rotation task shutting down");
+                break;
+            }
+        }
+    }
+}
+
+async fn run_upstream_health_check_task(
+    db: sqlx::PgPool,
+    handler: Arc<dns::DnsHandler>,
+    mut shutdown_rx: broadcast::Receiver<()>,
+) {
+    let mut ticker = tokio::time::interval(tokio::time::Duration::from_secs(30));
+    ticker.tick().await; // skip immediate first tick, let upstreams warm up
+
+    loop {
+        tokio::select! {
+            _ = ticker.tick() => {
+                let results = handler.health_check_upstreams().await;
+                if results.is_empty() {
+                    continue;
+                }
+
+                // Load current upstream status from DB for change detection
+                let upstreams = match rust_dns::db::models::upstream::UpstreamRepository::list(&db).await {
+                    Ok(u) => u,
+                    Err(e) => {
+                        tracing::warn!("Health check: failed to load upstreams: {}", e);
+                        continue;
+                    }
+                };
+
+                let mut needs_reload = false;
+
+                for (upstream_id, latency_ms, is_healthy) in results {
+                    let new_status = if is_healthy { "healthy" } else { "degraded" };
+
+                    tracing::debug!(
+                        "Upstream {} health: {}ms status={}",
+                        upstream_id, latency_ms, new_status
+                    );
+
+                    // Update DB timestamp + status
+                    if let Err(e) = rust_dns::db::models::upstream::UpstreamRepository::update_health_status(
+                        &db, &upstream_id, new_status,
+                    ).await {
+                        tracing::warn!("Health check: DB update failed for {}: {}", upstream_id, e);
+                        continue;
+                    }
+
+                    // Failover logic: if status changed and failover_enabled, reload pool
+                    if let Some(upstream) = upstreams.iter().find(|u| u.id == upstream_id) {
+                        if upstream.health_status != new_status && upstream.failover_enabled {
+                            if !is_healthy {
+                                warn!(
+                                    "Upstream {} degraded ({}ms), triggering failover",
+                                    upstream_id, latency_ms
+                                );
+                                let _ = rust_dns::db::models::upstream::UpstreamRepository::log_failover(
+                                    &db, &upstream_id, "failover",
+                                    Some("health check failed"),
+                                ).await;
+                            } else {
+                                info!(
+                                    "Upstream {} recovered ({}ms)",
+                                    upstream_id, latency_ms
+                                );
+                                let _ = rust_dns::db::models::upstream::UpstreamRepository::log_failover(
+                                    &db, &upstream_id, "recover",
+                                    Some("health check passed"),
+                                ).await;
+                            }
+                            needs_reload = true;
+                        }
+                    }
+                }
+
+                if needs_reload {
+                    if let Err(e) = handler.reload_upstreams().await {
+                        warn!("Health check: reload_upstreams failed: {}", e);
+                    }
+                }
+            }
+            _ = shutdown_rx.recv() => {
+                info!("Upstream health check task shutting down");
+                break;
+            }
+        }
+    }
+}
+
 #[derive(Parser, Debug)]
 #[command(
     name = "rust-dns",
@@ -136,120 +329,18 @@ async fn main() -> Result<()> {
     let shutdown_signal = shutdown::ShutdownSignal::new();
 
     // Background: auto-refresh filter lists based on each list's update_interval_hours
-    {
-        let db = db_pool.clone();
-        let filter_engine = filter.clone();
-        let mut shutdown_rx = shutdown_signal.subscribe();
-        tokio::spawn(async move {
-            let mut ticker = tokio::time::interval(tokio::time::Duration::from_secs(3600));
-            ticker.tick().await; // skip immediate first tick
-            loop {
-                tokio::select! {
-                    _ = ticker.tick() => {
-                        tracing::info!("Auto-refresh: checking filter lists...");
-
-                        let lists: Vec<(String, String, Option<i64>, Option<String>)> =
-                            match sqlx::query_as(
-                                "SELECT id, url, update_interval_hours, last_updated
-                             FROM filter_lists WHERE is_enabled = 1 AND url != '' AND url IS NOT NULL",
-                            )
-                            .fetch_all(&db)
-                            .await
-                            {
-                                Ok(r) => r,
-                                Err(e) => {
-                                    tracing::warn!("Auto-refresh DB error: {}", e);
-                                    continue;
-                                }
-                            };
-
-                        let mut refreshed = false;
-                        for (id, url, interval_hours, last_updated) in lists {
-                            let interval_h = interval_hours.unwrap_or(0);
-                            // 0 = manual only, skip auto-refresh
-                            if interval_h <= 0 {
-                                continue;
-                            }
-                            let due = last_updated
-                                .and_then(|s| chrono::DateTime::parse_from_rfc3339(&s).ok())
-                                .map(|last| {
-                                    let elapsed =
-                                        Utc::now().signed_duration_since(last.with_timezone(&Utc));
-                                    elapsed.num_hours() >= interval_h
-                                })
-                                .unwrap_or(true);
-
-                            if due {
-                                match dns::subscription::sync_filter_list(&db, &id, &url).await {
-                                    Ok(n) => {
-                                        tracing::info!("Auto-refreshed filter {}: {} rules", id, n);
-                                        refreshed = true;
-                                    }
-                                    Err(e) => tracing::warn!("Auto-refresh filter {}: {}", id, e),
-                                }
-                            }
-                        }
-
-                        if refreshed {
-                            if let Err(e) = filter_engine.reload().await {
-                                tracing::warn!("Filter reload after auto-refresh: {}", e);
-                            }
-                        }
-                    }
-                    _ = shutdown_rx.recv() => {
-                        tracing::info!("Filter auto-refresh task shutting down");
-                        break;
-                    }
-                }
-            }
-        });
-    }
+    tokio::spawn(run_filter_refresh_task(
+        db_pool.clone(),
+        filter.clone(),
+        shutdown_signal.subscribe(),
+    ));
 
     // Background: auto-cleanup query log based on query_log_retention_days setting
-    // Rotates logs daily to prevent database from growing indefinitely
-    {
-        let db = db_pool.clone();
-        let cfg_clone = cfg.clone();
-        let mut shutdown_rx = shutdown_signal.subscribe();
-        tokio::spawn(async move {
-            let retention_days = cfg_clone.database.query_log_retention_days;
-
-            // Run daily at 3 AM (24h interval)
-            let mut ticker = tokio::time::interval(tokio::time::Duration::from_secs(86400));
-
-            tracing::info!(
-                "Query log rotation enabled: retaining {} days, running daily",
-                retention_days
-            );
-
-            ticker.tick().await; // skip immediate first tick
-            loop {
-                tokio::select! {
-                    _ = ticker.tick() => {
-                        match sqlx::query(
-                            "DELETE FROM query_log WHERE time < NOW() - ($1 * INTERVAL '1 day')",
-                        )
-                        .bind(retention_days as i64)
-                        .execute(&db)
-                        .await
-                        {
-                            Ok(r) if r.rows_affected() > 0 => tracing::info!(
-                                "Query log rotation: deleted {} entries older than {} days",
-                                r.rows_affected(),
-                                retention_days
-                            ),
-                            Ok(_) => {}
-                            Err(e) => tracing::warn!("Query log rotation error: {}", e),
-                        }
-                    }
-                    _ = shutdown_rx.recv() => {
-                        tracing::info!("Query log rotation task shutting down");
-                        break;
-                    }
-                }
-            }
-        });
-    }
+    tokio::spawn(run_query_log_rotation_task(
+        db_pool.clone(),
+        cfg.database.query_log_retention_days,
+        shutdown_signal.subscribe(),
+    ));
 
     // Build a single DnsHandler shared between the DNS server (UDP/TCP) and the
     // API server (DoH endpoint). Both use the same filter, cache, and log writer.
@@ -264,90 +355,11 @@ async fn main() -> Result<()> {
     .await?;
 
     // Background: upstream health checks (每 30s 检测一次，更新延迟 + DB 状态)
-    {
-        let db = db_pool.clone();
-        let handler = dns_handler.clone();
-        let mut shutdown_rx = shutdown_signal.subscribe();
-        tokio::spawn(async move {
-            let mut ticker = tokio::time::interval(tokio::time::Duration::from_secs(30));
-            ticker.tick().await; // skip immediate first tick, let upstreams warm up
-
-            loop {
-                tokio::select! {
-                    _ = ticker.tick() => {
-                        let results = handler.health_check_upstreams().await;
-                        if results.is_empty() {
-                            continue;
-                        }
-
-                        // Load current upstream status from DB for change detection
-                        let upstreams = match rust_dns::db::models::upstream::UpstreamRepository::list(&db).await {
-                            Ok(u) => u,
-                            Err(e) => {
-                                tracing::warn!("Health check: failed to load upstreams: {}", e);
-                                continue;
-                            }
-                        };
-
-                        let mut needs_reload = false;
-
-                        for (upstream_id, latency_ms, is_healthy) in results {
-                            let new_status = if is_healthy { "healthy" } else { "degraded" };
-
-                            tracing::debug!(
-                                "Upstream {} health: {}ms status={}",
-                                upstream_id, latency_ms, new_status
-                            );
-
-                            // Update DB timestamp + status
-                            if let Err(e) = rust_dns::db::models::upstream::UpstreamRepository::update_health_status(
-                                &db, &upstream_id, new_status,
-                            ).await {
-                                tracing::warn!("Health check: DB update failed for {}: {}", upstream_id, e);
-                                continue;
-                            }
-
-                            // Failover logic: if status changed and failover_enabled, reload pool
-                            if let Some(upstream) = upstreams.iter().find(|u| u.id == upstream_id) {
-                                if upstream.health_status != new_status && upstream.failover_enabled {
-                                    if !is_healthy {
-                                        warn!(
-                                            "Upstream {} degraded ({}ms), triggering failover",
-                                            upstream_id, latency_ms
-                                        );
-                                        let _ = rust_dns::db::models::upstream::UpstreamRepository::log_failover(
-                                            &db, &upstream_id, "failover",
-                                            Some("health check failed"),
-                                        ).await;
-                                    } else {
-                                        info!(
-                                            "Upstream {} recovered ({}ms)",
-                                            upstream_id, latency_ms
-                                        );
-                                        let _ = rust_dns::db::models::upstream::UpstreamRepository::log_failover(
-                                            &db, &upstream_id, "recover",
-                                            Some("health check passed"),
-                                        ).await;
-                                    }
-                                    needs_reload = true;
-                                }
-                            }
-                        }
-
-                        if needs_reload {
-                            if let Err(e) = handler.reload_upstreams().await {
-                                warn!("Health check: reload_upstreams failed: {}", e);
-                            }
-                        }
-                    }
-                    _ = shutdown_rx.recv() => {
-                        info!("Upstream health check task shutting down");
-                        break;
-                    }
-                }
-            }
-        });
-    }
+    tokio::spawn(run_upstream_health_check_task(
+        db_pool.clone(),
+        dns_handler.clone(),
+        shutdown_signal.subscribe(),
+    ));
 
     // Spawn DNS and API servers
     let dns_shutdown_signal = shutdown_signal.clone();
