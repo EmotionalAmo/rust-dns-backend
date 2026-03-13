@@ -419,16 +419,6 @@ async fn main() -> Result<()> {
         }
     }
 
-    // Safe SQLite shutdown: WAL checkpoint before closing
-    info!("Performing SQLite WAL checkpoint...");
-    match sqlx::query("PRAGMA wal_checkpoint(TRUNCATE)")
-        .execute(&db_pool)
-        .await
-    {
-        Ok(_) => info!("SQLite WAL checkpoint completed"),
-        Err(e) => warn!("SQLite WAL checkpoint failed: {}", e),
-    }
-
     // Close database pool
     info!("Closing database connection pool...");
     db_pool.close().await;

@@ -162,6 +162,7 @@ async fn build_test_app() -> (axum::Router, Arc<AppState>) {
     let jwt_secret = test_cfg.auth.jwt_secret.clone();
     let state = Arc::new(AppState {
         db,
+        db_url: test_cfg.database.url.clone(),
         filter,
         jwt_secret,
         jwt_expiry_hours: 1,

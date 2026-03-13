@@ -33,6 +33,8 @@ pub struct UpstreamHealthResult {
 
 pub struct AppState {
     pub db: DbPool,
+    /// PostgreSQL connection URL, used by backup handler for pg_dump.
+    pub db_url: String,
     pub filter: Arc<FilterEngine>,
     pub jwt_secret: String,
     pub jwt_expiry_hours: u64,
@@ -103,6 +105,7 @@ pub async fn serve(
     let db_for_task = db.clone();
     let state = Arc::new(AppState {
         db,
+        db_url: cfg.database.url.clone(),
         filter,
         jwt_secret: cfg.auth.jwt_secret.clone(),
         jwt_expiry_hours: cfg.auth.jwt_expiry_hours,

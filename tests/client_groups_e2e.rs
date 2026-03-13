@@ -111,6 +111,7 @@ async fn build_test_state() -> Arc<AppState> {
 
     Arc::new(AppState {
         db,
+        db_url: test_cfg.database.url.clone(),
         filter,
         jwt_secret: test_cfg.auth.jwt_secret,
         jwt_expiry_hours: 1,

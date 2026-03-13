@@ -27,56 +27,66 @@ pub async fn create_backup(
     }
 
     // Filename is derived only from timestamp — no user input involved.
-    let backup_filename = format!("rust-dns-backup-{}.db", timestamp);
+    let backup_filename = format!("rust-dns-backup-{}.dump", timestamp);
     let backup_path = dir_path.join(&backup_filename);
     let backup_path_str = backup_path
         .to_str()
         .ok_or_else(|| crate::error::AppError::Internal("Invalid backup path".to_string()))?
         .to_string();
 
-    // Create backup using SQLite's VACUUM INTO command
-    // First we need to disable WAL mode temporarily for backup
-    sqlx::query("PRAGMA wal_checkpoint(TRUNCATE)")
-        .execute(&state.db)
+    // Run pg_dump --format=custom to create a PostgreSQL binary backup.
+    // pg_dump is part of the standard PostgreSQL client tools.
+    let output = tokio::process::Command::new("pg_dump")
+        .args([
+            "--format=custom",
+            "--no-password",
+            "--file",
+            &backup_path_str,
+            &state.db_url,
+        ])
+        .output()
         .await
         .map_err(|e| {
-            tracing::error!("WAL checkpoint failed: {}", e);
-            crate::error::AppError::Internal(format!("WAL checkpoint failed: {}", e))
+            if e.kind() == std::io::ErrorKind::NotFound {
+                crate::error::AppError::Internal(
+                    "pg_dump not found. Please install postgresql-client on the host.".to_string(),
+                )
+            } else {
+                crate::error::AppError::Internal(format!("Failed to run pg_dump: {}", e))
+            }
         })?;
 
-    // SQLite does not support parameter binding for VACUUM INTO.
-    // The path is safe: fixed directory + timestamp-only filename (no user input).
-    // Extra precaution: escape single quotes in the path (M-1 fix).
-    let escaped_path = backup_path_str.replace('\'', "''");
-    let result = sqlx::query(&format!("VACUUM INTO '{}'", escaped_path))
-        .execute(&state.db)
-        .await;
-
-    match result {
-        Ok(_) => {
-            tracing::info!("Backup created: {}", backup_filename);
-            crate::db::audit::log_action(
-                state.db.clone(),
-                admin.0.sub.clone(),
-                admin.0.username.clone(),
-                "create",
-                "backup",
-                None,
-                Some(backup_filename.clone()),
-                ip,
-            );
-            Ok(Json(json!({
-                "success": true,
-                "filename": backup_filename,
-                "timestamp": timestamp,
-            })))
-        }
-        Err(e) => {
-            tracing::error!("Backup failed: {}", e);
-            Err(crate::error::AppError::Internal(format!(
-                "Backup failed: {}",
-                e
-            )))
-        }
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        tracing::error!("pg_dump failed: {}", stderr);
+        return Err(crate::error::AppError::Internal(format!(
+            "pg_dump failed: {}",
+            stderr.trim()
+        )));
     }
+
+    // Get file size for the response.
+    let file_size = tokio::fs::metadata(&backup_path)
+        .await
+        .map(|m| m.len())
+        .unwrap_or(0);
+
+    tracing::info!("Backup created: {} ({} bytes)", backup_filename, file_size);
+    crate::db::audit::log_action(
+        state.db.clone(),
+        admin.0.sub.clone(),
+        admin.0.username.clone(),
+        "create",
+        "backup",
+        None,
+        Some(backup_filename.clone()),
+        ip,
+    );
+
+    Ok(Json(json!({
+        "success": true,
+        "filename": backup_filename,
+        "timestamp": timestamp,
+        "size_bytes": file_size,
+    })))
 }
