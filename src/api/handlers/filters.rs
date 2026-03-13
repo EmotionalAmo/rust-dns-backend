@@ -112,7 +112,18 @@ pub async fn create(
     .bind(&now)
     .bind(body.update_interval_hours)
     .execute(&state.db)
-    .await?;
+    .await
+    .map_err(|e| {
+        // PostgreSQL unique violation (code 23505) — duplicate URL
+        if let sqlx::Error::Database(ref db_err) = e {
+            if db_err.code().as_deref() == Some("23505") {
+                return AppError::Conflict(
+                    "A filter list with this URL already exists".to_string(),
+                );
+            }
+        }
+        AppError::Internal(e.to_string())
+    })?;
 
     // If URL provided, spawn background sync so the HTTP response returns immediately.
     // Large filter lists (AdGuard, 50k+ rules) can take minutes to fetch—do NOT block here.
