@@ -1,6 +1,6 @@
 [package]
 name = "rust-dns"
-version = "1.46.0"
+version = "1.47.0"
 edition = "2021"
 authors = ["rust-dns Team"]
 description = "Enterprise-grade DNS filtering server"
