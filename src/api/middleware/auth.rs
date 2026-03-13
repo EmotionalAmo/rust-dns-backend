@@ -28,6 +28,11 @@ impl FromRequestParts<Arc<AppState>> for AuthUser {
         let claims =
             crate::auth::jwt::verify(token, &state.jwt_secret).map_err(|_| AppError::AuthFailed)?;
 
+        // Reject tokens that have been explicitly invalidated (e.g. via logout).
+        if state.token_blacklist.contains_key(&claims.jti) {
+            return Err(AppError::AuthFailed);
+        }
+
         Ok(AuthUser(claims))
     }
 }

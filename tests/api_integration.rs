@@ -185,6 +185,7 @@ async fn build_test_app() -> (axum::Router, Arc<AppState>) {
                 .max_capacity(100)
                 .build(),
         ),
+        token_blacklist: DashMap::new(),
     });
 
     // CORS 层用空配置（测试中不需要）

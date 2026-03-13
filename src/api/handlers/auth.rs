@@ -138,8 +138,10 @@ fn record_login_failure(state: &AppState, ip: &str) {
     }
 }
 
-pub async fn logout() -> AppResult<Json<Value>> {
-    // JWT is stateless; client just discards the token.
+pub async fn logout(State(state): State<Arc<AppState>>, auth: AuthUser) -> AppResult<Json<Value>> {
+    // Blacklist this token's jti so it cannot be reused after logout.
+    state.token_blacklist.insert(auth.0.jti.clone(), ());
+    tracing::info!("User {} logged out (jti blacklisted)", auth.0.username);
     Ok(Json(json!({"success": true})))
 }
 

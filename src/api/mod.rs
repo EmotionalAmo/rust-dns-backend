@@ -56,6 +56,9 @@ pub struct AppState {
     pub upstream_health: DashMap<String, UpstreamHealthResult>,
     /// Suggest query cache: "field:prefix:limit" → Vec<String>, 60s TTL
     pub suggest_cache: Arc<Cache<String, Vec<String>>>,
+    /// Blacklisted JWT IDs: jti → (). Populated on logout; entries survive until token expiry.
+    /// In-memory only — restarts clear the blacklist, but tokens expire within jwt_expiry_hours anyway.
+    pub token_blacklist: dashmap::DashMap<String, ()>,
 }
 
 /// Start the API server.
@@ -114,6 +117,7 @@ pub async fn serve(
         allow_default_password: cfg.auth.allow_default_password,
         upstream_health: DashMap::new(),
         suggest_cache,
+        token_blacklist: DashMap::new(),
     });
     let cors = build_cors_layer(&cfg.api.cors_allowed_origins);
     let app = build_app(state.clone(), cors);

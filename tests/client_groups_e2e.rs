@@ -134,6 +134,7 @@ async fn build_test_state() -> Arc<AppState> {
                 .max_capacity(100)
                 .build(),
         ),
+        token_blacklist: DashMap::new(),
     })
 }
 

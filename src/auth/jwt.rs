@@ -2,14 +2,16 @@ use anyhow::Result;
 use chrono::Utc;
 use jsonwebtoken::{decode, encode, Algorithm, DecodingKey, EncodingKey, Header, Validation};
 use serde::{Deserialize, Serialize};
+use uuid::Uuid;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Claims {
     pub sub: String, // user_id
     pub username: String,
     pub role: String,
-    pub exp: usize, // expiry timestamp
-    pub iat: usize, // issued at
+    pub exp: usize,  // expiry timestamp
+    pub iat: usize,  // issued at
+    pub jti: String, // JWT ID — unique per token, used for blacklisting on logout
 }
 
 pub fn generate(
@@ -26,6 +28,7 @@ pub fn generate(
         role: role.to_string(),
         exp: now + (expiry_hours as usize * 3600),
         iat: now,
+        jti: Uuid::new_v4().to_string(),
     };
     let token = encode(
         &Header::default(),
@@ -92,6 +95,16 @@ mod tests {
             generate("u1", "operator", "operator", TEST_SECRET, 1).expect("Should generate token");
         let claims = verify(&token, TEST_SECRET).expect("Should verify");
         assert_eq!(claims.role, "operator");
+    }
+
+    #[test]
+    fn test_jti_is_unique_per_token() {
+        let t1 = generate("u1", "admin", "admin", TEST_SECRET, 1).expect("token 1");
+        let t2 = generate("u1", "admin", "admin", TEST_SECRET, 1).expect("token 2");
+        let c1 = verify(&t1, TEST_SECRET).expect("claims 1");
+        let c2 = verify(&t2, TEST_SECRET).expect("claims 2");
+        assert!(!c1.jti.is_empty(), "jti should not be empty");
+        assert_ne!(c1.jti, c2.jti, "each token should have a unique jti");
     }
 
     #[test]
