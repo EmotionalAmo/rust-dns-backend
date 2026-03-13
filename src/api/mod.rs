@@ -189,7 +189,7 @@ pub async fn serve(
                             dns_handler.update_upstream_latency(&id, latency_ms).await;
 
                             let _ = sqlx::query(
-                                "INSERT INTO upstream_latency_log (upstream_id, latency_ms, success, checked_at) VALUES (?, ?, ?, ?)"
+                                "INSERT INTO upstream_latency_log (upstream_id, latency_ms, success, checked_at) VALUES ($1, $2, $3, $4)"
                             )
                             .bind(&id)
                             .bind(latency_ms)
@@ -199,7 +199,7 @@ pub async fn serve(
                             .await;
 
                             let _ = sqlx::query(
-                                "UPDATE dns_upstreams SET health_status = ?, last_health_check_at = ?, updated_at = ? WHERE id = ?"
+                                "UPDATE dns_upstreams SET health_status = $1, last_health_check_at = $2, updated_at = $3 WHERE id = $4"
                             )
                             .bind(new_status)
                             .bind(&now)

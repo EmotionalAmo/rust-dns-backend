@@ -227,7 +227,13 @@ pub async fn bulk_action(
         return Ok(Json(json!({"affected": 0})));
     }
 
-    let placeholders = req.ids.iter().map(|_| "?").collect::<Vec<_>>().join(",");
+    let placeholders = req
+        .ids
+        .iter()
+        .enumerate()
+        .map(|(i, _)| format!("${}", i + 1))
+        .collect::<Vec<_>>()
+        .join(",");
 
     let affected: u64 = match req.action.as_str() {
         "enable" => {
@@ -344,10 +350,11 @@ pub async fn update(
         return Ok(Json(json!({"success": true, "updated": false})));
     }
 
-    let sql = format!(
+    // Append WHERE id = ? then convert all ? to $1, $2, ...
+    let sql = pg_numbered(&format!(
         "UPDATE custom_rules SET {} WHERE id = ?",
         updates.join(", ")
-    );
+    ));
 
     let mut query = sqlx::query(&sql);
     if let Some(rule) = &body.rule {
@@ -413,7 +420,7 @@ pub async fn toggle(
     Json(body): Json<ToggleRuleRequest>,
 ) -> AppResult<Json<Value>> {
     let result = sqlx::query(
-        "UPDATE custom_rules SET is_enabled = ? WHERE id = ? AND created_by NOT LIKE 'filter:%'",
+        "UPDATE custom_rules SET is_enabled = $1 WHERE id = $2 AND created_by NOT LIKE 'filter:%'",
     )
     .bind(if body.is_enabled { 1 } else { 0 })
     .bind(&id)
@@ -548,6 +555,17 @@ pub async fn export_rules(
                 .into_response()
         }
     }
+}
+
+/// Convert SQLite-style `?` placeholders to PostgreSQL-style `$1`, `$2`, ...
+fn pg_numbered(sql: &str) -> String {
+    let mut result = sql.to_string();
+    let mut n = 0usize;
+    while let Some(pos) = result.find('?') {
+        n += 1;
+        result.replace_range(pos..pos + 1, &format!("${}", n));
+    }
+    result
 }
 
 fn escape_csv_field(s: &str) -> String {
@@ -753,7 +771,7 @@ pub async fn import_rules(
 
         // Check for duplicate
         let exists: Option<(String,)> =
-            match sqlx::query_as("SELECT id FROM custom_rules WHERE rule = ?")
+            match sqlx::query_as("SELECT id FROM custom_rules WHERE rule = $1")
                 .bind(&rule)
                 .fetch_optional(&mut *tx)
                 .await
@@ -777,7 +795,7 @@ pub async fn import_rules(
         let id = Uuid::new_v4().to_string();
         if let Err(e) = sqlx::query(
             "INSERT INTO custom_rules (id, rule, comment, is_enabled, created_by, created_at)
-             VALUES (?, ?, ?, 1, ?, ?)",
+             VALUES ($1, $2, $3, 1, $4, $5)",
         )
         .bind(&id)
         .bind(&rule)

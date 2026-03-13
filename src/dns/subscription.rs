@@ -291,7 +291,7 @@ pub async fn sync_filter_list(pool: &DbPool, filter_id: &str, url: &str) -> Resu
 
     let mut tx = pool.begin().await.context("Failed to begin transaction")?;
 
-    sqlx::query("DELETE FROM custom_rules WHERE created_by = ?")
+    sqlx::query("DELETE FROM custom_rules WHERE created_by = $1")
         .bind(&filter_prefix)
         .execute(&mut *tx)
         .await
@@ -306,10 +306,21 @@ pub async fn sync_filter_list(pool: &DbPool, filter_id: &str, url: &str) -> Resu
         if chunk.is_empty() {
             continue;
         }
-        // 构建多值 INSERT
+        // 构建多值 INSERT，每行 4 个绑定参数 (id, rule, created_by, created_at)
+        const FIELDS_PER_ROW: usize = 4;
         let placeholders: String = chunk
             .iter()
-            .map(|_| "(?, ?, NULL, 1, ?, ?)")
+            .enumerate()
+            .map(|(row_idx, _)| {
+                let base = row_idx * FIELDS_PER_ROW;
+                format!(
+                    "(${}, ${}, NULL, 1, ${}, ${})",
+                    base + 1,
+                    base + 2,
+                    base + 3,
+                    base + 4
+                )
+            })
             .collect::<Vec<_>>()
             .join(", ");
         let query_str = format!(
@@ -331,7 +342,7 @@ pub async fn sync_filter_list(pool: &DbPool, filter_id: &str, url: &str) -> Resu
         .context("Failed to commit filter sync transaction")?;
 
     // Update filter list metadata (outside the transaction — non-critical metadata)
-    sqlx::query("UPDATE filter_lists SET rule_count = ?, last_updated = ? WHERE id = ?")
+    sqlx::query("UPDATE filter_lists SET rule_count = $1, last_updated = $2 WHERE id = $3")
         .bind(inserted)
         .bind(&now)
         .bind(filter_id)

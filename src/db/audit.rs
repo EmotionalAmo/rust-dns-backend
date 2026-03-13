@@ -21,7 +21,7 @@ pub fn log_action(
     tokio::spawn(async move {
         let _ = sqlx::query(
             "INSERT INTO audit_log (time, user_id, username, action, resource, resource_id, detail, ip)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8)"
         )
         .bind(&now)
         .bind(&user_id)

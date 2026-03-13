@@ -159,7 +159,7 @@ pub async fn get(
         "SELECT id, name, addresses, priority, is_active, health_check_enabled,
                 failover_enabled, health_check_interval, health_check_timeout, failover_threshold,
                 health_status, last_health_check_at, last_failover_at, created_at, updated_at
-         FROM dns_upstreams WHERE id = ?",
+         FROM dns_upstreams WHERE id = $1",
     )
     .bind(&id)
     .fetch_optional(&state.db)
@@ -236,7 +236,7 @@ pub async fn create(
             (id, name, addresses, priority, is_active, health_check_enabled,
              failover_enabled, health_check_interval, health_check_timeout,
              failover_threshold, health_status, created_at, updated_at)
-         VALUES (?, ?, ?, ?, 1, 1, 1, ?, ?, ?, 'unknown', ?, ?)",
+         VALUES ($1, $2, $3, $4, 1, 1, 1, $5, $6, $7, 'unknown', $8, $9)",
     )
     .bind(&id)
     .bind(&name)
@@ -300,7 +300,7 @@ pub async fn update(
         "SELECT id, name, addresses, priority, is_active, health_check_enabled,
                 failover_enabled, health_check_interval, health_check_timeout, failover_threshold,
                 health_status, last_health_check_at, last_failover_at, created_at, updated_at
-         FROM dns_upstreams WHERE id = ?",
+         FROM dns_upstreams WHERE id = $1",
     )
     .bind(&id)
     .fetch_optional(&state.db)
@@ -364,11 +364,11 @@ pub async fn update(
 
     sqlx::query(
         "UPDATE dns_upstreams
-         SET name = ?, addresses = ?, priority = ?, is_active = ?,
-             health_check_enabled = ?, failover_enabled = ?,
-             health_check_interval = ?, health_check_timeout = ?, failover_threshold = ?,
-             updated_at = ?
-         WHERE id = ?",
+         SET name = $1, addresses = $2, priority = $3, is_active = $4,
+             health_check_enabled = $5, failover_enabled = $6,
+             health_check_interval = $7, health_check_timeout = $8, failover_threshold = $9,
+             updated_at = $10
+         WHERE id = $11",
     )
     .bind(&name)
     .bind(&addresses)
@@ -428,7 +428,7 @@ pub async fn delete(
     admin: AdminUser,
     Path(id): Path<String>,
 ) -> AppResult<Json<Value>> {
-    let result = sqlx::query("DELETE FROM dns_upstreams WHERE id = ?")
+    let result = sqlx::query("DELETE FROM dns_upstreams WHERE id = $1")
         .bind(&id)
         .execute(&state.db)
         .await?;
@@ -466,7 +466,7 @@ pub async fn test(
     Path(id): Path<String>,
 ) -> AppResult<Json<Value>> {
     let row: Option<(String, String, i64)> = sqlx::query_as(
-        "SELECT id, addresses, health_check_timeout FROM dns_upstreams WHERE id = ?",
+        "SELECT id, addresses, health_check_timeout FROM dns_upstreams WHERE id = $1",
     )
     .bind(&id)
     .fetch_optional(&state.db)
@@ -496,7 +496,7 @@ pub async fn test(
     // Persist latency sample and update health status
     let now = chrono::Utc::now().to_rfc3339();
     let _ = sqlx::query(
-        "INSERT INTO upstream_latency_log (upstream_id, latency_ms, success, checked_at) VALUES (?, ?, ?, ?)"
+        "INSERT INTO upstream_latency_log (upstream_id, latency_ms, success, checked_at) VALUES ($1, $2, $3, $4)"
     )
     .bind(&id)
     .bind(latency)
@@ -507,7 +507,7 @@ pub async fn test(
 
     let new_status = if success { "healthy" } else { "degraded" };
     let _ = sqlx::query(
-        "UPDATE dns_upstreams SET health_status = ?, last_health_check_at = ?, updated_at = ? WHERE id = ?"
+        "UPDATE dns_upstreams SET health_status = $1, last_health_check_at = $2, updated_at = $3 WHERE id = $4"
     )
     .bind(new_status)
     .bind(&now)
@@ -554,7 +554,7 @@ pub async fn trigger_failover(
         let now = chrono::Utc::now().to_rfc3339();
         sqlx::query(
             "INSERT INTO upstream_failover_log (id, upstream_id, action, reason, timestamp)
-             VALUES (?, ?, 'failover_triggered', 'Manual failover triggered by user', ?)",
+             VALUES ($1, $2, 'failover_triggered', 'Manual failover triggered by user', $3)",
         )
         .bind(&log_id)
         .bind(id)

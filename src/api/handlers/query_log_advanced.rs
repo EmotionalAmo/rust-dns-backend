@@ -311,10 +311,10 @@ impl QueryBuilder {
             format!("WHERE {}", self.conditions.join(connector))
         };
 
-        let sql = format!(
+        let sql = pg_numbered(&format!(
             "SELECT id, time, client_ip, client_name, question, qtype, answer, status, reason, upstream, elapsed_ns
              FROM query_log {where_clause} ORDER BY time DESC LIMIT ? OFFSET ?"
-        );
+        ));
 
         let mut bindings = self.bindings;
         bindings.push(json!(limit));
@@ -322,6 +322,17 @@ impl QueryBuilder {
 
         (sql, bindings)
     }
+}
+
+/// Replace all `?` placeholders in a SQL string with PostgreSQL-style `$1`, `$2`, ...
+fn pg_numbered(sql: &str) -> String {
+    let mut result = sql.to_string();
+    let mut n = 0usize;
+    while let Some(pos) = result.find('?') {
+        n += 1;
+        result.replace_range(pos..pos + 1, &format!("${}", n));
+    }
+    result
 }
 
 fn parse_relative_time(
@@ -555,10 +566,10 @@ pub async fn aggregate(
         _ => "COUNT(*) as metric",
     };
 
-    let agg_sql = format!(
+    let agg_sql = pg_numbered(&format!(
         "SELECT {}, {} FROM query_log {} GROUP BY {} ORDER BY metric DESC LIMIT ?",
         group_fields, metric_sql, where_clause, group_fields
-    );
+    ));
 
     let rows: Vec<Value> = {
         let mut q = sqlx::query(&agg_sql);
@@ -615,7 +626,7 @@ pub async fn top(
         }
     };
 
-    let sql = format!(
+    let sql = pg_numbered(&format!(
         "SELECT {field} as value, COUNT(*) as count
          FROM query_log
          WHERE time BETWEEN ? AND ?
@@ -623,7 +634,7 @@ pub async fn top(
          ORDER BY count DESC
          LIMIT ?",
         field = field
-    );
+    ));
 
     let rows: Vec<(String, i64)> = sqlx::query_as(&sql)
         .bind(start.to_rfc3339())
@@ -670,7 +681,7 @@ pub async fn suggest(
             // 使用 30 天窗口内的历史查询热度排序
             let thirty_days_ago = Utc::now() - Duration::days(30);
 
-            sqlx::query_scalar::<_, String>(&format!(
+            let suggest_sql = pg_numbered(&format!(
                 "SELECT DISTINCT {}
                  FROM query_log
                  WHERE {} LIKE ? AND time >= ?
@@ -678,13 +689,14 @@ pub async fn suggest(
                  ORDER BY COUNT(*) DESC, {} ASC
                  LIMIT ?",
                 field, field, field, field
-            ))
-            .bind(format!("{}%", prefix))
-            .bind(thirty_days_ago.to_rfc3339())
-            .bind(limit)
-            .fetch_all(&db)
-            .await
-            .map_err(AppError::Database)
+            ));
+            sqlx::query_scalar::<_, String>(&suggest_sql)
+                .bind(format!("{}%", prefix))
+                .bind(thirty_days_ago.to_rfc3339())
+                .bind(limit)
+                .fetch_all(&db)
+                .await
+                .map_err(AppError::Database)
         })
         .await
         .map_err(|e| AppError::Internal(e.to_string()))?;

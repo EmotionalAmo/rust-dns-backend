@@ -47,7 +47,7 @@ pub async fn list(
     };
 
     // Count total
-    let count_sql = format!("SELECT COUNT(*) FROM audit_log {}", where_clause);
+    let count_sql = pg_numbered(&format!("SELECT COUNT(*) FROM audit_log {}", where_clause));
     let mut count_query = sqlx::query_as::<_, (i64,)>(&count_sql);
     if let Some(ref v) = params.user_id {
         count_query = count_query.bind(v);
@@ -61,11 +61,11 @@ pub async fn list(
     let (total,) = count_query.fetch_one(&state.db).await?;
 
     // Fetch rows
-    let data_sql = format!(
+    let data_sql = pg_numbered(&format!(
         "SELECT id, time, user_id, username, action, resource, resource_id, detail, ip \
          FROM audit_log {} ORDER BY time DESC LIMIT ? OFFSET ?",
         where_clause
-    );
+    ));
     let mut data_query = sqlx::query_as::<
         _,
         (
@@ -117,4 +117,15 @@ pub async fn list(
         "page": page,
         "per_page": per_page,
     })))
+}
+
+/// Convert SQLite-style `?` placeholders to PostgreSQL-style `$1`, `$2`, ...
+fn pg_numbered(sql: &str) -> String {
+    let mut result = sql.to_string();
+    let mut n = 0usize;
+    while let Some(pos) = result.find('?') {
+        n += 1;
+        result.replace_range(pos..pos + 1, &format!("${}", n));
+    }
+    result
 }

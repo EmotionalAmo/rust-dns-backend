@@ -103,7 +103,7 @@ pub async fn create(
 
     sqlx::query(
         "INSERT INTO filter_lists (id, name, url, is_enabled, rule_count, last_updated, created_at, update_interval_hours)
-         VALUES (?, ?, ?, ?, 0, NULL, ?, ?)",
+         VALUES ($1, $2, $3, $4, 0, NULL, $5, $6)",
     )
     .bind(&id)
     .bind(&name)
@@ -169,7 +169,7 @@ pub async fn update(
     // Check if filter exists
     let existing: Option<FilterRow> = sqlx::query_as(
         "SELECT id, name, url, is_enabled, rule_count, last_updated, created_at, update_interval_hours
-         FROM filter_lists WHERE id = ?",
+         FROM filter_lists WHERE id = $1",
     )
     .bind(&id)
     .fetch_optional(&state.db)
@@ -194,7 +194,7 @@ pub async fn update(
         .unwrap_or(old_enabled);
     let update_interval_hours = body.update_interval_hours.unwrap_or(old_interval);
 
-    sqlx::query("UPDATE filter_lists SET name = ?, url = ?, is_enabled = ?, update_interval_hours = ? WHERE id = ?")
+    sqlx::query("UPDATE filter_lists SET name = $1, url = $2, is_enabled = $3, update_interval_hours = $4 WHERE id = $5")
         .bind(&name)
         .bind(&url)
         .bind(is_enabled)
@@ -240,12 +240,12 @@ pub async fn delete(
     Path(id): Path<String>,
 ) -> AppResult<Json<Value>> {
     // Delete associated rules first
-    sqlx::query("DELETE FROM custom_rules WHERE created_by = ?")
+    sqlx::query("DELETE FROM custom_rules WHERE created_by = $1")
         .bind(format!("filter:{}", id))
         .execute(&state.db)
         .await?;
 
-    let result = sqlx::query("DELETE FROM filter_lists WHERE id = ?")
+    let result = sqlx::query("DELETE FROM filter_lists WHERE id = $1")
         .bind(&id)
         .execute(&state.db)
         .await?;
@@ -284,7 +284,7 @@ pub async fn refresh(
 ) -> AppResult<Json<Value>> {
     // Get filter list info
     let filter: Option<(String, Option<String>)> =
-        sqlx::query_as("SELECT name, url FROM filter_lists WHERE id = ?")
+        sqlx::query_as("SELECT name, url FROM filter_lists WHERE id = $1")
             .bind(&id)
             .fetch_optional(&state.db)
             .await?;

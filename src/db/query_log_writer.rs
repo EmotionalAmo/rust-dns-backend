@@ -87,7 +87,7 @@ async fn run(
 
                                     tokio::spawn(async move {
                                         let _ = sqlx::query(
-                                            "INSERT INTO alerts (id, alert_type, client_id, message, is_read, created_at) VALUES (?, ?, ?, ?, 0, ?)"
+                                            "INSERT INTO alerts (id, alert_type, client_id, message, is_read, created_at) VALUES ($1, $2, $3, $4, 0, $5)"
                                         )
                                         .bind(&alert_id)
                                         .bind("high_frequency_block")
@@ -159,20 +159,26 @@ async fn write_batch(db: &DbPool, batch: &[QueryLogEntry]) -> Result<(), sqlx::E
         return Ok(());
     }
 
-    // SQLite SQLITE_MAX_VARIABLE_NUMBER defaults to 32766.
-    // 11 fields/row → safe limit is 2978 rows/statement.
-    // BATCH_SIZE=500 is well within limits; chunk defensively for future-proofing.
+    // PostgreSQL does not have a hard variable limit like SQLite (32766), but we
+    // still chunk to keep individual statements reasonable.
     const FIELDS_PER_ROW: usize = 11;
     const MAX_ROWS_PER_STMT: usize = 32766 / FIELDS_PER_ROW; // 2978
 
     let mut tx = db.begin().await?;
 
     for chunk in batch.chunks(MAX_ROWS_PER_STMT) {
-        // Build multi-row VALUES placeholders: (?,?,?,?,?,?,?,?,?,?,?),(?,...),...
+        // Build multi-row VALUES placeholders: ($1,$2,...),($12,...),...
         // Values are bound via parameters — no SQL injection risk.
         let placeholders: String = chunk
             .iter()
-            .map(|_| "(?,?,?,?,?,?,?,?,?,?,?)")
+            .enumerate()
+            .map(|(row_idx, _)| {
+                let base = row_idx * FIELDS_PER_ROW;
+                let cols: Vec<String> = (1..=FIELDS_PER_ROW)
+                    .map(|c| format!("${}", base + c))
+                    .collect();
+                format!("({})", cols.join(","))
+            })
             .collect::<Vec<_>>()
             .join(",");
 

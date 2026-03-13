@@ -83,7 +83,7 @@ pub async fn create(
 
     // Check if username already exists
     let existing: Option<(String,)> =
-        sqlx::query_as("SELECT username FROM users WHERE username = ?")
+        sqlx::query_as("SELECT username FROM users WHERE username = $1")
             .bind(&username)
             .fetch_optional(&state.db)
             .await?;
@@ -102,7 +102,7 @@ pub async fn create(
 
     sqlx::query(
         "INSERT INTO users (id, username, password, role, is_active, created_at, updated_at)
-         VALUES (?, ?, ?, ?, 1, ?, ?)",
+         VALUES ($1, $2, $3, $4, 1, $5, $6)",
     )
     .bind(&id)
     .bind(&username)
@@ -147,7 +147,7 @@ pub async fn update_role(
     // Check if user exists
     let existing: Option<(String, String, String, i64, String, String)> = sqlx::query_as(
         "SELECT id, username, role, is_active, created_at, updated_at
-         FROM users WHERE id = ?",
+         FROM users WHERE id = $1",
     )
     .bind(&id)
     .fetch_optional(&state.db)
@@ -173,7 +173,7 @@ pub async fn update_role(
 
     let now = Utc::now().to_rfc3339();
 
-    sqlx::query("UPDATE users SET role = ?, updated_at = ? WHERE id = ?")
+    sqlx::query("UPDATE users SET role = $1, updated_at = $2 WHERE id = $3")
         .bind(&body.role)
         .bind(&now)
         .bind(&id)

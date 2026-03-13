@@ -96,7 +96,7 @@ pub async fn create_group(
     }
 
     // Check if group name already exists
-    let existing: Option<i64> = sqlx::query_scalar("SELECT id FROM client_groups WHERE name = ?")
+    let existing: Option<i64> = sqlx::query_scalar("SELECT id FROM client_groups WHERE name = $1")
         .bind(&name)
         .fetch_optional(&state.db)
         .await?;
@@ -115,7 +115,7 @@ pub async fn create_group(
 
     let id: i64 = sqlx::query_scalar(
         "INSERT INTO client_groups (name, color, description, priority, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?) RETURNING id",
+         VALUES ($1, $2, $3, $4, $5, $6) RETURNING id",
     )
     .bind(&name)
     .bind(&color)
@@ -160,7 +160,7 @@ pub async fn update_group(
 ) -> AppResult<Json<Value>> {
     // Check if group exists
     let existing: Option<(i64, String, String, Option<String>, i32, String)> = sqlx::query_as(
-        "SELECT id, name, color, description, priority, created_at FROM client_groups WHERE id = ?",
+        "SELECT id, name, color, description, priority, created_at FROM client_groups WHERE id = $1",
     )
     .bind(id)
     .fetch_optional(&state.db)
@@ -180,7 +180,7 @@ pub async fn update_group(
         // Check if new name already exists (excluding current group)
         if new_name != old_name {
             let existing: Option<i64> =
-                sqlx::query_scalar("SELECT id FROM client_groups WHERE name = ? AND id != ?")
+                sqlx::query_scalar("SELECT id FROM client_groups WHERE name = $1 AND id != $2")
                     .bind(&new_name)
                     .bind(id)
                     .fetch_optional(&state.db)
@@ -204,7 +204,7 @@ pub async fn update_group(
     let now = Utc::now().to_rfc3339();
 
     sqlx::query(
-        "UPDATE client_groups SET name = ?, color = ?, description = ?, priority = ?, updated_at = ? WHERE id = ?",
+        "UPDATE client_groups SET name = $1, color = $2, description = $3, priority = $4, updated_at = $5 WHERE id = $6",
     )
     .bind(&name)
     .bind(&color)
@@ -221,7 +221,7 @@ pub async fn update_group(
 
     // Get updated counts
     let client_count: i64 = sqlx::query_scalar(
-        "SELECT COUNT(DISTINCT client_id) FROM client_group_memberships WHERE group_id = ?",
+        "SELECT COUNT(DISTINCT client_id) FROM client_group_memberships WHERE group_id = $1",
     )
     .bind(id)
     .fetch_one(&state.db)
@@ -229,7 +229,7 @@ pub async fn update_group(
     .unwrap_or(0);
 
     let rule_count: i64 =
-        sqlx::query_scalar("SELECT COUNT(*) FROM client_group_rules WHERE group_id = ?")
+        sqlx::query_scalar("SELECT COUNT(*) FROM client_group_rules WHERE group_id = $1")
             .bind(id)
             .fetch_one(&state.db)
             .await
@@ -267,17 +267,18 @@ pub async fn delete_group(
     Path(id): Path<i64>,
 ) -> AppResult<Json<Value>> {
     // Check if group exists
-    let existing: Option<(String,)> = sqlx::query_as("SELECT name FROM client_groups WHERE id = ?")
-        .bind(id)
-        .fetch_optional(&state.db)
-        .await?;
+    let existing: Option<(String,)> =
+        sqlx::query_as("SELECT name FROM client_groups WHERE id = $1")
+            .bind(id)
+            .fetch_optional(&state.db)
+            .await?;
 
     let (name,) =
         existing.ok_or_else(|| AppError::NotFound(format!("Client group {} not found", id)))?;
 
     // Get affected counts before deletion
     let client_count: i64 = sqlx::query_scalar(
-        "SELECT COUNT(DISTINCT client_id) FROM client_group_memberships WHERE group_id = ?",
+        "SELECT COUNT(DISTINCT client_id) FROM client_group_memberships WHERE group_id = $1",
     )
     .bind(id)
     .fetch_one(&state.db)
@@ -285,7 +286,7 @@ pub async fn delete_group(
     .unwrap_or(0);
 
     let rule_count: i64 =
-        sqlx::query_scalar("SELECT COUNT(*) FROM client_group_rules WHERE group_id = ?")
+        sqlx::query_scalar("SELECT COUNT(*) FROM client_group_rules WHERE group_id = $1")
             .bind(id)
             .fetch_one(&state.db)
             .await
@@ -298,17 +299,17 @@ pub async fn delete_group(
     // 任何一步失败，整个删除回滚，数据库不会留下孤儿记录
     let mut tx = state.db.begin().await?;
 
-    sqlx::query("DELETE FROM client_group_memberships WHERE group_id = ?")
+    sqlx::query("DELETE FROM client_group_memberships WHERE group_id = $1")
         .bind(id)
         .execute(&mut *tx)
         .await?;
 
-    sqlx::query("DELETE FROM client_group_rules WHERE group_id = ?")
+    sqlx::query("DELETE FROM client_group_rules WHERE group_id = $1")
         .bind(id)
         .execute(&mut *tx)
         .await?;
 
-    sqlx::query("DELETE FROM client_groups WHERE id = ?")
+    sqlx::query("DELETE FROM client_groups WHERE id = $1")
         .bind(id)
         .execute(&mut *tx)
         .await?;
@@ -348,10 +349,11 @@ pub async fn get_group_members(
     let offset = (page - 1) * page_size;
 
     // Check if group exists
-    let existing: Option<(String,)> = sqlx::query_as("SELECT name FROM client_groups WHERE id = ?")
-        .bind(id)
-        .fetch_optional(&state.db)
-        .await?;
+    let existing: Option<(String,)> =
+        sqlx::query_as("SELECT name FROM client_groups WHERE id = $1")
+            .bind(id)
+            .fetch_optional(&state.db)
+            .await?;
 
     if existing.is_none() {
         return Err(AppError::NotFound(format!("Client group {} not found", id)));
@@ -378,9 +380,9 @@ pub async fn get_group_members(
                 ) as group_names_str
             FROM clients c
             INNER JOIN client_group_memberships m ON c.id = m.client_id
-            WHERE m.group_id = ?
+            WHERE m.group_id = $1
             ORDER BY c.created_at DESC
-            LIMIT ? OFFSET ?
+            LIMIT $2 OFFSET $3
             "#,
     )
     .bind(id)
@@ -390,7 +392,7 @@ pub async fn get_group_members(
     .await?;
 
     let total: i64 = sqlx::query_scalar(
-        "SELECT COUNT(DISTINCT c.id) FROM clients c INNER JOIN client_group_memberships m ON c.id = m.client_id WHERE m.group_id = ?",
+        "SELECT COUNT(DISTINCT c.id) FROM clients c INNER JOIN client_group_memberships m ON c.id = m.client_id WHERE m.group_id = $1",
     )
     .bind(id)
     .fetch_one(&state.db)
@@ -399,7 +401,12 @@ pub async fn get_group_members(
     // 获取所有客户端的查询次数
     let client_ids: Vec<&String> = rows.iter().map(|(cid, _, _, _, _, _)| cid).collect();
     let query_counts: Vec<(String, i64)> = if !client_ids.is_empty() {
-        let placeholders = client_ids.iter().map(|_| "?").collect::<Vec<_>>().join(",");
+        let placeholders = client_ids
+            .iter()
+            .enumerate()
+            .map(|(i, _)| format!("${}", i + 1))
+            .collect::<Vec<_>>()
+            .join(",");
         let query_str = format!(
             "SELECT client_id, COUNT(*) as cnt FROM query_log WHERE client_id IN ({}) GROUP BY client_id",
             placeholders
@@ -495,10 +502,11 @@ pub async fn batch_add_clients(
     Json(body): Json<BatchAddClientsRequest>,
 ) -> AppResult<Json<Value>> {
     // Check if group exists
-    let existing: Option<(String,)> = sqlx::query_as("SELECT name FROM client_groups WHERE id = ?")
-        .bind(id)
-        .fetch_optional(&state.db)
-        .await?;
+    let existing: Option<(String,)> =
+        sqlx::query_as("SELECT name FROM client_groups WHERE id = $1")
+            .bind(id)
+            .fetch_optional(&state.db)
+            .await?;
 
     if existing.is_none() {
         return Err(AppError::NotFound(format!("Client group {} not found", id)));
@@ -515,7 +523,7 @@ pub async fn batch_add_clients(
     for client_id in &body.client_ids {
         // Check if client exists in the admin clients table
         let client_exists: Option<(String,)> =
-            sqlx::query_as("SELECT id FROM clients WHERE id = ?")
+            sqlx::query_as("SELECT id FROM clients WHERE id = $1")
                 .bind(client_id)
                 .fetch_optional(&mut *tx)
                 .await?;
@@ -528,7 +536,7 @@ pub async fn batch_add_clients(
 
         // Check if already in group
         let membership_exists: Option<(i64,)> = sqlx::query_as(
-            "SELECT id FROM client_group_memberships WHERE client_id = ? AND group_id = ?",
+            "SELECT id FROM client_group_memberships WHERE client_id = $1 AND group_id = $2",
         )
         .bind(client_id)
         .bind(id)
@@ -543,7 +551,7 @@ pub async fn batch_add_clients(
 
         // Add membership
         sqlx::query(
-            "INSERT INTO client_group_memberships (client_id, group_id, created_at) VALUES (?, ?, ?)",
+            "INSERT INTO client_group_memberships (client_id, group_id, created_at) VALUES ($1, $2, $3)",
         )
         .bind(client_id)
         .bind(id)
@@ -577,10 +585,11 @@ pub async fn batch_remove_clients(
     Json(body): Json<BatchRemoveClientsRequest>,
 ) -> AppResult<Json<Value>> {
     // Check if group exists
-    let existing: Option<(String,)> = sqlx::query_as("SELECT name FROM client_groups WHERE id = ?")
-        .bind(id)
-        .fetch_optional(&state.db)
-        .await?;
+    let existing: Option<(String,)> =
+        sqlx::query_as("SELECT name FROM client_groups WHERE id = $1")
+            .bind(id)
+            .fetch_optional(&state.db)
+            .await?;
 
     if existing.is_none() {
         return Err(AppError::NotFound(format!("Client group {} not found", id)));
@@ -593,7 +602,7 @@ pub async fn batch_remove_clients(
 
     for client_id in &body.client_ids {
         let result = sqlx::query(
-            "DELETE FROM client_group_memberships WHERE client_id = ? AND group_id = ?",
+            "DELETE FROM client_group_memberships WHERE client_id = $1 AND group_id = $2",
         )
         .bind(client_id)
         .bind(id)
@@ -631,7 +640,7 @@ pub async fn batch_move_clients(
     for client_id in &body.client_ids {
         // Check if client exists in the admin clients table
         let client_exists: Option<(String,)> =
-            sqlx::query_as("SELECT id FROM clients WHERE id = ?")
+            sqlx::query_as("SELECT id FROM clients WHERE id = $1")
                 .bind(client_id)
                 .fetch_optional(&state.db)
                 .await?;
@@ -643,7 +652,7 @@ pub async fn batch_move_clients(
         // Remove from source group if specified
         if let Some(from_group_id) = body.from_group_id {
             sqlx::query(
-                "DELETE FROM client_group_memberships WHERE client_id = ? AND group_id = ?",
+                "DELETE FROM client_group_memberships WHERE client_id = $1 AND group_id = $2",
             )
             .bind(client_id)
             .bind(from_group_id)
@@ -655,7 +664,7 @@ pub async fn batch_move_clients(
         if let Some(to_group_id) = body.to_group_id {
             // Check if group exists
             let group_exists: Option<(String,)> =
-                sqlx::query_as("SELECT name FROM client_groups WHERE id = ?")
+                sqlx::query_as("SELECT name FROM client_groups WHERE id = $1")
                     .bind(to_group_id)
                     .fetch_optional(&state.db)
                     .await?;
@@ -683,7 +692,7 @@ pub async fn batch_move_clients(
                     SELECT cr.id, cr.rule, cr.comment
                     FROM custom_rules cr
                     INNER JOIN client_group_rules gr ON cr.id = gr.rule_id
-                    WHERE gr.group_id = ? AND gr.rule_type = 'custom_rule' AND cr.is_enabled = 1
+                    WHERE gr.group_id = $1 AND gr.rule_type = 'custom_rule' AND cr.is_enabled = 1
                     "#,
                 )
                 .bind(to_group_id)
@@ -718,10 +727,11 @@ pub async fn get_group_rules(
     Query(params): Query<RuleFilterParams>,
 ) -> AppResult<Json<Value>> {
     // Check if group exists
-    let existing: Option<(String,)> = sqlx::query_as("SELECT name FROM client_groups WHERE id = ?")
-        .bind(id)
-        .fetch_optional(&state.db)
-        .await?;
+    let existing: Option<(String,)> =
+        sqlx::query_as("SELECT name FROM client_groups WHERE id = $1")
+            .bind(id)
+            .fetch_optional(&state.db)
+            .await?;
 
     if existing.is_none() {
         return Err(AppError::NotFound(format!("Client group {} not found", id)));
@@ -735,7 +745,7 @@ pub async fn get_group_rules(
             SELECT cr.id, cr.rule, cr.comment, cr.is_enabled, gr.priority, cr.created_at
             FROM custom_rules cr
             INNER JOIN client_group_rules gr ON cr.id = gr.rule_id
-            WHERE gr.group_id = ? AND gr.rule_type = 'custom_rule'
+            WHERE gr.group_id = $1 AND gr.rule_type = 'custom_rule'
             ORDER BY gr.priority ASC
             "#,
         )
@@ -765,7 +775,7 @@ pub async fn get_group_rules(
             SELECT r.id, r.domain, r.answer, gr.priority, r.created_at
             FROM dns_rewrites r
             INNER JOIN client_group_rules gr ON r.id = gr.rule_id
-            WHERE gr.group_id = ? AND gr.rule_type = 'rewrite'
+            WHERE gr.group_id = $1 AND gr.rule_type = 'rewrite'
             ORDER BY gr.priority ASC
             "#,
         )
@@ -808,10 +818,11 @@ pub async fn batch_bind_rules(
     Json(body): Json<BatchBindRulesRequest>,
 ) -> AppResult<Json<Value>> {
     // Check if group exists
-    let existing: Option<(String,)> = sqlx::query_as("SELECT name FROM client_groups WHERE id = ?")
-        .bind(id)
-        .fetch_optional(&state.db)
-        .await?;
+    let existing: Option<(String,)> =
+        sqlx::query_as("SELECT name FROM client_groups WHERE id = $1")
+            .bind(id)
+            .fetch_optional(&state.db)
+            .await?;
 
     if existing.is_none() {
         return Err(AppError::NotFound(format!("Client group {} not found", id)));
@@ -833,12 +844,12 @@ pub async fn batch_bind_rules(
 
         // Check if rule exists in the appropriate table
         let rule_exists: Option<(String,)> = if rule.rule_type == "custom_rule" {
-            sqlx::query_as("SELECT id FROM custom_rules WHERE id = ?")
+            sqlx::query_as("SELECT id FROM custom_rules WHERE id = $1")
                 .bind(&rule.rule_id)
                 .fetch_optional(&state.db)
                 .await?
         } else {
-            sqlx::query_as("SELECT id FROM dns_rewrites WHERE id = ?")
+            sqlx::query_as("SELECT id FROM dns_rewrites WHERE id = $1")
                 .bind(&rule.rule_id)
                 .fetch_optional(&state.db)
                 .await?
@@ -856,7 +867,7 @@ pub async fn batch_bind_rules(
 
         // Check if already bound
         let binding_exists: Option<(i64,)> = sqlx::query_as(
-            "SELECT id FROM client_group_rules WHERE group_id = ? AND rule_id = ? AND rule_type = ?",
+            "SELECT id FROM client_group_rules WHERE group_id = $1 AND rule_id = $2 AND rule_type = $3",
         )
         .bind(id)
         .bind(&rule.rule_id)
@@ -877,7 +888,7 @@ pub async fn batch_bind_rules(
         // Bind rule
         let priority = rule.priority.unwrap_or(0);
         sqlx::query(
-            "INSERT INTO client_group_rules (group_id, rule_id, rule_type, priority, created_at) VALUES (?, ?, ?, ?, ?)",
+            "INSERT INTO client_group_rules (group_id, rule_id, rule_type, priority, created_at) VALUES ($1, $2, $3, $4, $5)",
         )
         .bind(id)
         .bind(&rule.rule_id)
@@ -912,10 +923,11 @@ pub async fn batch_unbind_rules(
     Json(body): Json<BatchUnbindRulesRequest>,
 ) -> AppResult<Json<Value>> {
     // Check if group exists
-    let existing: Option<(String,)> = sqlx::query_as("SELECT name FROM client_groups WHERE id = ?")
-        .bind(id)
-        .fetch_optional(&state.db)
-        .await?;
+    let existing: Option<(String,)> =
+        sqlx::query_as("SELECT name FROM client_groups WHERE id = $1")
+            .bind(id)
+            .fetch_optional(&state.db)
+            .await?;
 
     if existing.is_none() {
         return Err(AppError::NotFound(format!("Client group {} not found", id)));
@@ -926,7 +938,7 @@ pub async fn batch_unbind_rules(
 
     for rule_id in &body.rule_ids {
         let result = sqlx::query(
-            "DELETE FROM client_group_rules WHERE group_id = ? AND rule_id = ? AND rule_type = ?",
+            "DELETE FROM client_group_rules WHERE group_id = $1 AND rule_id = $2 AND rule_type = $3",
         )
         .bind(id)
         .bind(rule_id)

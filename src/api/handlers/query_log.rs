@@ -458,10 +458,10 @@ pub async fn export(
     };
 
     // Build and execute query
-    let sql = format!(
+    let sql = pg_numbered(&format!(
         "SELECT {} FROM query_log {} ORDER BY time DESC LIMIT ?",
         field_list, where_clause
-    );
+    ));
 
     // P0-3 fix：DB 错误不再被 unwrap_or_default() 静默吞掉
     // 失败时返回 HTTP 500，客户端可感知错误而非收到空数据
@@ -650,7 +650,8 @@ pub async fn bulk_delete(
     let placeholders = payload
         .ids
         .iter()
-        .map(|_| "?")
+        .enumerate()
+        .map(|(i, _)| format!("${}", i + 1))
         .collect::<Vec<_>>()
         .join(", ");
     let sql = format!("DELETE FROM query_log WHERE id IN ({})", placeholders);
@@ -660,6 +661,17 @@ pub async fn bulk_delete(
     }
     let result = q.execute(&state.db).await?;
     Ok(Json(json!({ "deleted": result.rows_affected() })))
+}
+
+/// Replace all `?` placeholders in a SQL string with PostgreSQL-style `$1`, `$2`, ...
+fn pg_numbered(sql: &str) -> String {
+    let mut result = sql.to_string();
+    let mut n = 0usize;
+    while let Some(pos) = result.find('?') {
+        n += 1;
+        result.replace_range(pos..pos + 1, &format!("${}", n));
+    }
+    result
 }
 
 // Escape CSV field (handle quotes and commas)

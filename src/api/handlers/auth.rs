@@ -168,7 +168,7 @@ pub async fn change_password(
 
     // Fetch current user
     let row: Option<(String, String)> =
-        sqlx::query_as("SELECT id, password FROM users WHERE id = ?")
+        sqlx::query_as("SELECT id, password FROM users WHERE id = $1")
             .bind(&claims.sub)
             .fetch_optional(&state.db)
             .await?;
