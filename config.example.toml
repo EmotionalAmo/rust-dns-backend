@@ -56,8 +56,9 @@ static_dir = "frontend/dist"
 
 # ── Database ──────────────────────────────────────────────────────────────────
 [database]
-# SQLite database file path
-path = "/var/lib/rust-dns/rust-dns.db"
+# PostgreSQL connection URL
+# Format: postgres://<user>:<password>@<host>:<port>/<database>
+url = "postgres://rust_dns:CHANGE_ME_PASSWORD@localhost:5432/rust_dns"
 
 # Delete query log entries older than N days (0 = keep forever)
 query_log_retention_days = 30

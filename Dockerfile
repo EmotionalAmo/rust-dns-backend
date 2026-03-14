@@ -23,8 +23,8 @@ RUN apt-get update && \
     rm -rf /var/lib/apt/lists/* && \
     groupadd -r rust-dns && \
     useradd -r -g rust-dns -s /usr/sbin/nologin rust-dns && \
-    mkdir -p /data/rust-dns /opt/rust-dns/static && \
-    chown -R rust-dns:rust-dns /data/rust-dns /opt/rust-dns/static
+    mkdir -p /opt/rust-dns/static && \
+    chown -R rust-dns:rust-dns /opt/rust-dns/static
 
 # Optional: Place a placeholder index.html so health checks or pure-API visits don't crash
 RUN echo "<html><body><h1>rust-dns API Server</h1></body></html>" > /opt/rust-dns/static/index.html && \
@@ -35,12 +35,9 @@ COPY --from=builder /app/target/release/rust-dns /usr/local/bin/rust-dns
 # DNS: 53/udp+tcp, API: 8080
 EXPOSE 53/udp 53/tcp 8080
 
-VOLUME ["/data/rust-dns"]
-
 USER rust-dns
 
-ENV RUST_DNS__DATABASE__PATH=/data/rust-dns/rust-dns.db \
-    RUST_DNS__DNS__PORT=53 \
+ENV RUST_DNS__DNS__PORT=53 \
     RUST_DNS__API__PORT=8080 \
     RUST_DNS__API__STATIC_DIR=/opt/rust-dns/static
 

@@ -1,6 +1,19 @@
 version: '3.8'
 
 services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: rust-dns-postgres
+    restart: unless-stopped
+    environment:
+      - POSTGRES_USER=rust_dns
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-CHANGE_ME}
+      - POSTGRES_DB=rust_dns
+    volumes:
+      - dns_data:/var/lib/postgresql/data
+    networks:
+      - dns_net
+
   backend:
     image: ghcr.io/emotionalamo/rust-dns-backend:latest
     # To build from source instead:
@@ -9,14 +22,14 @@ services:
     #   dockerfile: Dockerfile
     container_name: rust-dns-backend
     restart: unless-stopped
+    depends_on:
+      - postgres
     ports:
       - "53:53/udp"
       - "53:53/tcp"
       - "8080:8080"
-    volumes:
-      - dns_data:/data/rust-dns
     environment:
-      - RUST_DNS__DATABASE__PATH=/data/rust-dns/rust-dns.db
+      - RUST_DNS__DATABASE__URL=postgres://rust_dns:${POSTGRES_PASSWORD:-CHANGE_ME}@postgres:5432/rust_dns
       - RUST_DNS__DNS__PORT=53
       - RUST_DNS__API__PORT=8080
       - RUST_DNS__API__STATIC_DIR=/opt/rust-dns/static
