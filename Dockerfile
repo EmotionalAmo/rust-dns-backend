@@ -19,7 +19,7 @@ LABEL maintainer="rust-dns Project"
 LABEL description="High-performance Rust DNS Server Backend"
 
 RUN apt-get update && \
-    apt-get install -y ca-certificates && \
+    apt-get install -y ca-certificates postgresql-client && \
     rm -rf /var/lib/apt/lists/* && \
     groupadd -r rust-dns && \
     useradd -r -g rust-dns -s /usr/sbin/nologin rust-dns && \

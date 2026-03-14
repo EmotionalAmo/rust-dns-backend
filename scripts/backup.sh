@@ -1,42 +1,34 @@
 #!/bin/bash
-# rust-dns Automated Backup Script
-# Usage: ./scripts/backup.sh [data_dir] [backup_dir]
+# rust-dns PostgreSQL Backup Script
+# Usage: ./scripts/backup.sh [backup_dir]
+# Requires pg_dump (part of postgresql-client)
+#
+# Database URL is read from the first of:
+#   1. RUST_DNS__DATABASE__URL env var
+#   2. DATABASE_URL env var
+#   3. Built-in default (localhost dev)
 
 set -e
 
-DATA_DIR="${1:-./data}"
-BACKUP_DIR="${2:-./backups}"
-DB_PATH="${DATA_DIR}/rust-dns.db"
+BACKUP_DIR="${1:-./backups}"
+DATABASE_URL="${RUST_DNS__DATABASE__URL:-${DATABASE_URL:-postgres://postgres:postgres@localhost:5432/rustdns}}"
 MAX_AGE_DAYS=7
 
-# Create backup directory if not exists
 mkdir -p "${BACKUP_DIR}"
 
 echo "[$(date '+%Y-%m-%d %H:%M:%S')] Starting rust-dns backup..."
+echo "[$(date '+%Y-%m-%d %H:%M:%S')] Backup dir: ${BACKUP_DIR}"
 
-# Check if database exists
-if [ ! -f "${DB_PATH}" ]; then
-    echo "Error: Database file not found at ${DB_PATH}"
-    exit 1
-fi
-
-# Create backup with timestamp
 TIMESTAMP=$(date '+%Y%m%d-%H%M%S')
-BACKUP_FILE="${BACKUP_DIR}/rust-dns-backup-${TIMESTAMP}.db"
+BACKUP_FILE="${BACKUP_DIR}/rust-dns-backup-${TIMESTAMP}.dump"
 
-# Use sqlite3 backup command (safe for WAL mode)
-sqlite3 "${DB_PATH}" ".backup '${BACKUP_FILE}'"
+pg_dump --format=custom --no-password --file="${BACKUP_FILE}" "${DATABASE_URL}"
 
-if [ $? -eq 0 ]; then
-    echo "[$(date '+%Y-%m-%d %H:%M:%S')] Backup created: ${BACKUP_FILE}"
-else
-    echo "[$(date '+%Y-%m-%d %H:%M:%S')] Backup failed!"
-    exit 1
-fi
+echo "[$(date '+%Y-%m-%d %H:%M:%S')] Backup created: ${BACKUP_FILE} ($(du -h "${BACKUP_FILE}" | cut -f1))"
 
-# Remove old backups (older than MAX_AGE_DAYS)
+# Remove old backups
 echo "[$(date '+%Y-%m-%d %H:%M:%S')] Cleaning up backups older than ${MAX_AGE_DAYS} days..."
-find "${BACKUP_DIR}" -name "rust-dns-backup-*.db" -type f -mtime +${MAX_AGE_DAYS} -delete
+find "${BACKUP_DIR}" -name "rust-dns-backup-*.dump" -type f -mtime +"${MAX_AGE_DAYS}" -delete
 
-COUNT=$(find "${BACKUP_DIR}" -name "rust-dns-backup-*.db" -type f | wc -l)
+COUNT=$(find "${BACKUP_DIR}" -name "rust-dns-backup-*.dump" -type f | wc -l)
 echo "[$(date '+%Y-%m-%d %H:%M:%S')] Backup complete. ${COUNT} backup(s) retained."
