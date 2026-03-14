@@ -62,7 +62,8 @@ pub struct DnsHandler {
     /// TTL（秒）用于 DNS 重写响应（可通过 dns.rewrite_ttl 配置）
     rewrite_ttl: u32,
     /// Per-client resolvers keyed by sorted upstream list (e.g. "1.1.1.1,8.8.8.8")
-    client_resolvers: RwLock<HashMap<String, Arc<DnsResolver>>>,
+    /// Bounded moka cache: max 64 entries, TTL 1 hour — prevents unbounded growth
+    client_resolvers: MokaCache<String, Arc<DnsResolver>>,
     cache: Arc<DnsCache>,
     /// TTL cache for client config: IP → ClientConfig (M-4 fix)
     client_config_cache: MokaCache<String, ClientConfig>,
@@ -114,7 +115,10 @@ impl DnsHandler {
             upstream_pool,
             prefer_ipv4,
             rewrite_ttl,
-            client_resolvers: RwLock::new(HashMap::new()),
+            client_resolvers: MokaCache::builder()
+                .max_capacity(64)
+                .time_to_live(std::time::Duration::from_secs(3600))
+                .build(),
             cache,
             client_config_cache,
             db,
@@ -517,6 +521,7 @@ impl DnsHandler {
     }
 
     /// Get or create a cached per-client resolver for the given upstream list.
+    /// Uses a bounded moka cache (max 64, TTL 1h) to prevent unbounded growth.
     async fn get_or_create_client_resolver(
         &self,
         upstreams: &[String],
@@ -527,20 +532,12 @@ impl DnsHandler {
             sorted.join(",")
         };
 
-        // Fast path: already cached
-        {
-            let cache = self.client_resolvers.read().await;
-            if let Some(r) = cache.get(&key) {
-                return Ok(r.clone());
-            }
+        if let Some(r) = self.client_resolvers.get(&key).await {
+            return Ok(r);
         }
 
-        // Slow path: create new resolver
         let resolver = Arc::new(DnsResolver::with_upstreams(upstreams, self.prefer_ipv4)?);
-        {
-            let mut cache = self.client_resolvers.write().await;
-            cache.insert(key, resolver.clone());
-        }
+        self.client_resolvers.insert(key, resolver.clone()).await;
         tracing::info!("Created client resolver for upstreams: {:?}", upstreams);
         Ok(resolver)
     }

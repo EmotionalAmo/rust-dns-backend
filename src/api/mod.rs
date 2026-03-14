@@ -238,6 +238,28 @@ pub async fn serve(
         });
     }
 
+    // Background: cleanup stale WebSocket tickets (issued but never consumed)
+    {
+        let ws_tickets = state.ws_tickets.clone();
+        let mut cleanup_rx = shutdown_signal.subscribe();
+        tokio::spawn(async move {
+            let mut ticker = tokio::time::interval(tokio::time::Duration::from_secs(300));
+            ticker.tick().await; // skip immediate first tick
+            loop {
+                tokio::select! {
+                    _ = ticker.tick() => {
+                        let cutoff = std::time::Instant::now() - std::time::Duration::from_secs(120);
+                        ws_tickets.retain(|_, issued_at| *issued_at > cutoff);
+                    }
+                    _ = cleanup_rx.recv() => {
+                        tracing::info!("WS ticket cleanup task shutting down");
+                        break;
+                    }
+                }
+            }
+        });
+    }
+
     axum::serve(
         listener,
         app.into_make_service_with_connect_info::<SocketAddr>(),
