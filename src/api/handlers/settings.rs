@@ -6,6 +6,7 @@ use std::sync::Arc;
 use crate::api::middleware::client_ip::ClientIp;
 use crate::api::middleware::rbac::AdminUser;
 use crate::api::AppState;
+use crate::dns::acl::Acl;
 use crate::error::{AppError, AppResult};
 
 #[derive(Debug, Deserialize)]
@@ -18,6 +19,10 @@ pub struct UpdateDnsSettingsRequest {
     pub parental_control_enabled: Option<bool>,
     pub parental_control_level: Option<String>,
     pub upstream_strategy: Option<String>,
+    /// CIDR list of allowed client networks (e.g. ["192.168.1.0/24", "10.0.0.0/8"])
+    pub acl_allowed_networks: Option<Vec<String>>,
+    /// CIDR list of denied client networks
+    pub acl_denied_networks: Option<Vec<String>>,
 }
 
 /// Get current DNS settings
@@ -81,6 +86,22 @@ pub async fn get_dns(
     // For now, return empty array as the actual upstreams are managed via `/api/v1/settings/upstreams`
     let upstreams: Vec<String> = vec![];
 
+    let acl_allowed: (String,) =
+        sqlx::query_as("SELECT value FROM settings WHERE key = 'acl_allowed_networks'")
+            .fetch_one(&state.db)
+            .await
+            .unwrap_or(("[]".to_string(),));
+
+    let acl_denied: (String,) =
+        sqlx::query_as("SELECT value FROM settings WHERE key = 'acl_denied_networks'")
+            .fetch_one(&state.db)
+            .await
+            .unwrap_or(("[]".to_string(),));
+
+    let acl_allowed_networks: Vec<String> =
+        serde_json::from_str(&acl_allowed.0).unwrap_or_default();
+    let acl_denied_networks: Vec<String> = serde_json::from_str(&acl_denied.0).unwrap_or_default();
+
     Ok(Json(json!({
         "upstreams": upstreams,
         "cache_ttl": cache_ttl,
@@ -90,6 +111,8 @@ pub async fn get_dns(
         "parental_control_enabled": parental_control_enabled,
         "parental_control_level": parental_control_level,
         "upstream_strategy": upstream_strategy,
+        "acl_allowed_networks": acl_allowed_networks,
+        "acl_denied_networks": acl_denied_networks,
     })))
 }
 
@@ -206,6 +229,57 @@ pub async fn update_dns(
         tracing::warn!(
             "upstreams update requested but ignored (managed by /api/v1/settings/upstreams)"
         );
+    }
+
+    // Update ACL if provided
+    if body.acl_allowed_networks.is_some() || body.acl_denied_networks.is_some() {
+        // Read current values to apply partial updates
+        let current_allowed: Vec<String> = sqlx::query_scalar::<_, String>(
+            "SELECT value FROM settings WHERE key = 'acl_allowed_networks'",
+        )
+        .fetch_optional(&state.db)
+        .await?
+        .and_then(|v| serde_json::from_str(&v).ok())
+        .unwrap_or_default();
+
+        let current_denied: Vec<String> = sqlx::query_scalar::<_, String>(
+            "SELECT value FROM settings WHERE key = 'acl_denied_networks'",
+        )
+        .fetch_optional(&state.db)
+        .await?
+        .and_then(|v| serde_json::from_str(&v).ok())
+        .unwrap_or_default();
+
+        let new_allowed = body.acl_allowed_networks.unwrap_or(current_allowed);
+        let new_denied = body.acl_denied_networks.unwrap_or(current_denied);
+
+        // Validate CIDR entries
+        let bad_allowed = Acl::validate_cidrs(&new_allowed);
+        let bad_denied = Acl::validate_cidrs(&new_denied);
+        if !bad_allowed.is_empty() || !bad_denied.is_empty() {
+            let mut bad: Vec<String> = bad_allowed;
+            bad.extend(bad_denied);
+            return Err(AppError::Validation(format!(
+                "Invalid CIDR entries: {}",
+                bad.join(", ")
+            )));
+        }
+
+        let allowed_json = serde_json::to_string(&new_allowed).unwrap_or_else(|_| "[]".to_string());
+        let denied_json = serde_json::to_string(&new_denied).unwrap_or_else(|_| "[]".to_string());
+
+        sqlx::query("INSERT INTO settings (key, value) VALUES ('acl_allowed_networks', $1) ON CONFLICT (key) DO UPDATE SET value = $1")
+            .bind(&allowed_json)
+            .execute(&state.db)
+            .await?;
+
+        sqlx::query("INSERT INTO settings (key, value) VALUES ('acl_denied_networks', $1) ON CONFLICT (key) DO UPDATE SET value = $1")
+            .bind(&denied_json)
+            .execute(&state.db)
+            .await?;
+
+        // Hot-reload ACL in DNS handler
+        state.dns_handler.reload_acl(new_allowed, new_denied).await;
     }
 
     if let Some(strategy) = body.upstream_strategy {

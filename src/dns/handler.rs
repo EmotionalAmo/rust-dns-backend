@@ -1,4 +1,5 @@
 use super::{
+    acl::Acl,
     cache::{DnsCache, DNS_CACHE_MAX_CAPACITY},
     filter::FilterEngine,
     resolver::DnsResolver,
@@ -61,6 +62,8 @@ pub struct DnsHandler {
     prefer_ipv4: bool,
     /// TTL（秒）用于 DNS 重写响应（可通过 dns.rewrite_ttl 配置）
     rewrite_ttl: u32,
+    /// DNS ACL — 控制哪些客户端 IP 允许查询此服务器
+    acl: Arc<RwLock<Acl>>,
     /// Per-client resolvers keyed by sorted upstream list (e.g. "1.1.1.1,8.8.8.8")
     /// Bounded moka cache: max 64 entries, TTL 1 hour — prevents unbounded growth
     client_resolvers: MokaCache<String, Arc<DnsResolver>>,
@@ -110,11 +113,34 @@ impl DnsHandler {
             crate::db::query_log_writer::spawn(db.clone(), query_log_tx.clone());
         let prefer_ipv4 = cfg.dns.prefer_ipv4;
         let rewrite_ttl = cfg.dns.rewrite_ttl;
+
+        // Load ACL from database settings
+        let acl = {
+            let allowed = sqlx::query_scalar::<_, String>(
+                "SELECT value FROM settings WHERE key = 'acl_allowed_networks'",
+            )
+            .fetch_optional(&db)
+            .await?
+            .and_then(|v| serde_json::from_str::<Vec<String>>(&v).ok())
+            .unwrap_or_default();
+
+            let denied = sqlx::query_scalar::<_, String>(
+                "SELECT value FROM settings WHERE key = 'acl_denied_networks'",
+            )
+            .fetch_optional(&db)
+            .await?
+            .and_then(|v| serde_json::from_str::<Vec<String>>(&v).ok())
+            .unwrap_or_default();
+
+            Arc::new(RwLock::new(Acl::from_cidrs(&allowed, &denied)))
+        };
+
         Ok(Self {
             filter,
             upstream_pool,
             prefer_ipv4,
             rewrite_ttl,
+            acl,
             client_resolvers: MokaCache::builder()
                 .max_capacity(64)
                 .time_to_live(std::time::Duration::from_secs(3600))
@@ -151,6 +177,14 @@ impl DnsHandler {
             request.op_code(),
             request.queries().len()
         );
+
+        // ACL check — refuse queries from disallowed clients
+        if let Ok(ip) = client_ip.parse::<IpAddr>() {
+            if !self.acl.read().await.is_allowed(ip) {
+                tracing::warn!("ACL: rejected DNS query from {}", client_ip);
+                return self.refused(&request);
+            }
+        }
 
         if request.message_type() != MessageType::Query || request.op_code() != OpCode::Query {
             return self.servfail(&request);
@@ -684,6 +718,25 @@ impl DnsHandler {
         response.set_message_type(MessageType::Response);
         response.set_response_code(ResponseCode::ServFail);
         Ok(response.to_vec()?)
+    }
+
+    fn refused(&self, request: &Message) -> Result<Vec<u8>> {
+        let mut response = Message::new();
+        response.set_id(request.id());
+        response.set_message_type(MessageType::Response);
+        response.set_response_code(ResponseCode::Refused);
+        Ok(response.to_vec()?)
+    }
+
+    /// Hot-reload ACL rules without restarting.  Called by the settings API.
+    pub async fn reload_acl(&self, allowed: Vec<String>, denied: Vec<String>) {
+        let new_acl = Acl::from_cidrs(&allowed, &denied);
+        *self.acl.write().await = new_acl;
+        tracing::info!(
+            "ACL reloaded: {} allowed, {} denied network(s)",
+            allowed.len(),
+            denied.len()
+        );
     }
 
     /// Returns DNS cache statistics as (entry_count, max_capacity).

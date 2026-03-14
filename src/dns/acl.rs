@@ -1,7 +1,6 @@
-#![allow(dead_code)]
-
 use ipnet::IpNet;
 use std::net::IpAddr;
+use std::str::FromStr;
 
 pub struct Acl {
     allowed: Vec<IpNet>,
@@ -20,6 +19,63 @@ impl Acl {
             allowed: vec![],
             denied: vec![],
         }
+    }
+
+    /// Build an ACL from CIDR string lists.  Invalid entries are skipped with a warning.
+    pub fn from_cidrs(allowed: &[String], denied: &[String]) -> Self {
+        let parse = |cidrs: &[String]| -> Vec<IpNet> {
+            cidrs
+                .iter()
+                .filter_map(|s| {
+                    let s = s.trim();
+                    if s.is_empty() {
+                        return None;
+                    }
+                    // Accept bare IPs (e.g. "192.168.1.1") by appending /32 or /128
+                    let cidr = if s.contains('/') {
+                        s.to_string()
+                    } else if s.contains(':') {
+                        format!("{}/128", s) // IPv6
+                    } else {
+                        format!("{}/32", s) // IPv4
+                    };
+                    match IpNet::from_str(&cidr) {
+                        Ok(net) => Some(net),
+                        Err(_) => {
+                            tracing::warn!("ACL: invalid CIDR '{}', skipping", s);
+                            None
+                        }
+                    }
+                })
+                .collect()
+        };
+
+        Self {
+            allowed: parse(allowed),
+            denied: parse(denied),
+        }
+    }
+
+    /// Validate a list of CIDR strings.  Returns the list of invalid entries.
+    pub fn validate_cidrs(cidrs: &[String]) -> Vec<String> {
+        cidrs
+            .iter()
+            .filter(|s| {
+                let s = s.trim();
+                if s.is_empty() {
+                    return false;
+                }
+                let cidr = if s.contains('/') {
+                    s.to_string()
+                } else if s.contains(':') {
+                    format!("{}/128", s)
+                } else {
+                    format!("{}/32", s)
+                };
+                IpNet::from_str(&cidr).is_err()
+            })
+            .cloned()
+            .collect()
     }
 
     pub fn is_allowed(&self, ip: IpAddr) -> bool {
