@@ -49,7 +49,7 @@ pub async fn login(
         }
     }
 
-    let row: Option<(String, String, String, i32)> =
+    let row: Option<(String, String, String, bool)> =
         sqlx::query_as("SELECT id, password, role, is_active FROM users WHERE username = $1")
             .bind(&req.username)
             .fetch_optional(&state.db)
@@ -64,7 +64,7 @@ pub async fn login(
         }
     };
 
-    if is_active == 0 {
+    if !is_active {
         record_login_failure(&state, &ip);
         return Err(AppError::AuthFailed);
     }

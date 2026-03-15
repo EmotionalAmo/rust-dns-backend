@@ -74,7 +74,7 @@ async fn run_filter_refresh_task(
                 let lists: Vec<(String, String, Option<i64>, Option<String>)> =
                     match sqlx::query_as(
                         "SELECT id, url, update_interval_hours, last_updated
-                     FROM filter_lists WHERE is_enabled = 1 AND url != '' AND url IS NOT NULL",
+                     FROM filter_lists WHERE is_enabled = true AND url != '' AND url IS NOT NULL",
                     )
                     .fetch_all(&db)
                     .await

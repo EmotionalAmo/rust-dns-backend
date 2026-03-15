@@ -38,7 +38,7 @@ impl FilterEngine {
         // 预估规则数量以便预分配内存
         let expected_count: i64 = sqlx::query_scalar(
             "SELECT COUNT(*) FROM custom_rules \
-                 WHERE is_enabled = 1 AND (expires_at IS NULL OR expires_at > $1)",
+                 WHERE is_enabled = true AND (expires_at IS NULL OR expires_at > $1)",
         )
         .bind(&now_rfc3339)
         .fetch_one(&self.db)
@@ -51,7 +51,7 @@ impl FilterEngine {
         // Load custom rules (AdGuard syntax stored in DB)
         let rows: Vec<(String,)> = sqlx::query_as(
             "SELECT rule FROM custom_rules \
-             WHERE is_enabled = 1 AND (expires_at IS NULL OR expires_at > $1)",
+             WHERE is_enabled = true AND (expires_at IS NULL OR expires_at > $1)",
         )
         .bind(&now_rfc3339)
         .fetch_all(&self.db)
@@ -76,7 +76,7 @@ impl FilterEngine {
 
         // Load filter list count
         let list_count: i64 =
-            sqlx::query_scalar("SELECT COUNT(*) FROM filter_lists WHERE is_enabled = 1")
+            sqlx::query_scalar("SELECT COUNT(*) FROM filter_lists WHERE is_enabled = true")
                 .fetch_one(&self.db)
                 .await?;
 

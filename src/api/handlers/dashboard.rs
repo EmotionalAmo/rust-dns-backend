@@ -49,12 +49,12 @@ pub async fn get_stats(
     };
 
     let (filter_rules,): (i64,) =
-        sqlx::query_as("SELECT COUNT(*) FROM custom_rules WHERE is_enabled = 1")
+        sqlx::query_as("SELECT COUNT(*) FROM custom_rules WHERE is_enabled = true")
             .fetch_one(&state.db)
             .await?;
 
     let (filter_lists,): (i64,) =
-        sqlx::query_as("SELECT COUNT(*) FROM filter_lists WHERE is_enabled = 1")
+        sqlx::query_as("SELECT COUNT(*) FROM filter_lists WHERE is_enabled = true")
             .fetch_one(&state.db)
             .await?;
 

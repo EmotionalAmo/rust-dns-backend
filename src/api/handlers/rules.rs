@@ -50,7 +50,7 @@ type RuleRow = (
     String,
     String,
     Option<String>,
-    i32,
+    bool,
     String,
     String,
     Option<String>,
@@ -123,7 +123,7 @@ pub async fn list(
                     "id": id,
                     "rule": rule,
                     "comment": comment,
-                    "is_enabled": is_enabled == 1,
+                    "is_enabled": is_enabled,
                     "created_by": created_by,
                     "created_at": created_at,
                     "expires_at": expires_at,
@@ -156,7 +156,7 @@ pub async fn create(
 
     sqlx::query(
         "INSERT INTO custom_rules (id, rule, comment, is_enabled, created_by, created_at, expires_at)
-         VALUES ($1, $2, $3, 1, $4, $5, $6)",
+         VALUES ($1, $2, $3, true, $4, $5, $6)",
     )
     .bind(&id)
     .bind(&rule)
@@ -257,7 +257,7 @@ pub async fn bulk_action(
     let affected: u64 = match req.action.as_str() {
         "enable" => {
             let sql = format!(
-                "UPDATE custom_rules SET is_enabled = 1 WHERE id IN ({}) AND created_by NOT LIKE 'filter:%'",
+                "UPDATE custom_rules SET is_enabled = true WHERE id IN ({}) AND created_by NOT LIKE 'filter:%'",
                 placeholders
             );
             let mut q = sqlx::query(&sql);
@@ -268,7 +268,7 @@ pub async fn bulk_action(
         }
         "disable" => {
             let sql = format!(
-                "UPDATE custom_rules SET is_enabled = 0 WHERE id IN ({}) AND created_by NOT LIKE 'filter:%'",
+                "UPDATE custom_rules SET is_enabled = false WHERE id IN ({}) AND created_by NOT LIKE 'filter:%'",
                 placeholders
             );
             let mut q = sqlx::query(&sql);
@@ -323,7 +323,7 @@ pub async fn update(
     Json(body): Json<UpdateRuleRequest>,
 ) -> AppResult<Json<Value>> {
     // 获取现有规则
-    let row = sqlx::query_as::<_, (String, Option<String>, i32, String)>(
+    let row = sqlx::query_as::<_, (String, Option<String>, bool, String)>(
         "SELECT rule, comment, is_enabled, created_by FROM custom_rules WHERE id = $1",
     )
     .bind(&id)
@@ -360,7 +360,7 @@ pub async fn update(
 
     if let Some(is_enabled) = body.is_enabled {
         updates.push("is_enabled = ?");
-        if existing_is_enabled != (if is_enabled { 1 } else { 0 }) {
+        if existing_is_enabled != is_enabled {
             needs_reload = true;
         }
     }
@@ -388,7 +388,7 @@ pub async fn update(
         query = query.bind(comment);
     }
     if let Some(is_enabled) = body.is_enabled {
-        query = query.bind(if is_enabled { 1 } else { 0 });
+        query = query.bind(is_enabled);
     }
     if let Some(ref expires_at) = body.expires_at {
         query = query.bind(expires_at.as_deref());
@@ -411,7 +411,7 @@ pub async fn update(
     }
 
     // 返回更新后的规则
-    let updated = sqlx::query_as::<_, (String, String, Option<String>, i32, String, String, Option<String>)>(
+    let updated = sqlx::query_as::<_, (String, String, Option<String>, bool, String, String, Option<String>)>(
         "SELECT id, rule, comment, is_enabled, created_by, created_at, expires_at FROM custom_rules WHERE id = $1"
     )
     .bind(&id)
@@ -433,7 +433,7 @@ pub async fn update(
         "id": updated.0,
         "rule": updated.1,
         "comment": updated.2,
-        "is_enabled": updated.3 == 1,
+        "is_enabled": updated.3,
         "created_by": updated.4,
         "created_at": updated.5,
         "expires_at": updated.6,
@@ -450,7 +450,7 @@ pub async fn toggle(
     let result = sqlx::query(
         "UPDATE custom_rules SET is_enabled = $1 WHERE id = $2 AND created_by NOT LIKE 'filter:%'",
     )
-    .bind(if body.is_enabled { 1 } else { 0 })
+    .bind(body.is_enabled)
     .bind(&id)
     .execute(&state.db)
     .await?;
@@ -520,7 +520,7 @@ pub async fn get_expiring_rules(
                     "id": id,
                     "rule": rule,
                     "comment": comment,
-                    "is_enabled": is_enabled == 1,
+                    "is_enabled": is_enabled,
                     "created_by": created_by,
                     "created_at": created_at,
                     "expires_at": expires_at,
@@ -586,7 +586,7 @@ pub async fn export_rules(
                     escape_csv_field(id),
                     escape_csv_field(rule),
                     escape_csv_field(comment_str),
-                    if *is_enabled == 1 { "true" } else { "false" },
+                    if *is_enabled { "true" } else { "false" },
                     escape_csv_field(created_by),
                     escape_csv_field(created_at),
                     escape_csv_field(expires_str),
@@ -616,7 +616,7 @@ pub async fn export_rules(
                         txt.push_str(&format!("# {}\n", c));
                     }
                 }
-                if *is_enabled == 0 {
+                if !is_enabled {
                     txt.push_str(&format!("# (disabled) {}\n", rule));
                 } else {
                     txt.push_str(&format!("{}\n", rule));
@@ -645,7 +645,7 @@ pub async fn export_rules(
                             "id": id,
                             "rule": rule,
                             "comment": comment,
-                            "is_enabled": is_enabled == 1,
+                            "is_enabled": is_enabled,
                             "created_by": created_by,
                             "created_at": created_at,
                             "expires_at": expires_at,
@@ -908,7 +908,7 @@ pub async fn import_rules(
         let id = Uuid::new_v4().to_string();
         if let Err(e) = sqlx::query(
             "INSERT INTO custom_rules (id, rule, comment, is_enabled, created_by, created_at)
-             VALUES ($1, $2, $3, 1, $4, $5)",
+             VALUES ($1, $2, $3, true, $4, $5)",
         )
         .bind(&id)
         .bind(&rule)

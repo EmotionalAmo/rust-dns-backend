@@ -159,7 +159,7 @@ pub async fn update_role(
     // Prevent modifying the last super_admin
     if old_role == "super_admin" && body.role != "super_admin" {
         let super_admin_count: (i64,) = sqlx::query_as(
-            "SELECT COUNT(*) FROM users WHERE role = 'super_admin' AND is_active = 1",
+            "SELECT COUNT(*) FROM users WHERE role = 'super_admin' AND is_active = true",
         )
         .fetch_one(&state.db)
         .await?;

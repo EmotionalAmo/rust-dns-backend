@@ -39,7 +39,7 @@ type FilterRow = (
     String,
     String,
     Option<String>,
-    i64,
+    bool,
     i64,
     Option<String>,
     String,
@@ -71,7 +71,7 @@ pub async fn list(State(state): State<Arc<AppState>>, _auth: AuthUser) -> AppRes
                     "id": id,
                     "name": name,
                     "url": url,
-                    "is_enabled": is_enabled == 1,
+                    "is_enabled": is_enabled,
                     "rule_count": rule_count,
                     "last_updated": last_updated,
                     "created_at": created_at,
@@ -99,7 +99,7 @@ pub async fn create(
 
     let id = Uuid::new_v4().to_string();
     let now = Utc::now().to_rfc3339();
-    let is_enabled = if body.is_enabled { 1 } else { 0 };
+    let is_enabled = body.is_enabled;
 
     sqlx::query(
         "INSERT INTO filter_lists (id, name, url, is_enabled, rule_count, last_updated, created_at, update_interval_hours)
@@ -199,10 +199,7 @@ pub async fn update(
 
     let name = body.name.unwrap_or(old_name);
     let url = body.url.or(old_url);
-    let is_enabled = body
-        .is_enabled
-        .map(|b| if b { 1 } else { 0 })
-        .unwrap_or(old_enabled);
+    let is_enabled = body.is_enabled.unwrap_or(old_enabled);
     let update_interval_hours = body.update_interval_hours.unwrap_or(old_interval);
 
     sqlx::query("UPDATE filter_lists SET name = $1, url = $2, is_enabled = $3, update_interval_hours = $4 WHERE id = $5")
@@ -236,7 +233,7 @@ pub async fn update(
         "id": id,
         "name": name,
         "url": url,
-        "is_enabled": is_enabled == 1,
+        "is_enabled": is_enabled,
         "rule_count": old_rule_count,
         "last_updated": old_last_updated,
         "created_at": created_at,

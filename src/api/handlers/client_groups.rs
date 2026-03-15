@@ -363,7 +363,7 @@ pub async fn get_group_members(
     let mac_regex = regex::Regex::new(r"^([0-9a-fA-F]{2}[:-]){5}[0-9a-fA-F]{2}$").unwrap();
 
     // Single query to get members from the clients table with group names
-    let rows: Vec<(String, String, String, i64, String, String)> = sqlx::query_as(
+    let rows: Vec<(String, String, String, bool, String, String)> = sqlx::query_as(
         r#"
             SELECT DISTINCT
                 c.id,
@@ -470,7 +470,7 @@ pub async fn get_group_members(
                     "ip": ip,
                     "mac": mac,
                     "identifiers": identifiers_arr,
-                    "filter_enabled": filter_enabled == 1,
+                    "filter_enabled": filter_enabled,
                     "query_count": query_count,
                     "group_ids": [id],
                     "group_names": group_names,
@@ -692,7 +692,7 @@ pub async fn batch_move_clients(
                     SELECT cr.id, cr.rule, cr.comment
                     FROM custom_rules cr
                     INNER JOIN client_group_rules gr ON cr.id = gr.rule_id
-                    WHERE gr.group_id = $1 AND gr.rule_type = 'custom_rule' AND cr.is_enabled = 1
+                    WHERE gr.group_id = $1 AND gr.rule_type = 'custom_rule' AND cr.is_enabled = true
                     "#,
                 )
                 .bind(to_group_id)
@@ -740,7 +740,7 @@ pub async fn get_group_rules(
     let rule_type = params.rule_type.as_deref().unwrap_or("all");
 
     let data: Vec<Value> = if rule_type == "custom_rule" {
-        let rules: Vec<(String, String, Option<String>, i64, i32, String)> = sqlx::query_as(
+        let rules: Vec<(String, String, Option<String>, bool, i32, String)> = sqlx::query_as(
             r#"
             SELECT cr.id, cr.rule, cr.comment, cr.is_enabled, gr.priority, cr.created_at
             FROM custom_rules cr
@@ -762,7 +762,7 @@ pub async fn get_group_rules(
                         "rule_type": "custom_rule",
                         "rule": rule,
                         "comment": comment,
-                        "is_enabled": is_enabled == 1,
+                        "is_enabled": is_enabled,
                         "priority": priority,
                         "created_at": created_at,
                     })

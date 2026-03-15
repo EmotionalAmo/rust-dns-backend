@@ -523,7 +523,7 @@ impl DnsHandler {
             JOIN custom_rules cr ON cr.id = cgr.rule_id
             WHERE m.client_id = $1
               AND cgr.rule_type = 'custom_rule'
-              AND cr.is_enabled = 1
+              AND cr.is_enabled = true
             ORDER BY cg.priority ASC
             "#,
         )

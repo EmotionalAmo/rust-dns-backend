@@ -169,7 +169,7 @@ pub async fn rule_hit_stats(
     }
 
     // Step 2: 加载用户规则（过滤掉订阅列表规则）
-    let rule_rows: Vec<(String, String, Option<String>, i64, String)> = sqlx::query_as(
+    let rule_rows: Vec<(String, String, Option<String>, bool, String)> = sqlx::query_as(
         "SELECT id, rule, comment, is_enabled, created_at
          FROM custom_rules
          WHERE created_by NOT LIKE 'filter:%'
@@ -220,7 +220,7 @@ pub async fn rule_hit_stats(
                 "id": id,
                 "rule": rule,
                 "comment": comment,
-                "is_enabled": is_enabled == 1,
+                "is_enabled": is_enabled,
                 "created_at": created_at,
                 "hit_count": hit_count,
                 "last_seen": last_seen,

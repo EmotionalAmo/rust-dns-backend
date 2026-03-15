@@ -56,7 +56,7 @@ type ClientRow = (
     String,
     String,
     Option<String>,
-    i32,
+    bool,
     Option<String>,
     String,
     String,
@@ -135,7 +135,7 @@ pub async fn list(State(state): State<Arc<AppState>>, _auth: AuthUser) -> AppRes
             "name": name,
             "identifiers": idents,
             "upstreams": parse_json_value(&upstreams),
-            "filter_enabled": filter_enabled == 1,
+            "filter_enabled": filter_enabled,
             "tags": parse_json_value(&tags),
             "created_at": created_at,
             "updated_at": updated_at,
@@ -212,7 +212,7 @@ pub async fn create(
                 .map_err(|e| AppError::Internal(format!("Failed to serialize tags: {}", e)))
         })
         .transpose()?;
-    let filter_enabled = if body.filter_enabled { 1 } else { 0 };
+    let filter_enabled = body.filter_enabled;
 
     sqlx::query(
         "INSERT INTO clients (id, name, identifiers, upstreams, filter_enabled, tags, created_at, updated_at)
@@ -319,10 +319,7 @@ pub async fn update(
         old_tags
     };
 
-    let filter_enabled = body
-        .filter_enabled
-        .map(|b| if b { 1 } else { 0 })
-        .unwrap_or(old_filter_enabled);
+    let filter_enabled = body.filter_enabled.unwrap_or(old_filter_enabled);
 
     let now = Utc::now().to_rfc3339();
 
@@ -363,7 +360,7 @@ pub async fn update(
         "name": name,
         "identifiers": identifiers_json,
         "upstreams": upstreams_json,
-        "filter_enabled": filter_enabled == 1,
+        "filter_enabled": filter_enabled,
         "tags": tags_json,
         "created_at": created_at,
         "updated_at": now,
