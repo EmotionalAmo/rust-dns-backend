@@ -2269,7 +2269,7 @@ dependencies = [
 
 [[package]]
 name = "rust-dns"
-version = "1.50.0"
+version = "1.51.0"
 dependencies = [
  "ahash",
  "anyhow",

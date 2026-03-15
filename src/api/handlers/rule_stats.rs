@@ -2,7 +2,7 @@ use crate::api::middleware::auth::AuthUser;
 use crate::api::AppState;
 use crate::error::AppResult;
 use axum::{
-    extract::{Query, State},
+    extract::{Path, Query, State},
     Json,
 };
 use regex::Regex;
@@ -13,6 +13,12 @@ use std::sync::Arc;
 
 #[derive(Deserialize)]
 pub struct StatsParams {
+    hours: Option<i64>,
+    limit: Option<i64>,
+}
+
+#[derive(Deserialize)]
+pub struct HitDetailParams {
     hours: Option<i64>,
     limit: Option<i64>,
 }
@@ -234,5 +240,79 @@ pub async fn rule_hit_stats(
         "data": result,
         "hours": hours,
         "total_rules": total_rules,
+    })))
+}
+
+pub async fn rule_hit_detail(
+    State(state): State<Arc<AppState>>,
+    Path(rule_id): Path<String>,
+    Query(params): Query<HitDetailParams>,
+    _auth: AuthUser,
+) -> AppResult<Json<Value>> {
+    let hours = params.hours.unwrap_or(24).clamp(1, 720);
+    let limit = params.limit.unwrap_or(20).clamp(1, 200);
+
+    // Step 1: 查出该规则（只查用户规则，不查订阅列表规则）
+    let rule_row: Option<(String, String)> = sqlx::query_as(
+        "SELECT id, rule FROM custom_rules WHERE id = $1 AND created_by NOT LIKE 'filter:%'",
+    )
+    .bind(&rule_id)
+    .fetch_optional(&state.db)
+    .await?;
+
+    let (id, rule) = match rule_row {
+        Some(r) => r,
+        None => return Err(crate::error::AppError::NotFound(rule_id)),
+    };
+
+    // Step 2: 解析规则匹配器
+    let matcher = parse_rule_matcher(&rule);
+
+    // Step 3: 查询过去 N 小时内所有被 blocked 的域名及计数
+    let blocked_rows: Vec<(String, i64, Option<String>)> = sqlx::query_as(
+        "SELECT question, COUNT(*) as cnt, MAX(time) as last_seen
+         FROM query_log
+         WHERE status = 'blocked'
+           AND time >= NOW() - ($1 * INTERVAL '1 hour')
+         GROUP BY question",
+    )
+    .bind(hours)
+    .fetch_all(&state.db)
+    .await?;
+
+    // Step 4: 内存中过滤匹配该规则的域名
+    let mut hits: Vec<Value> = Vec::new();
+    for (question, cnt, last_seen) in blocked_rows {
+        let matched = match &matcher {
+            RuleMatcher::Domain(rule_domain) => domain_matches(&question, rule_domain),
+            RuleMatcher::Wildcard(re) => {
+                let q = question.trim_end_matches('.');
+                re.is_match(q)
+            }
+            RuleMatcher::Skip => false,
+        };
+
+        if matched {
+            hits.push(json!({
+                "domain": question,
+                "count": cnt,
+                "last_seen": last_seen,
+            }));
+        }
+    }
+
+    // Step 5: 按 count DESC 排序，截取 limit
+    hits.sort_by(|a, b| {
+        let a_cnt = a["count"].as_i64().unwrap_or(0);
+        let b_cnt = b["count"].as_i64().unwrap_or(0);
+        b_cnt.cmp(&a_cnt)
+    });
+    hits.truncate(limit as usize);
+
+    Ok(Json(json!({
+        "rule_id": id,
+        "rule": rule,
+        "hits": hits,
+        "hours": hours,
     })))
 }
