@@ -6,7 +6,7 @@ use axum::{
     extract::{Path, Query, State},
     Json,
 };
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::sync::Arc;
 
@@ -164,4 +164,88 @@ pub async fn delete_alert(
     }
 
     Ok(Json(json!({ "message": "Alert deleted" })))
+}
+
+// ── Alert Mutes ──────────────────────────────────────────────────────────────
+
+#[derive(Debug, Deserialize)]
+pub struct MuteRequest {
+    /// ISO 8601 timestamp; None = mute indefinitely
+    pub muted_until: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct AlertMute {
+    pub alert_type: String,
+    pub muted_until: Option<String>,
+    pub created_at: String,
+}
+
+/// GET /api/v1/alerts/mutes — list active mutes (expired ones excluded)
+pub async fn list_mutes(
+    State(state): State<Arc<AppState>>,
+    _auth: AdminUser,
+) -> AppResult<Json<Value>> {
+    let now = chrono::Utc::now().to_rfc3339();
+
+    let rows = sqlx::query_as::<_, (String, Option<String>, String)>(
+        "SELECT alert_type, muted_until, created_at FROM alert_mutes
+         WHERE muted_until IS NULL OR muted_until > $1
+         ORDER BY created_at DESC",
+    )
+    .bind(&now)
+    .fetch_all(&state.db)
+    .await?;
+
+    let mutes: Vec<AlertMute> = rows
+        .into_iter()
+        .map(|(alert_type, muted_until, created_at)| AlertMute {
+            alert_type,
+            muted_until,
+            created_at,
+        })
+        .collect();
+
+    Ok(Json(json!({ "data": mutes })))
+}
+
+/// PUT /api/v1/alerts/mutes/{alert_type} — upsert a mute rule
+pub async fn upsert_mute(
+    State(state): State<Arc<AppState>>,
+    _auth: AdminUser,
+    Path(alert_type): Path<String>,
+    Json(body): Json<MuteRequest>,
+) -> AppResult<Json<Value>> {
+    let now = chrono::Utc::now().to_rfc3339();
+
+    sqlx::query(
+        "INSERT INTO alert_mutes (alert_type, muted_until, created_at)
+         VALUES ($1, $2, $3)
+         ON CONFLICT (alert_type) DO UPDATE SET muted_until = excluded.muted_until",
+    )
+    .bind(&alert_type)
+    .bind(&body.muted_until)
+    .bind(&now)
+    .execute(&state.db)
+    .await?;
+
+    Ok(Json(
+        json!({ "message": "Mute saved", "alert_type": alert_type }),
+    ))
+}
+
+/// DELETE /api/v1/alerts/mutes/{alert_type} — remove a mute rule
+pub async fn delete_mute(
+    State(state): State<Arc<AppState>>,
+    _auth: AdminUser,
+    Path(alert_type): Path<String>,
+) -> AppResult<Json<Value>> {
+    sqlx::query("DELETE FROM alert_mutes WHERE alert_type = $1")
+        .bind(&alert_type)
+        .execute(&state.db)
+        .await?;
+
+    Ok(Json(
+        json!({ "message": "Mute removed", "alert_type": alert_type }),
+    ))
 }
