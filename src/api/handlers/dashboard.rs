@@ -66,6 +66,27 @@ pub async fn get_stats(
     .fetch_one(&state.db)
     .await?;
 
+    // Yesterday window: same duration, shifted back by the same number of hours
+    // e.g. hours=24 → yesterday = past 24-48h
+    let yesterday_start_filter = format!("-{} hours", hours * 2);
+    let yesterday_end_filter = format!("-{} hours", hours);
+
+    let (yesterday_total,): (i64,) = sqlx::query_as(
+        "SELECT COUNT(*) FROM query_log WHERE time >= NOW() + $1::interval AND time < NOW() + $2::interval"
+    )
+    .bind(&yesterday_start_filter)
+    .bind(&yesterday_end_filter)
+    .fetch_one(&state.db)
+    .await?;
+
+    let (yesterday_blocked,): (i64,) = sqlx::query_as(
+        "SELECT COUNT(*) FROM query_log WHERE status = 'blocked' AND time >= NOW() + $1::interval AND time < NOW() + $2::interval"
+    )
+    .bind(&yesterday_start_filter)
+    .bind(&yesterday_end_filter)
+    .fetch_one(&state.db)
+    .await?;
+
     // Last-week same time window for block-rate trend (week-over-week)
     let offset_days = (hours as f64 / 24.0).round() as i64;
     let week_start_filter = format!("-{} days", offset_days + 7);
@@ -111,6 +132,8 @@ pub async fn get_stats(
         "filter_lists": filter_lists,
         "clients": clients,
         "qps": qps,
+        "yesterday_total_queries": yesterday_total,
+        "yesterday_blocked_queries": yesterday_blocked,
     })))
 }
 
