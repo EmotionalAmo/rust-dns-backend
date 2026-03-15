@@ -30,77 +30,47 @@ pub async fn get_dns(
     State(state): State<Arc<AppState>>,
     _admin: AdminUser,
 ) -> AppResult<Json<Value>> {
-    // Fetch settings from database
-    let cache_ttl: (String,) =
-        sqlx::query_as("SELECT value FROM settings WHERE key = 'dns_cache_ttl'")
-            .fetch_one(&state.db)
+    // Fetch all settings in a single query
+    let keys = vec![
+        "dns_cache_ttl",
+        "query_log_retention_days",
+        "stats_retention_days",
+        "safe_search_enabled",
+        "parental_control_enabled",
+        "parental_control_level",
+        "upstream_strategy",
+        "acl_allowed_networks",
+        "acl_denied_networks",
+    ];
+    let rows: Vec<(String, String)> =
+        sqlx::query_as("SELECT key, value FROM settings WHERE key = ANY($1)")
+            .bind(&keys)
+            .fetch_all(&state.db)
             .await
-            .unwrap_or(("300".to_string(),));
-
-    let query_log_retention: (String,) =
-        sqlx::query_as("SELECT value FROM settings WHERE key = 'query_log_retention_days'")
-            .fetch_one(&state.db)
-            .await
-            .unwrap_or(("30".to_string(),));
-
-    let stats_retention: (String,) =
-        sqlx::query_as("SELECT value FROM settings WHERE key = 'stats_retention_days'")
-            .fetch_one(&state.db)
-            .await
-            .unwrap_or(("90".to_string(),));
-
-    let safe_search: (String,) =
-        sqlx::query_as("SELECT value FROM settings WHERE key = 'safe_search_enabled'")
-            .fetch_one(&state.db)
-            .await
-            .unwrap_or(("false".to_string(),));
-
-    let parental_control: (String,) =
-        sqlx::query_as("SELECT value FROM settings WHERE key = 'parental_control_enabled'")
-            .fetch_one(&state.db)
-            .await
-            .unwrap_or(("false".to_string(),));
-
-    let parental_level: (String,) =
-        sqlx::query_as("SELECT value FROM settings WHERE key = 'parental_control_level'")
-            .fetch_one(&state.db)
-            .await
-            .unwrap_or(("none".to_string(),));
-
-    let upstream_strat: (String,) =
-        sqlx::query_as("SELECT value FROM settings WHERE key = 'upstream_strategy'")
-            .fetch_one(&state.db)
-            .await
-            .unwrap_or(("priority".to_string(),));
+            .unwrap_or_default();
+    let map: std::collections::HashMap<String, String> = rows.into_iter().collect();
+    let get = |k: &str, default: &str| map.get(k).cloned().unwrap_or_else(|| default.to_string());
 
     // Parse values
-    let cache_ttl = cache_ttl.0.parse::<u64>().unwrap_or(300);
-    let query_log_retention = query_log_retention.0.parse::<u64>().unwrap_or(30);
-    let stats_retention = stats_retention.0.parse::<u64>().unwrap_or(90);
-    let safe_search_enabled = safe_search.0 == "true";
-    let parental_control_enabled = parental_control.0 == "true";
-    let parental_control_level = parental_level.0;
-    let upstream_strategy = upstream_strat.0;
+    let cache_ttl = get("dns_cache_ttl", "300").parse::<u64>().unwrap_or(300);
+    let query_log_retention = get("query_log_retention_days", "30")
+        .parse::<u64>()
+        .unwrap_or(30);
+    let stats_retention = get("stats_retention_days", "90")
+        .parse::<u64>()
+        .unwrap_or(90);
+    let safe_search_enabled = get("safe_search_enabled", "false") == "true";
+    let parental_control_enabled = get("parental_control_enabled", "false") == "true";
+    let parental_control_level = get("parental_control_level", "none");
+    let upstream_strategy = get("upstream_strategy", "priority");
 
-    // Get upstreams from database (not config) to match dashboard view.
-    // For now, return empty array as the actual upstreams are managed via `/api/v1/settings/upstreams`
+    // Upstreams are managed via /api/v1/settings/upstreams
     let upstreams: Vec<String> = vec![];
 
-    let acl_allowed: (String,) =
-        sqlx::query_as("SELECT value FROM settings WHERE key = 'acl_allowed_networks'")
-            .fetch_one(&state.db)
-            .await
-            .unwrap_or(("[]".to_string(),));
-
-    let acl_denied: (String,) =
-        sqlx::query_as("SELECT value FROM settings WHERE key = 'acl_denied_networks'")
-            .fetch_one(&state.db)
-            .await
-            .unwrap_or(("[]".to_string(),));
-
     let acl_allowed_networks: Vec<String> =
-        serde_json::from_str(&acl_allowed.0).unwrap_or_default();
-    let acl_denied_networks: Vec<String> = serde_json::from_str(&acl_denied.0).unwrap_or_default();
+        serde_json::from_str(&get("acl_allowed_networks", "[]")).unwrap_or_default();
+    let acl_denied_networks: Vec<String> =
+        serde_json::from_str(&get("acl_denied_networks", "[]")).unwrap_or_default();
 
     Ok(Json(json!({
         "upstreams": upstreams,
