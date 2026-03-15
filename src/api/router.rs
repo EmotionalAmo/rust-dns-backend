@@ -130,7 +130,7 @@ pub fn routes(state: Arc<AppState>) -> Router {
             get(handlers::rule_stats::rule_hit_stats),
         )
         .route(
-            "/api/v1/rules/stats/:id/hits",
+            "/api/v1/rules/stats/{id}/hits",
             get(handlers::rule_stats::rule_hit_detail),
         )
         .route("/api/v1/rules/export", get(handlers::rules::export_rules))
