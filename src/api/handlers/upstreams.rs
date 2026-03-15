@@ -79,15 +79,21 @@ struct UpstreamRow {
 
 pub async fn list(State(state): State<Arc<AppState>>, _auth: AuthUser) -> AppResult<Json<Value>> {
     let rows: Vec<UpstreamRow> = sqlx::query_as(
-        "SELECT u.id, u.name, u.addresses, u.priority, u.is_active, u.health_check_enabled,
-                u.failover_enabled, u.health_check_interval, u.health_check_timeout, u.failover_threshold,
-                u.health_status, u.last_health_check_at, u.last_failover_at, u.created_at, u.updated_at,
-                (SELECT latency_ms FROM upstream_latency_log
+        "SELECT u.id, u.name, u.addresses, CAST(u.priority AS INTEGER) as priority,
+                u.is_active::bigint as is_active, u.health_check_enabled::bigint as health_check_enabled,
+                u.failover_enabled::bigint as failover_enabled,
+                u.health_check_interval, u.health_check_timeout, u.failover_threshold,
+                u.health_status,
+                u.last_health_check_at::text as last_health_check_at,
+                u.last_failover_at::text as last_failover_at,
+                u.created_at::text as created_at,
+                u.updated_at::text as updated_at,
+                (SELECT CAST(latency_ms AS BIGINT) FROM upstream_latency_log
                  WHERE upstream_id = u.id ORDER BY id DESC LIMIT 1) AS last_latency_ms,
-                (SELECT CAST(AVG(latency_ms) AS INTEGER) FROM upstream_latency_log
+                (SELECT CAST(AVG(latency_ms) AS BIGINT) FROM upstream_latency_log
                  WHERE upstream_id = u.id AND success = 1
                    AND checked_at >= NOW() - INTERVAL '30 minutes') AS avg_30m_ms,
-                (SELECT CAST(AVG(latency_ms) AS INTEGER) FROM upstream_latency_log
+                (SELECT CAST(AVG(latency_ms) AS BIGINT) FROM upstream_latency_log
                  WHERE upstream_id = u.id AND success = 1
                    AND checked_at >= NOW() - INTERVAL '60 minutes') AS avg_60m_ms
          FROM dns_upstreams u ORDER BY u.priority ASC, u.name ASC"
@@ -156,9 +162,15 @@ pub async fn get(
     Path(id): Path<String>,
 ) -> AppResult<Json<Value>> {
     let row: Option<UpstreamDetailRow> = sqlx::query_as(
-        "SELECT id, name, addresses, priority, is_active, health_check_enabled,
-                failover_enabled, health_check_interval, health_check_timeout, failover_threshold,
-                health_status, last_health_check_at, last_failover_at, created_at, updated_at
+        "SELECT id, name, addresses, CAST(priority AS INTEGER) as priority,
+                is_active::bigint as is_active, health_check_enabled::bigint as health_check_enabled,
+                failover_enabled::bigint as failover_enabled,
+                health_check_interval, health_check_timeout, failover_threshold,
+                health_status,
+                last_health_check_at::text as last_health_check_at,
+                last_failover_at::text as last_failover_at,
+                created_at::text as created_at,
+                updated_at::text as updated_at
          FROM dns_upstreams WHERE id = $1",
     )
     .bind(&id)
@@ -297,9 +309,15 @@ pub async fn update(
 ) -> AppResult<Json<Value>> {
     // Check if upstream exists
     let existing: Option<UpstreamDetailRow> = sqlx::query_as(
-        "SELECT id, name, addresses, priority, is_active, health_check_enabled,
-                failover_enabled, health_check_interval, health_check_timeout, failover_threshold,
-                health_status, last_health_check_at, last_failover_at, created_at, updated_at
+        "SELECT id, name, addresses, CAST(priority AS INTEGER) as priority,
+                is_active::bigint as is_active, health_check_enabled::bigint as health_check_enabled,
+                failover_enabled::bigint as failover_enabled,
+                health_check_interval, health_check_timeout, failover_threshold,
+                health_status,
+                last_health_check_at::text as last_health_check_at,
+                last_failover_at::text as last_failover_at,
+                created_at::text as created_at,
+                updated_at::text as updated_at
          FROM dns_upstreams WHERE id = $1",
     )
     .bind(&id)
@@ -332,18 +350,11 @@ pub async fn update(
         old_addresses
     };
     let priority = body.priority.unwrap_or(old_priority);
-    let is_active = body
-        .is_active
-        .map(|b| if b { 1 } else { 0 })
-        .unwrap_or(old_is_active);
-    let health_check_enabled = body
+    let is_active: bool = body.is_active.unwrap_or(old_is_active == 1);
+    let health_check_enabled: bool = body
         .health_check_enabled
-        .map(|b| if b { 1 } else { 0 })
-        .unwrap_or(old_health_check_enabled);
-    let failover_enabled = body
-        .failover_enabled
-        .map(|b| if b { 1 } else { 0 })
-        .unwrap_or(old_failover_enabled);
+        .unwrap_or(old_health_check_enabled == 1);
+    let failover_enabled: bool = body.failover_enabled.unwrap_or(old_failover_enabled == 1);
     let health_check_interval = body
         .health_check_interval
         .unwrap_or(old_health_check_interval);
@@ -408,9 +419,9 @@ pub async fn update(
         "name": name,
         "addresses": addresses_vec,
         "priority": priority,
-        "is_active": is_active == 1,
-        "health_check_enabled": health_check_enabled == 1,
-        "failover_enabled": failover_enabled == 1,
+        "is_active": is_active,
+        "health_check_enabled": health_check_enabled,
+        "failover_enabled": failover_enabled,
         "health_check_interval": health_check_interval,
         "health_check_timeout": health_check_timeout,
         "failover_threshold": failover_threshold,
@@ -529,9 +540,9 @@ pub async fn trigger_failover(
     _admin: AdminUser,
 ) -> AppResult<Json<Value>> {
     let rows: Vec<(String, String, String, i32, String)> = sqlx::query_as(
-        "SELECT id, name, addresses, priority, health_status
+        "SELECT id, name, addresses, CAST(priority AS INTEGER), health_status
          FROM dns_upstreams
-         WHERE is_active = 1
+         WHERE is_active = true
          ORDER BY priority ASC",
     )
     .fetch_all(&state.db)

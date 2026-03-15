@@ -146,8 +146,9 @@ pub async fn serve(
                 tokio::select! {
                     _ = ticker.tick() => {
                         let rows: Vec<(String, String, i64, i64, Option<String>)> = match sqlx::query_as(
-                            "SELECT id, addresses, health_check_interval, health_check_timeout, last_health_check_at
-                             FROM dns_upstreams WHERE is_active = 1 AND health_check_enabled = 1"
+                            "SELECT id, addresses, health_check_interval, health_check_timeout,
+                                    last_health_check_at::text
+                             FROM dns_upstreams WHERE is_active = true AND health_check_enabled = true"
                         ).fetch_all(&db).await {
                             Ok(r) => r,
                             Err(e) => { tracing::warn!("Upstream health check DB error: {}", e); continue; }

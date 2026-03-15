@@ -641,7 +641,7 @@ impl DnsHandler {
         elapsed_ns: i64,
         upstream_ns: Option<i64>,
         upstream_name: Option<String>,
-        app_id: Option<i64>,
+        app_id: Option<i32>,
     ) {
         let now = Utc::now().to_rfc3339();
 

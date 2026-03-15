@@ -22,7 +22,7 @@ pub struct QueryLogEntry {
     pub elapsed_ns: i64,
     pub upstream_ns: Option<i64>,
     pub upstream_name: Option<String>,
-    pub app_id: Option<i64>,
+    pub app_id: Option<i32>,
 }
 
 /// How many entries to accumulate before forcing a flush.
