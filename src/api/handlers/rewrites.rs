@@ -46,11 +46,15 @@ pub async fn list(
             .await?
     };
 
-    let rows: Vec<(String, String, String, String, String)> = if has_search {
+    let rows: Vec<(String, String, String, String, String, i64)> = if has_search {
         sqlx::query_as(
-            "SELECT id, domain, answer, created_by, created_at
-             FROM dns_rewrites WHERE domain LIKE $1 OR answer LIKE $1
-             ORDER BY domain ASC LIMIT $2 OFFSET $3",
+            "SELECT dr.id, dr.domain, dr.answer, dr.created_by, dr.created_at,
+                    COUNT(ql.id) AS hit_count
+             FROM dns_rewrites dr
+             LEFT JOIN query_log ql ON LOWER(ql.question) = dr.domain AND ql.reason = 'rewrite'
+             WHERE dr.domain LIKE $1 OR dr.answer LIKE $1
+             GROUP BY dr.id, dr.domain, dr.answer, dr.created_by, dr.created_at
+             ORDER BY dr.domain ASC LIMIT $2 OFFSET $3",
         )
         .bind(&search_pattern)
         .bind(per_page)
@@ -59,8 +63,12 @@ pub async fn list(
         .await?
     } else {
         sqlx::query_as(
-            "SELECT id, domain, answer, created_by, created_at
-             FROM dns_rewrites ORDER BY domain ASC LIMIT $1 OFFSET $2",
+            "SELECT dr.id, dr.domain, dr.answer, dr.created_by, dr.created_at,
+                    COUNT(ql.id) AS hit_count
+             FROM dns_rewrites dr
+             LEFT JOIN query_log ql ON LOWER(ql.question) = dr.domain AND ql.reason = 'rewrite'
+             GROUP BY dr.id, dr.domain, dr.answer, dr.created_by, dr.created_at
+             ORDER BY dr.domain ASC LIMIT $1 OFFSET $2",
         )
         .bind(per_page)
         .bind(offset)
@@ -70,13 +78,14 @@ pub async fn list(
 
     let data: Vec<Value> = rows
         .into_iter()
-        .map(|(id, domain, answer, created_by, created_at)| {
+        .map(|(id, domain, answer, created_by, created_at, hit_count)| {
             json!({
                 "id": id,
                 "domain": domain,
                 "answer": answer,
                 "created_by": created_by,
                 "created_at": created_at,
+                "hit_count": hit_count,
             })
         })
         .collect();
