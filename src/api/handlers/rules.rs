@@ -525,6 +525,36 @@ pub async fn export_rules(
             )
                 .into_response()
         }
+        "txt" => {
+            let mut txt = String::new();
+            txt.push_str("# Rust DNS — custom rules export\n");
+            txt.push_str(&format!("# Exported: {}\n\n", Utc::now().to_rfc3339()));
+
+            for (_id, rule, comment, is_enabled, _created_by, _created_at) in &rows {
+                if let Some(c) = comment {
+                    if !c.is_empty() {
+                        txt.push_str(&format!("# {}\n", c));
+                    }
+                }
+                if *is_enabled == 0 {
+                    txt.push_str(&format!("# (disabled) {}\n", rule));
+                } else {
+                    txt.push_str(&format!("{}\n", rule));
+                }
+            }
+
+            (
+                [
+                    (header::CONTENT_TYPE, "text/plain; charset=utf-8"),
+                    (
+                        header::CONTENT_DISPOSITION,
+                        "attachment; filename=\"rules_export.txt\"",
+                    ),
+                ],
+                txt,
+            )
+                .into_response()
+        }
         _ => {
             // json format (default)
             let data: Vec<Value> = rows
