@@ -152,7 +152,7 @@ pub async fn rule_hit_stats(
            AND time >= NOW() - ($1 * INTERVAL '1 hour')
          GROUP BY question",
     )
-    .bind(format!("-{}", hours))
+    .bind(hours)
     .fetch_all(&state.db)
     .await?;
 
