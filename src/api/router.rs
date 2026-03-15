@@ -141,6 +141,10 @@ pub fn routes(state: Arc<AppState>) -> Router {
             post(handlers::rule_validation::validate_rule),
         )
         .route(
+            "/api/v1/rules/expiring",
+            get(handlers::rules::get_expiring_rules),
+        )
+        .route(
             "/api/v1/rules/{id}",
             put(handlers::rules::update)
                 .post(handlers::rules::toggle)

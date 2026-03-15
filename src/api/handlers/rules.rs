@@ -486,6 +486,56 @@ pub async fn toggle(
 }
 
 #[derive(Deserialize)]
+pub struct ExpiringParams {
+    minutes: Option<i64>,
+}
+
+pub async fn get_expiring_rules(
+    State(state): State<Arc<AppState>>,
+    Query(params): Query<ExpiringParams>,
+    _auth: AuthUser,
+) -> AppResult<Json<Value>> {
+    let minutes = params.minutes.unwrap_or(5).clamp(1, 60);
+
+    // 查询 expires_at 在 (NOW(), NOW() + N minutes] 之间的规则
+    // expires_at 存储为 RFC3339 字符串，PostgreSQL 可直接 CAST 比较
+    let rows: Vec<RuleRow> = sqlx::query_as(
+        "SELECT id, rule, comment, is_enabled, created_by, created_at, expires_at \
+         FROM custom_rules \
+         WHERE expires_at IS NOT NULL \
+           AND created_by NOT LIKE 'filter:%' \
+           AND CAST(expires_at AS TIMESTAMPTZ) > NOW() \
+           AND CAST(expires_at AS TIMESTAMPTZ) <= NOW() + ($1 * INTERVAL '1 minute') \
+         ORDER BY expires_at ASC",
+    )
+    .bind(minutes)
+    .fetch_all(&state.db)
+    .await?;
+
+    let data: Vec<Value> = rows
+        .into_iter()
+        .map(
+            |(id, rule, comment, is_enabled, created_by, created_at, expires_at)| {
+                json!({
+                    "id": id,
+                    "rule": rule,
+                    "comment": comment,
+                    "is_enabled": is_enabled == 1,
+                    "created_by": created_by,
+                    "created_at": created_at,
+                    "expires_at": expires_at,
+                })
+            },
+        )
+        .collect();
+
+    Ok(Json(json!({
+        "data": data,
+        "minutes": minutes,
+    })))
+}
+
+#[derive(Deserialize)]
 pub struct ExportParams {
     #[serde(default = "default_export_format")]
     format: String,
