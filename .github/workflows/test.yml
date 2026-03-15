@@ -59,4 +59,5 @@ jobs:
 
       - name: Run tests
         # We run tests last because we want formatting and clippy to fail fast if there are issues.
-        run: cargo test --verbose --all-features
+        # --test-threads=1 prevents race conditions in integration tests that share the same PostgreSQL DB
+        run: cargo test --verbose --all-features -- --test-threads=1
