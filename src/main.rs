@@ -14,6 +14,51 @@ use rust_dns::dns;
 use rust_dns::metrics;
 use rust_dns::shutdown;
 
+async fn run_expired_rules_cleanup_task(
+    db: sqlx::PgPool,
+    filter_engine: Arc<dns::filter::FilterEngine>,
+    mut shutdown_rx: broadcast::Receiver<()>,
+) {
+    let mut ticker = tokio::time::interval(tokio::time::Duration::from_secs(60));
+    ticker.tick().await; // skip immediate first tick
+
+    loop {
+        tokio::select! {
+            _ = ticker.tick() => {
+                let now = Utc::now().to_rfc3339();
+                let expired_count: i64 = match sqlx::query_scalar(
+                    "SELECT COUNT(*) FROM custom_rules \
+                     WHERE expires_at IS NOT NULL AND expires_at <= $1",
+                )
+                .bind(&now)
+                .fetch_one(&db)
+                .await
+                {
+                    Ok(n) => n,
+                    Err(e) => {
+                        tracing::warn!("Expired rules check DB error: {}", e);
+                        continue;
+                    }
+                };
+
+                if expired_count > 0 {
+                    tracing::info!(
+                        "Expired rules cleanup: found {} expired rule(s), reloading filter",
+                        expired_count
+                    );
+                    if let Err(e) = filter_engine.reload().await {
+                        tracing::warn!("Filter reload after expired rules cleanup failed: {}", e);
+                    }
+                }
+            }
+            _ = shutdown_rx.recv() => {
+                tracing::info!("Expired rules cleanup task shutting down");
+                break;
+            }
+        }
+    }
+}
+
 async fn run_filter_refresh_task(
     db: sqlx::PgPool,
     filter_engine: Arc<dns::filter::FilterEngine>,
@@ -330,6 +375,13 @@ async fn main() -> Result<()> {
 
     // Background: auto-refresh filter lists based on each list's update_interval_hours
     tokio::spawn(run_filter_refresh_task(
+        db_pool.clone(),
+        filter.clone(),
+        shutdown_signal.subscribe(),
+    ));
+
+    // Background: check and evict expired custom rules every 60s
+    tokio::spawn(run_expired_rules_cleanup_task(
         db_pool.clone(),
         filter.clone(),
         shutdown_signal.subscribe(),

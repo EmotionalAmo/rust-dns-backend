@@ -4,6 +4,7 @@ use super::rules::RuleSet;
 use crate::db::DbPool;
 use anyhow::Result;
 use arc_swap::ArcSwap;
+use chrono::Utc;
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -32,21 +33,29 @@ impl FilterEngine {
     /// Reload all rules and rewrites from the database.
     /// 在锁外构建新数据结构，然后原子地替换——读路径全程不阻塞。
     pub async fn reload(&self) -> Result<()> {
+        let now_rfc3339 = Utc::now().to_rfc3339();
+
         // 预估规则数量以便预分配内存
-        let expected_count: i64 =
-            sqlx::query_scalar("SELECT COUNT(*) FROM custom_rules WHERE is_enabled = 1")
-                .fetch_one(&self.db)
-                .await
-                .unwrap_or(0);
+        let expected_count: i64 = sqlx::query_scalar(
+            "SELECT COUNT(*) FROM custom_rules \
+                 WHERE is_enabled = 1 AND (expires_at IS NULL OR expires_at > $1)",
+        )
+        .bind(&now_rfc3339)
+        .fetch_one(&self.db)
+        .await
+        .unwrap_or(0);
 
         let mut new_rules = RuleSet::with_capacity(expected_count as usize);
         let mut total = 0usize;
 
         // Load custom rules (AdGuard syntax stored in DB)
-        let rows: Vec<(String,)> =
-            sqlx::query_as("SELECT rule FROM custom_rules WHERE is_enabled = 1")
-                .fetch_all(&self.db)
-                .await?;
+        let rows: Vec<(String,)> = sqlx::query_as(
+            "SELECT rule FROM custom_rules \
+             WHERE is_enabled = 1 AND (expires_at IS NULL OR expires_at > $1)",
+        )
+        .bind(&now_rfc3339)
+        .fetch_all(&self.db)
+        .await?;
 
         for (rule,) in rows {
             if new_rules.add_rule(&rule) {

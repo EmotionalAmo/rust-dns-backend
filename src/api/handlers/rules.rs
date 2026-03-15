@@ -19,6 +19,8 @@ pub struct CreateRuleRequest {
     rule: String,
     #[serde(default)]
     comment: Option<String>,
+    #[serde(default)]
+    expires_at: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -27,6 +29,8 @@ pub struct UpdateRuleRequest {
     comment: Option<String>,
     #[serde(default)]
     is_enabled: Option<bool>,
+    #[serde(default)]
+    expires_at: Option<Option<String>>,
 }
 
 #[derive(Deserialize)]
@@ -41,6 +45,16 @@ pub struct ListParams {
     per_page: Option<u32>,
     search: Option<String>,
 }
+
+type RuleRow = (
+    String,
+    String,
+    Option<String>,
+    i32,
+    String,
+    String,
+    Option<String>,
+);
 
 pub async fn list(
     State(state): State<Arc<AppState>>,
@@ -60,7 +74,7 @@ pub async fn list(
         let w = "WHERE created_by NOT LIKE 'filter:%' AND (rule LIKE $1 OR comment LIKE $1)";
         let c = format!("SELECT COUNT(*) FROM custom_rules {}", w);
         let d = format!(
-            "SELECT id, rule, comment, is_enabled, created_by, created_at \
+            "SELECT id, rule, comment, is_enabled, created_by, created_at, expires_at \
              FROM custom_rules {} ORDER BY created_at DESC LIMIT $2 OFFSET $3",
             w
         );
@@ -69,7 +83,7 @@ pub async fn list(
         let w = "WHERE created_by NOT LIKE 'filter:%'";
         let c = format!("SELECT COUNT(*) FROM custom_rules {}", w);
         let d = format!(
-            "SELECT id, rule, comment, is_enabled, created_by, created_at \
+            "SELECT id, rule, comment, is_enabled, created_by, created_at, expires_at \
              FROM custom_rules {} ORDER BY created_at DESC LIMIT $1 OFFSET $2",
             w
         );
@@ -86,7 +100,7 @@ pub async fn list(
         sqlx::query_scalar(&count_sql).fetch_one(&state.db).await?
     };
 
-    let rows: Vec<(String, String, Option<String>, i32, String, String)> = if has_search {
+    let rows: Vec<RuleRow> = if has_search {
         sqlx::query_as(&data_sql)
             .bind(&search_pattern)
             .bind(per_page)
@@ -103,16 +117,19 @@ pub async fn list(
 
     let data: Vec<Value> = rows
         .into_iter()
-        .map(|(id, rule, comment, is_enabled, created_by, created_at)| {
-            json!({
-                "id": id,
-                "rule": rule,
-                "comment": comment,
-                "is_enabled": is_enabled == 1,
-                "created_by": created_by,
-                "created_at": created_at,
-            })
-        })
+        .map(
+            |(id, rule, comment, is_enabled, created_by, created_at, expires_at)| {
+                json!({
+                    "id": id,
+                    "rule": rule,
+                    "comment": comment,
+                    "is_enabled": is_enabled == 1,
+                    "created_by": created_by,
+                    "created_at": created_at,
+                    "expires_at": expires_at,
+                })
+            },
+        )
         .collect();
 
     Ok(Json(json!({
@@ -138,14 +155,15 @@ pub async fn create(
     let now = Utc::now().to_rfc3339();
 
     sqlx::query(
-        "INSERT INTO custom_rules (id, rule, comment, is_enabled, created_by, created_at)
-         VALUES ($1, $2, $3, 1, $4, $5)",
+        "INSERT INTO custom_rules (id, rule, comment, is_enabled, created_by, created_at, expires_at)
+         VALUES ($1, $2, $3, 1, $4, $5, $6)",
     )
     .bind(&id)
     .bind(&rule)
     .bind(&body.comment)
     .bind(&auth.0.username)
     .bind(&now)
+    .bind(&body.expires_at)
     .execute(&state.db)
     .await?;
 
@@ -173,6 +191,7 @@ pub async fn create(
         "is_enabled": true,
         "created_by": auth.0.username,
         "created_at": now,
+        "expires_at": body.expires_at,
     })))
 }
 
@@ -346,6 +365,11 @@ pub async fn update(
         }
     }
 
+    if body.expires_at.is_some() {
+        updates.push("expires_at = ?");
+        needs_reload = true;
+    }
+
     if updates.is_empty() {
         return Ok(Json(json!({"success": true, "updated": false})));
     }
@@ -366,6 +390,9 @@ pub async fn update(
     if let Some(is_enabled) = body.is_enabled {
         query = query.bind(if is_enabled { 1 } else { 0 });
     }
+    if let Some(ref expires_at) = body.expires_at {
+        query = query.bind(expires_at.as_deref());
+    }
     query = query.bind(&id);
 
     let result = query.execute(&state.db).await?;
@@ -384,8 +411,8 @@ pub async fn update(
     }
 
     // 返回更新后的规则
-    let updated = sqlx::query_as::<_, (String, String, Option<String>, i32, String, String)>(
-        "SELECT id, rule, comment, is_enabled, created_by, created_at FROM custom_rules WHERE id = $1"
+    let updated = sqlx::query_as::<_, (String, String, Option<String>, i32, String, String, Option<String>)>(
+        "SELECT id, rule, comment, is_enabled, created_by, created_at, expires_at FROM custom_rules WHERE id = $1"
     )
     .bind(&id)
     .fetch_one(&state.db)
@@ -409,6 +436,7 @@ pub async fn update(
         "is_enabled": updated.3 == 1,
         "created_by": updated.4,
         "created_at": updated.5,
+        "expires_at": updated.6,
     })))
 }
 
@@ -472,8 +500,8 @@ pub async fn export_rules(
     Query(params): Query<ExportParams>,
     _auth: AuthUser,
 ) -> impl IntoResponse {
-    let rows: Vec<(String, String, Option<String>, i32, String, String)> = match sqlx::query_as(
-        "SELECT id, rule, comment, is_enabled, created_by, created_at \
+    let rows: Vec<RuleRow> = match sqlx::query_as(
+        "SELECT id, rule, comment, is_enabled, created_by, created_at, expires_at \
          FROM custom_rules \
          WHERE created_by NOT LIKE 'filter:%' \
          ORDER BY created_at DESC",
@@ -498,18 +526,20 @@ pub async fn export_rules(
     match params.format.as_str() {
         "csv" => {
             let mut csv = String::new();
-            csv.push_str("id,rule,comment,is_enabled,created_by,created_at\n");
+            csv.push_str("id,rule,comment,is_enabled,created_by,created_at,expires_at\n");
 
-            for (id, rule, comment, is_enabled, created_by, created_at) in &rows {
+            for (id, rule, comment, is_enabled, created_by, created_at, expires_at) in &rows {
                 let comment_str = comment.as_deref().unwrap_or("");
+                let expires_str = expires_at.as_deref().unwrap_or("");
                 csv.push_str(&format!(
-                    "{},{},{},{},{},{}\n",
+                    "{},{},{},{},{},{},{}\n",
                     escape_csv_field(id),
                     escape_csv_field(rule),
                     escape_csv_field(comment_str),
                     if *is_enabled == 1 { "true" } else { "false" },
                     escape_csv_field(created_by),
                     escape_csv_field(created_at),
+                    escape_csv_field(expires_str),
                 ));
             }
 
@@ -530,7 +560,7 @@ pub async fn export_rules(
             txt.push_str("# Rust DNS — custom rules export\n");
             txt.push_str(&format!("# Exported: {}\n\n", Utc::now().to_rfc3339()));
 
-            for (_id, rule, comment, is_enabled, _created_by, _created_at) in &rows {
+            for (_id, rule, comment, is_enabled, _created_by, _created_at, _expires_at) in &rows {
                 if let Some(c) = comment {
                     if !c.is_empty() {
                         txt.push_str(&format!("# {}\n", c));
@@ -559,16 +589,19 @@ pub async fn export_rules(
             // json format (default)
             let data: Vec<Value> = rows
                 .into_iter()
-                .map(|(id, rule, comment, is_enabled, created_by, created_at)| {
-                    json!({
-                        "id": id,
-                        "rule": rule,
-                        "comment": comment,
-                        "is_enabled": is_enabled == 1,
-                        "created_by": created_by,
-                        "created_at": created_at,
-                    })
-                })
+                .map(
+                    |(id, rule, comment, is_enabled, created_by, created_at, expires_at)| {
+                        json!({
+                            "id": id,
+                            "rule": rule,
+                            "comment": comment,
+                            "is_enabled": is_enabled == 1,
+                            "created_by": created_by,
+                            "created_at": created_at,
+                            "expires_at": expires_at,
+                        })
+                    },
+                )
                 .collect();
 
             let body = serde_json::to_string_pretty(&data).unwrap_or_default();
