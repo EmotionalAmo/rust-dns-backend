@@ -1,8 +1,9 @@
 use axum::{
-    extract::{Path, State},
+    extract::{Path, Query, State},
     Json,
 };
 use chrono::Utc;
+use serde::Deserialize;
 use serde_json::{json, Value};
 use std::sync::Arc;
 use uuid::Uuid;
@@ -13,13 +14,59 @@ use crate::api::AppState;
 use crate::db::models::rewrite::{CreateRewriteRequest, UpdateRewriteRequest};
 use crate::error::{AppError, AppResult};
 
-pub async fn list(State(state): State<Arc<AppState>>, _auth: AuthUser) -> AppResult<Json<Value>> {
-    let rows: Vec<(String, String, String, String, String)> = sqlx::query_as(
-        "SELECT id, domain, answer, created_by, created_at
-         FROM dns_rewrites ORDER BY domain ASC",
-    )
-    .fetch_all(&state.db)
-    .await?;
+#[derive(Deserialize)]
+pub struct ListParams {
+    page: Option<u32>,
+    per_page: Option<u32>,
+    search: Option<String>,
+}
+
+pub async fn list(
+    State(state): State<Arc<AppState>>,
+    Query(params): Query<ListParams>,
+    _auth: AuthUser,
+) -> AppResult<Json<Value>> {
+    let page = params.page.unwrap_or(1).max(1);
+    let per_page = params.per_page.unwrap_or(50).min(200) as i64;
+    let offset = (page as i64 - 1) * per_page;
+    let search = params.search.as_deref().unwrap_or("").trim().to_string();
+    let has_search = !search.is_empty();
+    let search_pattern = format!("%{}%", search);
+
+    let total: i64 = if has_search {
+        sqlx::query_scalar(
+            "SELECT COUNT(*) FROM dns_rewrites WHERE domain LIKE $1 OR answer LIKE $1",
+        )
+        .bind(&search_pattern)
+        .fetch_one(&state.db)
+        .await?
+    } else {
+        sqlx::query_scalar("SELECT COUNT(*) FROM dns_rewrites")
+            .fetch_one(&state.db)
+            .await?
+    };
+
+    let rows: Vec<(String, String, String, String, String)> = if has_search {
+        sqlx::query_as(
+            "SELECT id, domain, answer, created_by, created_at
+             FROM dns_rewrites WHERE domain LIKE $1 OR answer LIKE $1
+             ORDER BY domain ASC LIMIT $2 OFFSET $3",
+        )
+        .bind(&search_pattern)
+        .bind(per_page)
+        .bind(offset)
+        .fetch_all(&state.db)
+        .await?
+    } else {
+        sqlx::query_as(
+            "SELECT id, domain, answer, created_by, created_at
+             FROM dns_rewrites ORDER BY domain ASC LIMIT $1 OFFSET $2",
+        )
+        .bind(per_page)
+        .bind(offset)
+        .fetch_all(&state.db)
+        .await?
+    };
 
     let data: Vec<Value> = rows
         .into_iter()
@@ -33,8 +80,13 @@ pub async fn list(State(state): State<Arc<AppState>>, _auth: AuthUser) -> AppRes
             })
         })
         .collect();
-    let count = data.len();
-    Ok(Json(json!({ "data": data, "total": count })))
+
+    Ok(Json(json!({
+        "data": data,
+        "total": total,
+        "page": page,
+        "per_page": per_page,
+    })))
 }
 
 pub async fn create(
