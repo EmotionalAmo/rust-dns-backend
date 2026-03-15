@@ -1,57 +1,61 @@
-#!/bin/bash
-# rust-dns Local Dev Restart Script
-# Usage: ./scripts/dev-restart.sh
-#
-# Kills the running rust-dns process (if any), rebuilds the binary,
-# restarts it in the background, and waits for the health endpoint to respond.
+#!/usr/bin/env bash
+set -euo pipefail
 
-set -e
+# 切换到 backend 根目录（脚本从任意位置调用都能正常工作）
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT_DIR="$(dirname "$SCRIPT_DIR")"
+cd "$ROOT_DIR"
 
 BINARY="./target/release/rust-dns"
 LOG_FILE="./backend.log"
 HEALTH_URL="http://localhost:8080/health"
 HEALTH_TIMEOUT=30
 
-log() {
-    echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*"
-}
-
-# 1. Kill existing process
-EXISTING_PID=$(pgrep -f "target/release/rust-dns" 2>/dev/null || true)
-if [ -n "$EXISTING_PID" ]; then
-    log "Stopping existing process (PID: $EXISTING_PID)..."
-    kill "$EXISTING_PID"
-    sleep 1
-    # Force kill if still running
-    if kill -0 "$EXISTING_PID" 2>/dev/null; then
-        kill -9 "$EXISTING_PID" 2>/dev/null || true
-    fi
-    log "Process stopped."
+# 1. Kill 当前运行的 rust-dns 进程
+echo "[1/4] Stopping existing rust-dns processes..."
+if pgrep -f "target/release/rust-dns" > /dev/null 2>&1; then
+    pkill -f "target/release/rust-dns" || true
+    # 等待进程真正退出
+    for i in $(seq 1 10); do
+        pgrep -f "target/release/rust-dns" > /dev/null 2>&1 || break
+        sleep 0.5
+    done
+    echo "      Stopped."
 else
-    log "No running rust-dns process found."
+    echo "      No running process found."
 fi
 
-# 2. Build
-log "Building (cargo build --release)..."
-cargo build --release
+# 2. Build release binary
+echo "[2/4] Building release binary..."
+if ! cargo build --release 2>&1; then
+    echo "[ERROR] cargo build --release failed."
+    exit 1
+fi
+echo "      Build succeeded."
 
-log "Build complete."
-
-# 3. Start in background
-log "Starting rust-dns..."
+# 3. Start binary in background, append logs to backend.log
+echo "[3/4] Starting rust-dns..."
 nohup "$BINARY" >> "$LOG_FILE" 2>&1 &
 NEW_PID=$!
-log "Started (PID: $NEW_PID), logging to $LOG_FILE"
+echo "      PID: $NEW_PID"
 
-# 4. Wait for health check
-log "Waiting for service to become healthy (timeout: ${HEALTH_TIMEOUT}s)..."
-for i in $(seq 1 "$HEALTH_TIMEOUT"); do
-    if curl -sf "$HEALTH_URL" > /dev/null 2>&1; then
-        log "Service is healthy. Done."
+# 4. Health check (poll /health, max HEALTH_TIMEOUT seconds)
+echo "[4/4] Waiting for service to be healthy (max ${HEALTH_TIMEOUT}s)..."
+ELAPSED=0
+while [ "$ELAPSED" -lt "$HEALTH_TIMEOUT" ]; do
+    HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" "$HEALTH_URL" 2>/dev/null || true)
+    if [ "$HTTP_CODE" = "200" ]; then
+        echo ""
+        echo "Service is healthy. (${ELAPSED}s)"
+        echo "Log file: $LOG_FILE"
         exit 0
     fi
     sleep 1
+    ELAPSED=$((ELAPSED + 1))
+    printf "."
 done
 
-log "ERROR: Service did not become healthy within ${HEALTH_TIMEOUT}s. Check $LOG_FILE for details."
+echo ""
+echo "[ERROR] Service did not become healthy within ${HEALTH_TIMEOUT}s."
+echo "Check logs: tail -f $LOG_FILE"
 exit 1
