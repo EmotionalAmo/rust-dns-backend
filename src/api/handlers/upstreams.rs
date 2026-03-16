@@ -248,7 +248,7 @@ pub async fn create(
             (id, name, addresses, priority, is_active, health_check_enabled,
              failover_enabled, health_check_interval, health_check_timeout,
              failover_threshold, health_status, created_at, updated_at)
-         VALUES ($1, $2, $3, $4, 1, 1, 1, $5, $6, $7, 'unknown', $8, $9)",
+         VALUES ($1, $2, $3, $4, true, true, true, $5, $6, $7, 'unknown', $8, $9)",
     )
     .bind(&id)
     .bind(&name)

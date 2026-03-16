@@ -37,7 +37,7 @@ fn validate_role(role: &str) -> AppResult<()> {
 }
 
 pub async fn list(State(state): State<Arc<AppState>>, _admin: AdminUser) -> AppResult<Json<Value>> {
-    let rows: Vec<(String, String, String, i32, String, String)> = sqlx::query_as(
+    let rows: Vec<(String, String, String, bool, String, String)> = sqlx::query_as(
         "SELECT id, username, role, is_active, created_at, updated_at
          FROM users ORDER BY created_at DESC",
     )
@@ -51,7 +51,7 @@ pub async fn list(State(state): State<Arc<AppState>>, _admin: AdminUser) -> AppR
                 "id": id,
                 "username": username,
                 "role": role,
-                "is_active": is_active == 1,
+                "is_active": is_active,
                 "created_at": created_at,
                 "updated_at": updated_at,
             })
@@ -102,7 +102,7 @@ pub async fn create(
 
     sqlx::query(
         "INSERT INTO users (id, username, password, role, is_active, created_at, updated_at)
-         VALUES ($1, $2, $3, $4, 1, $5, $6)",
+         VALUES ($1, $2, $3, $4, true, $5, $6)",
     )
     .bind(&id)
     .bind(&username)
@@ -145,7 +145,7 @@ pub async fn update_role(
     validate_role(&body.role)?;
 
     // Check if user exists
-    let existing: Option<(String, String, String, i32, String, String)> = sqlx::query_as(
+    let existing: Option<(String, String, String, bool, String, String)> = sqlx::query_as(
         "SELECT id, username, role, is_active, created_at, updated_at
          FROM users WHERE id = $1",
     )
@@ -198,7 +198,7 @@ pub async fn update_role(
         "id": id,
         "username": username,
         "role": body.role,
-        "is_active": is_active == 1,
+        "is_active": is_active,
         "created_at": created_at,
         "updated_at": now,
     })))
