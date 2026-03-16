@@ -570,12 +570,15 @@ async fn test_group_rules_dns_rewrites() {
     .await
     .expect("Insert group rewrite binding");
 
+    // ── 5. Reload FilterEngine so it picks up the new rewrite ────────────────
+    state.filter.reload().await.expect("FilterEngine::reload");
+
     println!(
         "DEBUG IDs: client_id={} group_id={} rewrite_id={}",
         client_id, group_id, rewrite_id
     );
 
-    // ── 5. Query the rewritten domain from the group client IP ────────────────
+    // ── 6. Query the rewritten domain from the group client IP ────────────────
     let query_bytes = build_dns_query("router.local");
     let resp_bytes = state
         .dns_handler
@@ -583,7 +586,7 @@ async fn test_group_rules_dns_rewrites() {
         .await
         .expect("DNS handle should not return Err");
 
-    // ── 6. Verify: A Record matches rewrite (192.168.10.254) ──────────────────
+    // ── 7. Verify: A Record matches rewrite (192.168.10.254) ──────────────────
     let rcode = decode_rcode(&resp_bytes);
     assert_eq!(
         rcode,
