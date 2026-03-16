@@ -94,6 +94,7 @@ sleep 5
 # ── 6. 验证 ──────────────────────────────────────────────────────
 info "Step 6/6: Smoke test"
 
+# 先做 systemd 快速检查，失败立即回滚（不等 smoke-test）
 if ! sudo systemctl is-active --quiet "${SERVICE_NAME}"; then
     error "服务启动失败！执行回滚..."
     sudo cp "${BINARY}.prev" "${BINARY}" 2>/dev/null || true
@@ -104,19 +105,29 @@ fi
 
 info "服务状态: $(sudo systemctl is-active ${SERVICE_NAME})"
 
-# API 健康检查
-HTTP_CODE=$(curl -sf -o /dev/null -w "%{http_code}" http://localhost:8080/api/health 2>/dev/null || echo "000")
-if [[ "${HTTP_CODE}" == "200" ]]; then
-    info "健康检查 OK (HTTP ${HTTP_CODE})"
+# 调用完整 smoke-test（7 项检查）
+SMOKE_SCRIPT="${REPO_DIR}/scripts/smoke-test.sh"
+if [[ -f "${SMOKE_SCRIPT}" ]]; then
+    info "运行完整 smoke test..."
+    if bash "${SMOKE_SCRIPT}"; then
+        info "Smoke test 全部通过"
+    else
+        warn "Smoke test 存在失败项，请检查上方输出。服务已运行，但建议手动排查后再放行流量。"
+    fi
 else
-    warn "健康检查返回 HTTP ${HTTP_CODE}（如无 /api/health 接口可忽略）"
-fi
-
-# DNS 解析检查
-if dig @127.0.0.1 -p 53 cloudflare.com A +short +time=3 &>/dev/null; then
-    info "DNS 解析 OK"
-else
-    warn "DNS 解析检查失败，请手动确认"
+    warn "未找到 ${SMOKE_SCRIPT}，跳过完整 smoke test"
+    # 兜底：基础 HTTP + DNS 检查
+    HTTP_CODE=$(curl -sf -o /dev/null -w "%{http_code}" http://localhost:8080/api/health 2>/dev/null || echo "000")
+    if [[ "${HTTP_CODE}" == "200" ]]; then
+        info "健康检查 OK (HTTP ${HTTP_CODE})"
+    else
+        warn "健康检查返回 HTTP ${HTTP_CODE}（如无 /api/health 接口可忽略）"
+    fi
+    if dig @127.0.0.1 -p 53 cloudflare.com A +short +time=3 &>/dev/null; then
+        info "DNS 解析 OK"
+    else
+        warn "DNS 解析检查失败，请手动确认"
+    fi
 fi
 
 echo ""
