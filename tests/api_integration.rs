@@ -63,7 +63,7 @@ async fn setup_db() -> PgPool {
     let now_str = chrono::Utc::now().to_rfc3339();
     sqlx::query(
         "INSERT INTO users (id, username, password, role, is_active, created_at, updated_at)
-         VALUES ($1, 'admin', $2, 'super_admin', 1, $3, $3)
+         VALUES ($1, 'admin', $2, 'super_admin', true, $3, $3)
          ON CONFLICT (username) DO UPDATE SET password = EXCLUDED.password",
     )
     .bind(&id)

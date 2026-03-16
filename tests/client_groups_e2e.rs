@@ -46,7 +46,7 @@ async fn setup_db() -> PgPool {
     let now_str = chrono::Utc::now().to_rfc3339();
     sqlx::query(
         "INSERT INTO users (id, username, password, role, is_active, created_at, updated_at)
-         VALUES ($1, 'admin', $2, 'super_admin', 1, $3, $3)
+         VALUES ($1, 'admin', $2, 'super_admin', true, $3, $3)
          ON CONFLICT (username) DO UPDATE SET password = EXCLUDED.password",
     )
     .bind(&id)
@@ -191,7 +191,7 @@ async fn test_client_group_dns_blocking() {
     let client_id = uuid::Uuid::new_v4().to_string();
     sqlx::query(
         "INSERT INTO clients (id, name, identifiers, filter_enabled, created_at, updated_at)
-         VALUES ($1, 'E2E Group Client', '[\"192.168.100.1\"]', 1, NOW()::TEXT, NOW()::TEXT)",
+         VALUES ($1, 'E2E Group Client', '[\"192.168.100.1\"]', true, NOW()::TEXT, NOW()::TEXT)",
     )
     .bind(&client_id)
     .execute(db)
@@ -202,7 +202,7 @@ async fn test_client_group_dns_blocking() {
     let rule_id = uuid::Uuid::new_v4().to_string();
     sqlx::query(
         "INSERT INTO custom_rules (id, rule, comment, is_enabled, created_by, created_at)
-         VALUES ($1, '||rust-dns-group-blocked.invalid^', 'E2E group rule', 1, 'test', NOW()::TEXT)",
+         VALUES ($1, '||rust-dns-group-blocked.invalid^', 'E2E group rule', true, 'test', NOW()::TEXT)",
     )
     .bind(&rule_id)
     .execute(db)
@@ -281,7 +281,7 @@ async fn test_global_filter_blocks_non_group_clients() {
     let rule_id = uuid::Uuid::new_v4().to_string();
     sqlx::query(
         "INSERT INTO custom_rules (id, rule, comment, is_enabled, created_by, created_at)
-         VALUES ($1, '||rust-dns-global-blocked.invalid^', 'E2E global rule', 1, 'test', NOW()::TEXT)",
+         VALUES ($1, '||rust-dns-global-blocked.invalid^', 'E2E global rule', true, 'test', NOW()::TEXT)",
     )
     .bind(&rule_id)
     .execute(db)
@@ -335,7 +335,7 @@ async fn test_group_rules_layer_over_global_filter() {
     let global_rule_id = uuid::Uuid::new_v4().to_string();
     sqlx::query(
         "INSERT INTO custom_rules (id, rule, comment, is_enabled, created_by, created_at)
-         VALUES ($1, '||rust-dns-global-only.invalid^', 'Global-only rule', 1, 'test', NOW()::TEXT)",
+         VALUES ($1, '||rust-dns-global-only.invalid^', 'Global-only rule', true, 'test', NOW()::TEXT)",
     )
     .bind(&global_rule_id)
     .execute(db)
@@ -349,7 +349,7 @@ async fn test_group_rules_layer_over_global_filter() {
     let client_id = uuid::Uuid::new_v4().to_string();
     sqlx::query(
         "INSERT INTO clients (id, name, identifiers, filter_enabled, created_at, updated_at)
-         VALUES ($1, 'Layered Group Client', '[\"192.168.200.1\"]', 1, NOW()::TEXT, NOW()::TEXT)",
+         VALUES ($1, 'Layered Group Client', '[\"192.168.200.1\"]', true, NOW()::TEXT, NOW()::TEXT)",
     )
     .bind(&client_id)
     .execute(db)
@@ -359,7 +359,7 @@ async fn test_group_rules_layer_over_global_filter() {
     let group_rule_id = uuid::Uuid::new_v4().to_string();
     sqlx::query(
         "INSERT INTO custom_rules (id, rule, comment, is_enabled, created_by, created_at)
-         VALUES ($1, '||rust-dns-group-specific.invalid^', 'Group-specific rule', 1, 'test', NOW()::TEXT)",
+         VALUES ($1, '||rust-dns-group-specific.invalid^', 'Group-specific rule', true, 'test', NOW()::TEXT)",
     )
     .bind(&group_rule_id)
     .execute(db)
@@ -370,7 +370,7 @@ async fn test_group_rules_layer_over_global_filter() {
     let global_blocked_id = uuid::Uuid::new_v4().to_string();
     sqlx::query(
         "INSERT INTO custom_rules (id, rule, comment, is_enabled, created_by, created_at)
-         VALUES ($1, '||global-blocked-but-allowed.invalid^', 'Globally blocked', 1, 'test', NOW()::TEXT)",
+         VALUES ($1, '||global-blocked-but-allowed.invalid^', 'Globally blocked', true, 'test', NOW()::TEXT)",
     )
     .bind(&global_blocked_id)
     .execute(db)
@@ -380,7 +380,7 @@ async fn test_group_rules_layer_over_global_filter() {
     let group_allow_rule_id = uuid::Uuid::new_v4().to_string();
     sqlx::query(
         "INSERT INTO custom_rules (id, rule, comment, is_enabled, created_by, created_at)
-         VALUES ($1, '@@||global-blocked-but-allowed.invalid^', 'Group override allow', 1, 'test', NOW()::TEXT)",
+         VALUES ($1, '@@||global-blocked-but-allowed.invalid^', 'Group override allow', true, 'test', NOW()::TEXT)",
     )
     .bind(&group_allow_rule_id)
     .execute(db)
@@ -531,7 +531,7 @@ async fn test_group_rules_dns_rewrites() {
     let client_id = uuid::Uuid::new_v4().to_string();
     sqlx::query(
         "INSERT INTO clients (id, name, identifiers, filter_enabled, created_at, updated_at)
-         VALUES ($1, 'Rewrite Group Client', '[\"192.168.10.1\"]', 1, NOW()::TEXT, NOW()::TEXT)",
+         VALUES ($1, 'Rewrite Group Client', '[\"192.168.10.1\"]', true, NOW()::TEXT, NOW()::TEXT)",
     )
     .bind(&client_id)
     .execute(db)
