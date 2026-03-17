@@ -6,13 +6,14 @@
 /// when a batch of 100 entries accumulates, then writes them in a single SQLite
 /// transaction — dramatically reducing write amplification.
 use crate::db::DbPool;
+use chrono::{DateTime, Utc};
 use tokio::sync::mpsc;
 use tokio::time::{interval, Duration};
 
 /// A single query log entry to be persisted.
 #[derive(Debug, Clone)]
 pub struct QueryLogEntry {
-    pub time: String,
+    pub time: DateTime<Utc>,
     pub client_ip: String,
     pub question: String,
     pub qtype: String,
@@ -192,7 +193,7 @@ async fn write_batch(db: &DbPool, batch: &[QueryLogEntry]) -> Result<(), sqlx::E
         let mut query = sqlx::query(&sql);
         for entry in chunk {
             query = query
-                .bind(&entry.time)
+                .bind(entry.time)
                 .bind(&entry.client_ip)
                 .bind(&entry.question)
                 .bind(&entry.qtype)

@@ -643,12 +643,12 @@ impl DnsHandler {
         upstream_name: Option<String>,
         app_id: Option<i32>,
     ) {
-        let now = Utc::now().to_rfc3339();
+        let now = Utc::now();
 
         // Enqueue for batch write — non-blocking (bounded channel，满了静默丢弃)
         // Convert Cow to String only for DB storage (required by QueryLogEntry)
         let entry = QueryLogEntry {
-            time: now.clone(),
+            time: now,
             client_ip: client_ip.to_string(),
             question: domain.to_string(),
             qtype: qtype.to_string(),
