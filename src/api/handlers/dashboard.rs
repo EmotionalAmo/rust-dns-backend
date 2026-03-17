@@ -235,7 +235,7 @@ pub async fn get_query_trend(
     // Aggregate query_log by hour over the requested window
     let rows: Vec<(String, i64, i64, i64, i64)> = sqlx::query_as(
         "SELECT
-            TO_CHAR(time, 'YYYY-MM-DD\"T\"HH24:00:00Z') as hour,
+            TO_CHAR(date_trunc('hour', time), 'YYYY-MM-DD\"T\"HH24:00:00Z') as hour,
             COUNT(*) as total,
             SUM(CASE WHEN status = 'blocked' THEN 1 ELSE 0 END) as blocked,
             SUM(CASE WHEN status = 'allowed' THEN 1 ELSE 0 END) as allowed,
@@ -295,19 +295,23 @@ pub async fn get_upstream_trend(
         return Ok(Json(json!({"data": [], "total_upstreams": 0})));
     }
 
-    // Build IN clause placeholders
-    let placeholders = vec!["?"; top_upstreams.len()].join(",");
+    // Build IN clause placeholders with PostgreSQL-style $N numbering
+    // $1 is already used by time_filter, so upstreams start at $2
+    let placeholders = (2..=(top_upstreams.len() + 1))
+        .map(|n| format!("${}", n))
+        .collect::<Vec<_>>()
+        .join(", ");
 
     // Get hourly aggregates for top upstreams
     let query = format!(
         "SELECT
-            TO_CHAR(time, 'YYYY-MM-DD\"T\"HH24:00:00Z') as time,
+            TO_CHAR(date_trunc('hour', time), 'YYYY-MM-DD\"T\"HH24:00:00Z') as time,
             upstream,
             COUNT(*) as count
          FROM query_log
          WHERE time >= NOW() + $1::interval AND upstream IN ({})
          GROUP BY date_trunc('hour', time), upstream
-         ORDER BY time ASC",
+         ORDER BY date_trunc('hour', time) ASC",
         placeholders
     );
 
@@ -533,8 +537,8 @@ pub async fn get_upstream_health_history(
 
     let rows: Vec<(String, String, f64)> = sqlx::query_as(
         "SELECT u.name,
-                TO_CHAR(l.checked_at, 'YYYY-MM-DD\"T\"HH24:00:00Z') as bucket,
-                CAST(SUM(l.success) * 100.0 / COUNT(*) AS NUMERIC) as availability
+                TO_CHAR(date_trunc('hour', l.checked_at), 'YYYY-MM-DD\"T\"HH24:00:00Z') as bucket,
+                CAST(SUM(l.success) * 100.0 / COUNT(*) AS FLOAT8) as availability
          FROM upstream_latency_log l
          JOIN dns_upstreams u ON u.id = l.upstream_id
          WHERE l.checked_at >= NOW() + $1::interval

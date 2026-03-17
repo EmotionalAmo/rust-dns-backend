@@ -100,13 +100,13 @@ pub async fn app_trend(
 
     // 直接用预计算的 app_id 列过滤，无需 LIKE JOIN。
     let rows = sqlx::query(
-        "SELECT TO_CHAR(ql.time, 'YYYY-MM-DD\"T\"HH24:00:00Z') AS hour, \
+        "SELECT TO_CHAR(date_trunc('hour', ql.time), 'YYYY-MM-DD\"T\"HH24:00:00Z') AS hour, \
          COUNT(*) AS total_queries \
          FROM query_log ql \
          WHERE ql.app_id = $1 \
            AND ql.time >= NOW() - ($2 * INTERVAL '1 hour') \
-         GROUP BY hour \
-         ORDER BY hour",
+         GROUP BY date_trunc('hour', ql.time) \
+         ORDER BY date_trunc('hour', ql.time)",
     )
     .bind(app_id)
     .bind(hours)
@@ -205,12 +205,12 @@ pub async fn top_domains(
          WHERE time >= NOW() - ($1 * INTERVAL '1 hour') \
          GROUP BY question \
          HAVING ($2 = '') \
-             OR ($3 = 'blocked' AND blocked_queries > 0) \
-             OR ($4 = 'allowed' AND total_queries > blocked_queries) \
+             OR ($3 = 'blocked' AND SUM(CASE WHEN status = 'blocked' THEN 1 ELSE 0 END) > 0) \
+             OR ($4 = 'allowed' AND COUNT(*) > SUM(CASE WHEN status = 'blocked' THEN 1 ELSE 0 END)) \
          ORDER BY \
-             CASE WHEN $5 = 'allowed' THEN (total_queries - blocked_queries) \
-             WHEN $6 = 'blocked' THEN blocked_queries \
-             ELSE total_queries END DESC \
+             CASE WHEN $5 = 'allowed' THEN (COUNT(*) - SUM(CASE WHEN status = 'blocked' THEN 1 ELSE 0 END)) \
+             WHEN $6 = 'blocked' THEN SUM(CASE WHEN status = 'blocked' THEN 1 ELSE 0 END) \
+             ELSE COUNT(*) END DESC \
          LIMIT $7",
     )
     .bind(hours)
