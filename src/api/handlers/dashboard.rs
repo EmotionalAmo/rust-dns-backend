@@ -243,7 +243,7 @@ pub async fn get_query_trend(
          FROM query_log
          WHERE time >= NOW() - ($1 * INTERVAL '1 hour')
          GROUP BY date_trunc('hour', time)
-         ORDER BY time ASC",
+         ORDER BY date_trunc('hour', time) ASC",
     )
     .bind(hours)
     .fetch_all(&state.db)

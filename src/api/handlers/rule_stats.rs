@@ -152,7 +152,7 @@ pub async fn rule_hit_stats(
 
     // Step 1: 从 query_log 获取过去 N 小时内所有 blocked 域名的命中次数
     let blocked_rows: Vec<(String, i64, Option<String>)> = sqlx::query_as(
-        "SELECT question, COUNT(*) as cnt, MAX(time) as last_seen
+        "SELECT question, COUNT(*) as cnt, MAX(time)::text as last_seen
          FROM query_log
          WHERE status = 'blocked'
            AND time >= NOW() - ($1 * INTERVAL '1 hour')
@@ -270,7 +270,7 @@ pub async fn rule_hit_detail(
 
     // Step 3: 查询过去 N 小时内所有被 blocked 的域名及计数
     let blocked_rows: Vec<(String, i64, Option<String>)> = sqlx::query_as(
-        "SELECT question, COUNT(*) as cnt, MAX(time) as last_seen
+        "SELECT question, COUNT(*) as cnt, MAX(time)::text as last_seen
          FROM query_log
          WHERE status = 'blocked'
            AND time >= NOW() - ($1 * INTERVAL '1 hour')

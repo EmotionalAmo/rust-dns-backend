@@ -312,7 +312,7 @@ impl QueryBuilder {
         };
 
         let sql = pg_numbered(&format!(
-            "SELECT id, time, client_ip, client_name, question, qtype, answer, status, reason, upstream, elapsed_ns
+            "SELECT id, time::text as time, client_ip, client_name, question, qtype, answer, status, reason, upstream, elapsed_ns
              FROM query_log {where_clause} ORDER BY time DESC LIMIT ? OFFSET ?"
         ));
 

@@ -35,7 +35,7 @@ pub async fn top_apps(
          COUNT(*) AS total_queries, \
          COUNT(DISTINCT ql.client_ip) AS unique_clients, \
          SUM(CASE WHEN ql.status = 'blocked' THEN 1 ELSE 0 END) AS blocked_queries, \
-         MAX(ql.time) AS last_seen \
+         MAX(ql.time)::text AS last_seen \
          FROM query_log ql \
          JOIN app_catalog ac ON ql.app_id = ac.id \
          WHERE ql.time >= NOW() - ($1 * INTERVAL '1 hour') \
@@ -200,7 +200,7 @@ pub async fn top_domains(
          COUNT(*) AS total_queries, \
          COUNT(DISTINCT client_ip) AS unique_clients, \
          SUM(CASE WHEN status = 'blocked' THEN 1 ELSE 0 END) AS blocked_queries, \
-         MAX(time) AS last_seen \
+         MAX(time)::text AS last_seen \
          FROM query_log \
          WHERE time >= NOW() - ($1 * INTERVAL '1 hour') \
          GROUP BY question \

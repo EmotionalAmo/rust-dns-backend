@@ -134,7 +134,7 @@ pub async fn list(
     if let Some(cursor) = params.cursor {
         let fetch_limit = limit + 1;
         let data_sql = format!(
-            "SELECT id, time, client_ip, client_name, question, qtype, answer, status, reason, elapsed_ns, upstream_ns, upstream
+            "SELECT id, time::text as time, client_ip, client_name, question, qtype, answer, status, reason, elapsed_ns, upstream_ns, upstream
              FROM query_log {where_clause} ORDER BY id DESC LIMIT ${}",
             param_idx
         );
@@ -152,8 +152,8 @@ pub async fn list(
                     Option<String>,
                     String,
                     Option<String>,
-                    Option<i32>,
-                    Option<i32>,
+                    Option<i64>,
+                    Option<i64>,
                     Option<String>,
                 ),
             >(&data_sql);
@@ -235,7 +235,7 @@ pub async fn list(
 
     // offset 模式
     let data_sql = format!(
-        "SELECT id, time, client_ip, client_name, question, qtype, answer, status, reason, elapsed_ns, upstream_ns, upstream
+        "SELECT id, time::text as time, client_ip, client_name, question, qtype, answer, status, reason, elapsed_ns, upstream_ns, upstream
          FROM query_log {where_clause} ORDER BY time DESC LIMIT ${} OFFSET ${}",
         param_idx, param_idx + 1
     );
@@ -255,8 +255,8 @@ pub async fn list(
                 Option<String>,
                 String,
                 Option<String>,
-                Option<i32>,
-                Option<i32>,
+                Option<i64>,
+                Option<i64>,
                 Option<String>,
             ),
         >(&data_sql);
@@ -396,8 +396,18 @@ pub async fn export(
         .into_response();
     }
 
-    // Build field list for SQL query
-    let field_list = fields.join(", ");
+    // Build field list for SQL query; cast timestamptz to text for uniform output
+    let field_list = fields
+        .iter()
+        .map(|f| {
+            if f == "time" {
+                "time::text as time".to_string()
+            } else {
+                f.clone()
+            }
+        })
+        .collect::<Vec<_>>()
+        .join(", ");
 
     // Build WHERE clause if filters provided (advanced export)
     let (where_clause, where_bindings) = if let Some(ref filters_json) = params.filters_json {
