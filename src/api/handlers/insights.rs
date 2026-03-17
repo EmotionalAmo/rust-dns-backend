@@ -145,8 +145,8 @@ pub async fn list_catalog(
     let rows = sqlx::query(
         "SELECT id, app_name, category, icon, vendor, homepage \
          FROM app_catalog \
-         WHERE (? = '' OR app_name LIKE '%' || ? || '%') \
-           AND (? = '' OR category = ?) \
+         WHERE ($1 = '' OR app_name LIKE '%' || $2 || '%') \
+           AND ($3 = '' OR category = $4) \
          ORDER BY category, app_name",
     )
     .bind(&q)

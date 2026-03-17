@@ -80,8 +80,9 @@ struct UpstreamRow {
 pub async fn list(State(state): State<Arc<AppState>>, _auth: AuthUser) -> AppResult<Json<Value>> {
     let rows: Vec<UpstreamRow> = sqlx::query_as(
         "SELECT u.id, u.name, u.addresses, CAST(u.priority AS INTEGER) as priority,
-                u.is_active::bigint as is_active, u.health_check_enabled::bigint as health_check_enabled,
-                u.failover_enabled::bigint as failover_enabled,
+                CASE WHEN u.is_active THEN 1 ELSE 0 END as is_active,
+                CASE WHEN u.health_check_enabled THEN 1 ELSE 0 END as health_check_enabled,
+                CASE WHEN u.failover_enabled THEN 1 ELSE 0 END as failover_enabled,
                 u.health_check_interval, u.health_check_timeout, u.failover_threshold,
                 u.health_status,
                 u.last_health_check_at::text as last_health_check_at,
@@ -96,7 +97,7 @@ pub async fn list(State(state): State<Arc<AppState>>, _auth: AuthUser) -> AppRes
                 (SELECT CAST(AVG(latency_ms) AS BIGINT) FROM upstream_latency_log
                  WHERE upstream_id = u.id AND success = 1
                    AND checked_at >= NOW() - INTERVAL '60 minutes') AS avg_60m_ms
-         FROM dns_upstreams u ORDER BY u.priority ASC, u.name ASC"
+         FROM dns_upstreams u ORDER BY u.priority ASC, u.name ASC",
     )
     .fetch_all(&state.db)
     .await?;
@@ -163,8 +164,9 @@ pub async fn get(
 ) -> AppResult<Json<Value>> {
     let row: Option<UpstreamDetailRow> = sqlx::query_as(
         "SELECT id, name, addresses, CAST(priority AS INTEGER) as priority,
-                is_active::bigint as is_active, health_check_enabled::bigint as health_check_enabled,
-                failover_enabled::bigint as failover_enabled,
+                CASE WHEN is_active THEN 1 ELSE 0 END as is_active,
+                CASE WHEN health_check_enabled THEN 1 ELSE 0 END as health_check_enabled,
+                CASE WHEN failover_enabled THEN 1 ELSE 0 END as failover_enabled,
                 health_check_interval, health_check_timeout, failover_threshold,
                 health_status,
                 last_health_check_at::text as last_health_check_at,
@@ -310,8 +312,9 @@ pub async fn update(
     // Check if upstream exists
     let existing: Option<UpstreamDetailRow> = sqlx::query_as(
         "SELECT id, name, addresses, CAST(priority AS INTEGER) as priority,
-                is_active::bigint as is_active, health_check_enabled::bigint as health_check_enabled,
-                failover_enabled::bigint as failover_enabled,
+                CASE WHEN is_active THEN 1 ELSE 0 END as is_active,
+                CASE WHEN health_check_enabled THEN 1 ELSE 0 END as health_check_enabled,
+                CASE WHEN failover_enabled THEN 1 ELSE 0 END as failover_enabled,
                 health_check_interval, health_check_timeout, failover_threshold,
                 health_status,
                 last_health_check_at::text as last_health_check_at,
