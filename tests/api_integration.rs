@@ -572,12 +572,12 @@ async fn test_query_log_with_status_filter() {
         .await;
 
     // 插入测试日志数据
-    let now = chrono::Utc::now().to_rfc3339();
+    let now = chrono::Utc::now();
     sqlx::query(
         "INSERT INTO query_log (time, client_ip, question, qtype, status, elapsed_ns)
          VALUES ($1, '192.168.1.1', 'blocked.example.com', 'A', 'blocked', 1000000)",
     )
-    .bind(&now)
+    .bind(now)
     .execute(&state.db)
     .await
     .expect("Failed to insert test log");
@@ -586,7 +586,7 @@ async fn test_query_log_with_status_filter() {
         "INSERT INTO query_log (time, client_ip, question, qtype, status, elapsed_ns)
          VALUES ($1, '192.168.1.1', 'allowed.example.com', 'A', 'allowed', 5000000)",
     )
-    .bind(&now)
+    .bind(now)
     .execute(&state.db)
     .await
     .expect("Failed to insert test log");
@@ -624,13 +624,13 @@ async fn test_query_log_pagination_limit() {
         .await;
 
     // 插入 5 条日志
-    let now = chrono::Utc::now().to_rfc3339();
+    let now = chrono::Utc::now();
     for i in 0..5 {
         sqlx::query(
             "INSERT INTO query_log (time, client_ip, question, qtype, status, elapsed_ns)
              VALUES ($1, '10.0.0.1', $2, 'A', 'allowed', 1000000)",
         )
-        .bind(&now)
+        .bind(now)
         .bind(format!("domain{}.com", i))
         .execute(&state.db)
         .await
