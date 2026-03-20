@@ -83,7 +83,7 @@ pub async fn list(State(state): State<Arc<AppState>>, _auth: AuthUser) -> AppRes
         SELECT
             ql.client_ip,
             COUNT(*) as query_count,
-            MAX(ql.time) as last_seen
+            MAX(ql.time)::TEXT as last_seen
         FROM query_log ql
         WHERE NOT EXISTS (
             SELECT 1 FROM clients c
