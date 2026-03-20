@@ -20,7 +20,7 @@ pub struct CreateFilterRequest {
     #[serde(default = "default_enabled")]
     pub is_enabled: bool,
     #[serde(default)]
-    pub update_interval_hours: i64,
+    pub update_interval_hours: i32,
 }
 
 fn default_enabled() -> bool {
@@ -32,7 +32,7 @@ pub struct UpdateFilterRequest {
     pub name: Option<String>,
     pub url: Option<String>,
     pub is_enabled: Option<bool>,
-    pub update_interval_hours: Option<i64>,
+    pub update_interval_hours: Option<i32>,
 }
 
 type FilterRow = (
@@ -40,10 +40,10 @@ type FilterRow = (
     String,
     Option<String>,
     bool,
-    i64,
+    i32,
     Option<String>,
     String,
-    i64,
+    i32,
 );
 
 pub async fn list(State(state): State<Arc<AppState>>, _auth: AuthUser) -> AppResult<Json<Value>> {

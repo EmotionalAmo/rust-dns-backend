@@ -148,7 +148,7 @@ pub async fn serve(
                         let rows: Vec<(String, String, i64, i64, Option<String>)> = match sqlx::query_as(
                             "SELECT id, addresses, health_check_interval, health_check_timeout,
                                     last_health_check_at::text
-                             FROM dns_upstreams WHERE is_active = true AND health_check_enabled = true"
+                             FROM dns_upstreams WHERE is_active AND health_check_enabled"
                         ).fetch_all(&db).await {
                             Ok(r) => r,
                             Err(e) => { tracing::warn!("Upstream health check DB error: {}", e); continue; }
@@ -196,8 +196,8 @@ pub async fn serve(
                             // Inject latency into the running DNS handler for the Fastest strategy
                             dns_handler.update_upstream_latency(&id, latency_ms).await;
 
-                            let _ = sqlx::query(
-                                "INSERT INTO upstream_latency_log (upstream_id, latency_ms, success, checked_at) VALUES ($1, $2, $3, $4)"
+                            let insert_res = sqlx::query(
+                                "INSERT INTO upstream_latency_log (upstream_id, latency_ms, success, checked_at) VALUES ($1, $2, $3, $4::timestamptz)"
                             )
                             .bind(&id)
                             .bind(latency_ms)
@@ -206,8 +206,12 @@ pub async fn serve(
                             .execute(&db)
                             .await;
 
-                            let _ = sqlx::query(
-                                "UPDATE dns_upstreams SET health_status = $1, last_health_check_at = $2, updated_at = $3 WHERE id = $4"
+                            if let Err(e) = insert_res {
+                                tracing::error!("Failed to insert latency log: {}", e);
+                            }
+
+                            let update_res = sqlx::query(
+                                "UPDATE dns_upstreams SET health_status = $1, last_health_check_at = $2::timestamptz, updated_at = $3::timestamptz WHERE id = $4"
                             )
                             .bind(new_status)
                             .bind(&now)
@@ -215,6 +219,10 @@ pub async fn serve(
                             .bind(&id)
                             .execute(&db)
                             .await;
+
+                            if let Err(e) = update_res {
+                                tracing::error!("Failed to update upstream status: {}", e);
+                            }
 
                             tracing::debug!(
                                 "Upstream health check {}: {} ({}ms)",

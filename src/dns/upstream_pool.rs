@@ -216,6 +216,12 @@ impl UpstreamPool {
                 test_req.set_op_code(OpCode::Query);
                 test_req.set_recursion_desired(true);
 
+                let test_query = hickory_proto::op::Query::query(
+                    hickory_proto::rr::Name::from_utf8("example.com.").unwrap(),
+                    RecordType::A,
+                );
+                test_req.add_query(test_query);
+
                 let timeout_ms = if node.model.health_check_timeout > 0 {
                     node.model.health_check_timeout as u64
                 } else {

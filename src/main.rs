@@ -71,7 +71,7 @@ async fn run_filter_refresh_task(
             _ = ticker.tick() => {
                 tracing::info!("Auto-refresh: checking filter lists...");
 
-                let lists: Vec<(String, String, Option<i64>, Option<String>)> =
+                let lists: Vec<(String, String, Option<i32>, Option<String>)> =
                     match sqlx::query_as(
                         "SELECT id, url, update_interval_hours, last_updated
                      FROM filter_lists WHERE is_enabled = true AND url != '' AND url IS NOT NULL",
@@ -98,7 +98,7 @@ async fn run_filter_refresh_task(
                         .map(|last| {
                             let elapsed =
                                 Utc::now().signed_duration_since(last.with_timezone(&Utc));
-                            elapsed.num_hours() >= interval_h
+                            elapsed.num_hours() >= interval_h as i64
                         })
                         .unwrap_or(true);
 

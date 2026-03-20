@@ -314,7 +314,7 @@ pub async fn sync_filter_list(pool: &DbPool, filter_id: &str, url: &str) -> Resu
             .map(|(row_idx, _)| {
                 let base = row_idx * FIELDS_PER_ROW;
                 format!(
-                    "(${}, ${}, NULL, 1, ${}, ${})",
+                    "(${}, ${}, NULL, true, ${}, ${})",
                     base + 1,
                     base + 2,
                     base + 3,
